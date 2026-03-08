@@ -4,6 +4,7 @@ import {
     BarChart2,
     Home,
     Settings,
+    ArrowLeft,
     Thermometer,
     Droplets,
     LogOut,
@@ -17,21 +18,18 @@ import {
     type ChartConfig,
 } from '@/components/ui/chart';
 import { ArcGauge } from '@/components/scada/arc-gauge';
+import { SensorCard } from '@/components/scada/sensor-card';
 import {
-    fmt,
     statusDotColor,
-    statusBadgeClasses,
     type RoomData,
     type ChartPoint,
-    type GlobalStats,
 } from '@/components/scada/scada-helpers';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-interface DashboardProps {
-    rooms: RoomData[];
-    chartLogs?: Record<number, ChartPoint[]>;
-    globalStats: GlobalStats;
+interface RoomShowProps {
+    room: RoomData;
+    chartLogs: ChartPoint[];
 }
 
 // ─── Chart Configs ────────────────────────────────────────────────────────────
@@ -50,114 +48,10 @@ const humChartConfig = {
     },
 } satisfies ChartConfig;
 
-// ─── Room Card ───────────────────────────────────────────────────────────────
-
-function RoomCard({
-    room,
-    className = '',
-}: {
-    room: RoomData;
-    className?: string;
-}) {
-    const isOnline = room.status !== 'OFFLINE';
-    const onlineCount = room.sensors.filter(
-        (s) => s.status !== 'OFFLINE',
-    ).length;
-    const totalCount = room.sensors.length;
-
-    return (
-        <Link
-            href={`/rooms/${room.id}`}
-            className={`group flex flex-col justify-center gap-1 rounded-xl border border-slate-700/60 bg-slate-800/60 p-3 backdrop-blur-sm transition-all hover:border-cyan-500/40 hover:bg-slate-800/80 ${className}`}
-        >
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                    <svg width="10" height="10" viewBox="0 0 10 10">
-                        <circle
-                            cx="5"
-                            cy="5"
-                            r="4"
-                            fill={statusDotColor(room.status)}
-                            style={{
-                                filter:
-                                    room.status !== 'OFFLINE'
-                                        ? `drop-shadow(0 0 3px ${statusDotColor(room.status)})`
-                                        : 'none',
-                            }}
-                        />
-                    </svg>
-                    <span className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
-                        {room.name}
-                    </span>
-                </div>
-                <span
-                    className={`rounded-md border px-1.5 py-0.5 text-[9px] font-bold tracking-wider ${statusBadgeClasses(room.status)}`}
-                >
-                    {room.status}
-                </span>
-            </div>
-
-            {room.location && (
-                <span className="text-[10px] text-slate-500">
-                    {room.location}
-                </span>
-            )}
-
-            <div className="mt-1 flex items-end gap-0">
-                <div className="flex flex-1 flex-col items-center">
-                    <div className="flex items-end gap-0.5">
-                        <span
-                            className={`text-4xl leading-none font-bold ${isOnline ? 'text-white' : 'text-slate-600'}`}
-                        >
-                            {fmt(room.room_avg_temp)}
-                        </span>
-                        <span className="mb-1 text-xs text-slate-400">°C</span>
-                    </div>
-                    <span className="mt-0.5 text-[10px] font-medium tracking-widest text-slate-500 uppercase">
-                        AVG TEMP
-                    </span>
-                </div>
-
-                <div className="mx-1 h-10 w-px bg-slate-600/80" />
-
-                <div className="flex flex-1 flex-col items-center">
-                    <div className="flex items-end gap-0.5">
-                        <span
-                            className={`text-4xl leading-none font-bold ${isOnline ? 'text-white' : 'text-slate-600'}`}
-                        >
-                            {fmt(room.room_avg_hum)}
-                        </span>
-                        <span className="mb-1 text-xs text-slate-400">%</span>
-                    </div>
-                    <span className="mt-0.5 text-[10px] font-medium tracking-widest text-slate-500 uppercase">
-                        AVG RH
-                    </span>
-                </div>
-            </div>
-
-            <div className="mt-1 flex items-center justify-between">
-                <span className="text-[10px] text-slate-500">
-                    {onlineCount}/{totalCount} sensor online
-                </span>
-                <span className="text-[10px] text-cyan-400 opacity-0 transition-opacity group-hover:opacity-100">
-                    Detail →
-                </span>
-            </div>
-        </Link>
-    );
-}
-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-export default function Dashboard({
-    rooms,
-    chartLogs = {},
-    globalStats,
-}: DashboardProps) {
+export default function RoomShow({ room, chartLogs }: RoomShowProps) {
     const [now, setNow] = useState(new Date());
-    const [activeTab, setActiveTab] = useState<
-        'home' | 'chart' | 'floor' | 'table' | 'alarm' | 'settings'
-    >('home');
 
     useEffect(() => {
         const timer = setInterval(() => setNow(new Date()), 60_000);
@@ -166,7 +60,7 @@ export default function Dashboard({
 
     useEffect(() => {
         const timer = setInterval(() => {
-            router.reload({ only: ['rooms', 'globalStats', 'chartLogs'] });
+            router.reload({ only: ['room', 'chartLogs'] });
         }, 30_000);
         return () => clearInterval(timer);
     }, []);
@@ -184,31 +78,21 @@ export default function Dashboard({
         })
         .toUpperCase();
 
-    const colMiddleRooms = rooms.slice(0, 3);
-    const colRightRooms = rooms.slice(3, 5);
+    const sensors = room.sensors ?? [];
+    const colMiddleSensors = sensors.slice(0, 3);
+    const colRightSensors = sensors.slice(3, 5);
 
-    // Use first room's chart data for display (or merge all)
-    const firstRoom = rooms[0] ?? null;
-    const chartData = firstRoom ? (chartLogs[firstRoom.id] ?? []) : [];
-
-    const hasAlarms = globalStats.active_alarms > 0;
-
-    const alarmRoomNames = rooms
-        .filter((r) => r.status === 'WARNING' || r.status === 'CRITICAL')
-        .map((r) => r.name)
+    const hasAlarms = sensors.some(
+        (s) => s.status === 'WARNING' || s.status === 'CRITICAL',
+    );
+    const alarmSensorNames = sensors
+        .filter((s) => s.status === 'WARNING' || s.status === 'CRITICAL')
+        .map((s) => s.name)
         .join(', ');
-
-    const lastUpdate = globalStats.last_update
-        ? new Date(globalStats.last_update).toLocaleTimeString('id-ID', {
-              hour: '2-digit',
-              minute: '2-digit',
-              hour12: false,
-          })
-        : '--:--';
 
     return (
         <>
-            <Head title="SCADA Monitoring" />
+            <Head title={`${room.name} — SCADA Monitoring`} />
 
             <div className="flex h-screen flex-col overflow-hidden bg-[#151b1f] font-sans text-white">
                 {/* ── HEADER ──────────────────────────────────────── */}
@@ -233,13 +117,19 @@ export default function Dashboard({
 
                     <div className="flex items-center px-5 pb-2">
                         <div className="flex w-48 shrink-0 items-center gap-2">
+                            <Link
+                                href="/dashboard"
+                                className="flex items-center gap-1.5 rounded-lg p-1 transition-colors hover:bg-slate-700/60"
+                            >
+                                <ArrowLeft className="h-4 w-4 text-slate-400" />
+                            </Link>
                             <Thermometer className="h-5 w-5 text-cyan-400" />
                             <div>
                                 <p className="text-sm font-bold tracking-wider text-white uppercase">
-                                    OVERVIEW
+                                    {room.name}
                                 </p>
                                 <p className="text-[10px] text-slate-400">
-                                    {rooms.length} Ruangan
+                                    {room.location ?? ''}
                                 </p>
                             </div>
                         </div>
@@ -279,7 +169,7 @@ export default function Dashboard({
                                 </span>
                             </div>
                             <ArcGauge
-                                value={globalStats.avg_temp}
+                                value={room.room_avg_temp}
                                 min={0}
                                 max={40}
                                 unit="°C"
@@ -295,7 +185,7 @@ export default function Dashboard({
                                 </span>
                             </div>
                             <ArcGauge
-                                value={globalStats.avg_hum}
+                                value={room.room_avg_hum}
                                 min={0}
                                 max={100}
                                 unit="%"
@@ -304,13 +194,13 @@ export default function Dashboard({
                         </div>
                     </div>
 
-                    {/* ── MIDDLE COLUMN: room cards 1-3 ── */}
+                    {/* ── MIDDLE COLUMN: sensor cards 1-3 ── */}
                     <div className="flex h-full w-56 shrink-0 flex-col gap-3">
-                        {colMiddleRooms.length > 0
-                            ? colMiddleRooms.map((room) => (
-                                  <RoomCard
-                                      key={room.id}
-                                      room={room}
+                        {colMiddleSensors.length > 0
+                            ? colMiddleSensors.map((sensor) => (
+                                  <SensorCard
+                                      key={sensor.id}
+                                      sensor={sensor}
                                       className="flex-1"
                                   />
                               ))
@@ -324,11 +214,11 @@ export default function Dashboard({
 
                     {/* ── RIGHT AREA ── */}
                     <div className="flex flex-1 flex-col gap-3 overflow-hidden">
-                        {colRightRooms.length > 0 && (
+                        {colRightSensors.length > 0 && (
                             <div className="flex shrink-0 gap-3">
-                                {colRightRooms.map((room) => (
-                                    <div key={room.id} className="flex-1">
-                                        <RoomCard room={room} />
+                                {colRightSensors.map((sensor) => (
+                                    <div key={sensor.id} className="flex-1">
+                                        <SensorCard sensor={sensor} />
                                     </div>
                                 ))}
                             </div>
@@ -343,13 +233,13 @@ export default function Dashboard({
                                     </span>
                                 </div>
                                 <div className="min-h-0 flex-1">
-                                    {chartData.length > 0 ? (
+                                    {chartLogs.length > 0 ? (
                                         <ChartContainer
                                             config={tempChartConfig}
                                             className="h-full w-full"
                                         >
                                             <LineChart
-                                                data={chartData}
+                                                data={chartLogs}
                                                 margin={{
                                                     top: 4,
                                                     right: 8,
@@ -422,13 +312,13 @@ export default function Dashboard({
                                     </span>
                                 </div>
                                 <div className="min-h-0 flex-1">
-                                    {chartData.length > 0 ? (
+                                    {chartLogs.length > 0 ? (
                                         <ChartContainer
                                             config={humChartConfig}
                                             className="h-full w-full"
                                         >
                                             <LineChart
-                                                data={chartData}
+                                                data={chartLogs}
                                                 margin={{
                                                     top: 4,
                                                     right: 8,
@@ -506,18 +396,26 @@ export default function Dashboard({
                             <span
                                 className={`text-xs font-semibold ${hasAlarms ? 'text-red-400' : 'text-slate-500'}`}
                             >
-                                ALARM AKTIF : {hasAlarms ? alarmRoomNames : '—'}
+                                ALARM AKTIF :{' '}
+                                {hasAlarms ? alarmSensorNames : '—'}
                             </span>
                         </div>
                         <span className="text-[10px] text-slate-500">
-                            LAST UPDATE : {lastUpdate} | {dateStr}
+                            LAST UPDATE : {timeStr} | {dateStr}
                         </span>
                     </div>
 
                     <div className="flex flex-1 items-center justify-center gap-3">
+                        <Link
+                            href="/dashboard"
+                            className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-700/60 text-slate-400 transition-colors hover:bg-slate-600/60 hover:text-white"
+                            title="Back to Overview"
+                        >
+                            <Home className="h-5 w-5" />
+                        </Link>
+
                         {(
                             [
-                                { key: 'home', Icon: Home, label: 'Home' },
                                 {
                                     key: 'chart',
                                     Icon: BarChart2,
@@ -535,12 +433,7 @@ export default function Dashboard({
                                 key={key}
                                 type="button"
                                 title={label}
-                                onClick={() => setActiveTab(key)}
-                                className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${
-                                    activeTab === key
-                                        ? 'bg-cyan-500 text-white shadow-[0_0_10px_#22d3ee80]'
-                                        : 'bg-slate-700/60 text-slate-400 hover:bg-slate-600/60 hover:text-white'
-                                }`}
+                                className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-700/60 text-slate-400 transition-colors hover:bg-slate-600/60 hover:text-white"
                             >
                                 <Icon className="h-5 w-5" />
                             </button>
@@ -559,9 +452,9 @@ export default function Dashboard({
                     </div>
 
                     <div className="flex w-56 shrink-0 items-center justify-end gap-2">
-                        {rooms.map((room, i) => (
+                        {sensors.map((sensor, i) => (
                             <div
-                                key={room.id}
+                                key={sensor.id}
                                 className="flex flex-col items-center gap-0.5"
                             >
                                 <svg width="12" height="12" viewBox="0 0 12 12">
@@ -569,17 +462,17 @@ export default function Dashboard({
                                         cx="6"
                                         cy="6"
                                         r="5"
-                                        fill={statusDotColor(room.status)}
+                                        fill={statusDotColor(sensor.status)}
                                         style={{
                                             filter:
-                                                room.status !== 'OFFLINE'
-                                                    ? `drop-shadow(0 0 3px ${statusDotColor(room.status)})`
+                                                sensor.status !== 'OFFLINE'
+                                                    ? `drop-shadow(0 0 3px ${statusDotColor(sensor.status)})`
                                                     : 'none',
                                         }}
                                     />
                                 </svg>
                                 <span className="text-[9px] text-slate-500">
-                                    R{i + 1}
+                                    {i + 1}
                                 </span>
                             </div>
                         ))}

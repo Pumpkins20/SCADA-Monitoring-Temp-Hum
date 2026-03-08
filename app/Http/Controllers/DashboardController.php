@@ -90,6 +90,66 @@ class DashboardController extends Controller
     /**
      * @param  \Illuminate\Support\Collection<int, \App\Models\Sensor>  $sensors
      */
+    public function show(Room $room): Response
+    {
+        $room->load([
+            'hmis.sensors' => fn ($q) => $q->select(['id', 'hmi_id', 'name']),
+            'hmis.sensors.latestData' => fn ($q) => $q->select(['id', 'sensor_id', 'temperature', 'humidity', 'status', 'last_read_at']),
+        ]);
+
+        $sensors = $room->hmis->flatMap->sensors;
+        $online = $sensors->filter(fn ($s) => $s->latestData?->status !== 'OFFLINE');
+
+        $chartLogs = \App\Models\SensorLog::query()
+            ->where('room_id', $room->id)
+            ->orderBy('created_at', 'desc')
+            ->take(20)
+            ->get()
+            ->reverse()
+            ->map(fn ($log) => [
+                'time' => $log->created_at->format('H:i'),
+                'avg_temperature' => round((float) $log->avg_temperature, 1),
+                'avg_humidity' => round((float) $log->avg_humidity, 1),
+            ])
+            ->values()
+            ->all();
+
+        $roomPayload = [
+            'id' => $room->id,
+            'name' => $room->name,
+            'location' => $room->location,
+            'temp_max_limit' => $room->temp_max_limit,
+            'hum_max_limit' => $room->hum_max_limit,
+            'room_avg_temp' => $online->isNotEmpty()
+                ? round((float) $online->avg(fn ($s) => $s->latestData->temperature), 1)
+                : null,
+            'room_avg_hum' => $online->isNotEmpty()
+                ? round((float) $online->avg(fn ($s) => $s->latestData->humidity), 1)
+                : null,
+            'status' => $this->resolveRoomStatus($sensors),
+            'sensors' => $sensors->map(fn ($s) => [
+                'id' => $s->id,
+                'name' => $s->name,
+                'temperature' => $s->latestData?->temperature !== null
+                    ? (float) $s->latestData->temperature
+                    : null,
+                'humidity' => $s->latestData?->humidity !== null
+                    ? (float) $s->latestData->humidity
+                    : null,
+                'status' => $s->latestData?->status ?? 'OFFLINE',
+                'last_read_at' => $s->latestData?->last_read_at?->format('Y-m-d H:i:s'),
+            ])->values()->all(),
+        ];
+
+        return Inertia::render('rooms/show', [
+            'room' => $roomPayload,
+            'chartLogs' => $chartLogs,
+        ]);
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, \App\Models\Sensor>  $sensors
+     */
     private function resolveRoomStatus(Collection|\Illuminate\Support\Collection $sensors): string
     {
         $statuses = $sensors->pluck('latestData.status')->filter()->unique();
