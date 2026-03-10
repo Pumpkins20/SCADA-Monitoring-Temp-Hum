@@ -166,13 +166,13 @@ test('eager loading hmis sensors and latest data avoids extra queries', function
 
 // ─── DatabaseSeeder ───────────────────────────────────────────────────────────
 
-test('database seeder creates 5 rooms with 25 sensors and latest data', function () {
+test('database seeder creates 1 room with 5 sensors and latest data', function () {
     $this->seed();
 
-    expect(Room::count())->toBe(5);
-    expect(Hmi::count())->toBe(5);
-    expect(Sensor::count())->toBe(25);
-    expect(SensorLatestData::count())->toBe(25);
+    expect(Room::count())->toBe(1);
+    expect(Hmi::count())->toBe(1);
+    expect(Sensor::count())->toBe(5);
+    expect(SensorLatestData::count())->toBe(5);
 });
 
 test('database seeder produces mixed sensor statuses', function () {

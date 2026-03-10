@@ -28,24 +28,15 @@ class DatabaseSeeder extends Seeder
         ]);
 
         // ─── Real hardware configuration ──────────────────────────────────────
-        // IP: 192.168.1.200-204 · Port: 502 (Modbus TCP)
+        // Test device: 1 HMI · IP: 192.168.1.113 · Port: 502 (Modbus TCP)
         // Function: Input Register (FC4) · Humidity=0 · Temperature=1
         // Slave ID per sensor: 1-5 (unit_id)
         $rooms = [
-            ['name' => 'RUANG 1', 'location' => null, 'ip' => '192.168.1.200'],
-            ['name' => 'RUANG 2', 'location' => null, 'ip' => '192.168.1.201'],
-            ['name' => 'RUANG 3', 'location' => null, 'ip' => '192.168.1.202'],
-            ['name' => 'RUANG 4', 'location' => null, 'ip' => '192.168.1.203'],
-            ['name' => 'RUANG 5', 'location' => null, 'ip' => '192.168.1.204'],
+            ['name' => 'RUANG TEST', 'location' => null, 'ip' => '192.168.1.252'],
         ];
 
-        // Status pool: 15 NORMAL, 5 WARNING, 3 CRITICAL, 2 OFFLINE (total 25)
-        $statusPool = array_merge(
-            array_fill(0, 15, 'NORMAL'),
-            array_fill(0, 5, 'WARNING'),
-            array_fill(0, 3, 'CRITICAL'),
-            array_fill(0, 2, 'OFFLINE'),
-        );
+        // Status pool: 2 NORMAL, 1 WARNING, 1 CRITICAL, 1 OFFLINE (total 5)
+        $statusPool = ['NORMAL', 'NORMAL', 'WARNING', 'CRITICAL', 'OFFLINE'];
         shuffle($statusPool);
         $statusIndex = 0;
 
@@ -57,7 +48,7 @@ class DatabaseSeeder extends Seeder
 
             $hmi = Hmi::factory()->create([
                 'room_id' => $room->id,
-                'name' => "HMI-0{$index}",
+                'name' => 'HMI-01',
                 'ip_address' => $roomData['ip'],
                 'port' => 502,
             ]);

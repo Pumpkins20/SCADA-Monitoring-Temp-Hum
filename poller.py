@@ -99,15 +99,16 @@ def load_hmis(cursor) -> list[dict]:
     placeholders = ", ".join(["%s"] * len(hmis))
     cursor.execute(
         f"""
-        SELECT id, hmi_id, modbus_address_temp, modbus_address_hum, unit_id
+        SELECT id, hmi_id, name, modbus_address_temp, modbus_address_hum, unit_id
         FROM sensors
         WHERE hmi_id IN ({placeholders})
         """,
         list(hmis.keys()),
     )
-    for sensor_id, hmi_id, addr_temp, addr_hum, unit_id in cursor.fetchall():
+    for sensor_id, hmi_id, sensor_name, addr_temp, addr_hum, unit_id in cursor.fetchall():
         hmis[hmi_id]["sensors"].append({
             "sensor_id": sensor_id,
+            "name":      sensor_name,
             "addr_temp":  addr_temp,
             "addr_hum":   addr_hum,
             "unit_id":    unit_id,
@@ -156,7 +157,7 @@ def mark_hmi_offline(cursor, hmi_id: int, now: datetime) -> None:
 # ─── Modbus Polling ───────────────────────────────────────────────────────────
 
 def read_register(client: ModbusTcpClient, address: int, unit_id: int) -> float:
-    result = client.read_input_registers(address=address, count=1, slave=unit_id)
+    result = client.read_input_registers(address=address, count=1, device_id=unit_id)
     if result.isError():
         raise ModbusException(f"Slave {unit_id} register {address} returned error response")
     return result.registers[0] / REGISTER_SCALE
@@ -175,25 +176,48 @@ def poll_hmi(hmi: dict, cursor, now: datetime) -> None:
                 f"Cannot connect to {hmi['ip_address']}:{hmi['port']}"
             )
 
-        rows = []
+        ok_rows     = []
+        offline_ids = []
+
         for sensor in hmi["sensors"]:
             unit_id = sensor["unit_id"]
-            temp    = read_register(client, sensor["addr_temp"], unit_id)
-            hum     = read_register(client, sensor["addr_hum"],  unit_id)
-            status  = compute_status(temp, hum, hmi["temp_max_limit"], hmi["hum_max_limit"])
-            rows.append((
-                sensor["sensor_id"],
-                round(temp, 2),
-                round(hum, 2),
-                status,
-                now,
-                now,
-            ))
+            try:
+                temp   = read_register(client, sensor["addr_temp"], unit_id)
+                hum    = read_register(client, sensor["addr_hum"],  unit_id)
+                status = compute_status(temp, hum, hmi["temp_max_limit"], hmi["hum_max_limit"])
+                ok_rows.append((
+                    sensor["sensor_id"],
+                    round(temp, 2),
+                    round(hum, 2),
+                    status,
+                    now,
+                    now,
+                ))
+            except (ModbusException, OSError) as exc:
+                log.warning(
+                    "HMI %d sensor %s (unit_id=%d) OFFLINE — %s",
+                    hmi["hmi_id"], sensor.get("name", sensor["sensor_id"]), unit_id, exc,
+                )
+                offline_ids.append(sensor["sensor_id"])
 
-        upsert_sensor_data(cursor, rows)
+        if ok_rows:
+            upsert_sensor_data(cursor, ok_rows)
+
+        if offline_ids:
+            cursor.execute(
+                f"""
+                UPDATE sensor_latest_data
+                SET    status     = 'OFFLINE',
+                       updated_at = %s
+                WHERE  sensor_id IN ({','.join(['%s'] * len(offline_ids))})
+                  AND  status != 'OFFLINE'
+                """,
+                (now, *offline_ids),
+            )
+
         log.info(
-            "HMI %d (%s) — %d sensor(s) polled OK",
-            hmi["hmi_id"], hmi["ip_address"], len(rows),
+            "HMI %d (%s) — %d OK  %d OFFLINE",
+            hmi["hmi_id"], hmi["ip_address"], len(ok_rows), len(offline_ids),
         )
 
     except (ModbusException, ConnectionException, OSError) as exc:

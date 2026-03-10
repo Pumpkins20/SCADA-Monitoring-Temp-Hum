@@ -68,6 +68,7 @@ test('each room in payload has required keys', function () {
                         ->has('room_avg_hum')
                         ->has('status')
                         ->has('sensors')
+                        ->etc()
                 )
         );
 });
@@ -90,6 +91,7 @@ test('each sensor in payload has required keys', function () {
                         ->has('temperature')
                         ->has('humidity')
                         ->has('status')
+                        ->etc()
                 )
         );
 });

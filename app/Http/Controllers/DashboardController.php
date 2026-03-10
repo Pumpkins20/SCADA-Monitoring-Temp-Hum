@@ -31,7 +31,7 @@ class DashboardController extends Controller
 
         $payload = $rooms->map(function (Room $room) {
             $sensors = $room->hmis->flatMap->sensors;
-            $online = $sensors->filter(fn ($s) => $s->latestData?->status !== 'OFFLINE');
+            $online = $sensors->filter(fn ($s) => $s->latestData !== null && $s->latestData->status !== 'OFFLINE');
 
             return [
                 'id' => $room->id,
@@ -98,7 +98,7 @@ class DashboardController extends Controller
         ]);
 
         $sensors = $room->hmis->flatMap->sensors;
-        $online = $sensors->filter(fn ($s) => $s->latestData?->status !== 'OFFLINE');
+        $online = $sensors->filter(fn ($s) => $s->latestData !== null && $s->latestData->status !== 'OFFLINE');
 
         $chartLogs = \App\Models\SensorLog::query()
             ->where('room_id', $room->id)
