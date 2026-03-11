@@ -2,6 +2,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import {
     Bell,
     BarChart2,
+    Cpu,
     Home,
     Settings,
     Thermometer,
@@ -269,8 +270,45 @@ export default function Dashboard({
 
                 {/* ── MAIN CONTENT ─────────────────────────────────── */}
                 <main className="flex flex-1 gap-3 overflow-hidden bg-[#151b1f] p-3">
+                    {/* ── SETTINGS OVERLAY ── */}
+                    {activeTab === 'settings' && (
+                        <div className="flex flex-1 items-center justify-center">
+                            <div className="flex flex-col items-center gap-6">
+                                <div className="text-center">
+                                    <p className="text-xs font-semibold tracking-widest text-slate-500 uppercase">
+                                        Pengaturan Sistem
+                                    </p>
+                                    <p className="mt-1 text-lg font-bold tracking-wider text-white uppercase">
+                                        SCADA Settings
+                                    </p>
+                                </div>
+                                <div className="flex flex-wrap justify-center gap-4">
+                                    <Link
+                                        href="/rooms"
+                                        className="group flex w-52 flex-col items-center gap-3 rounded-xl border border-slate-700/60 bg-slate-800/60 p-6 backdrop-blur-sm transition-all hover:border-cyan-500/50 hover:bg-slate-800/80 hover:shadow-[0_0_20px_#22d3ee20]"
+                                    >
+                                        <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-500/10 transition-colors group-hover:border-cyan-500/60 group-hover:bg-cyan-500/20">
+                                            <Cpu className="h-7 w-7 text-cyan-400" />
+                                        </div>
+                                        <div className="text-center">
+                                            <p className="text-sm font-bold tracking-wider text-white uppercase">
+                                                Device Management
+                                            </p>
+                                            <p className="mt-0.5 text-[11px] text-slate-400">
+                                                Kelola Ruangan, HMI &amp; Sensor
+                                            </p>
+                                        </div>
+                                        <span className="text-[10px] text-cyan-400 opacity-0 transition-opacity group-hover:opacity-100">
+                                            Buka →
+                                        </span>
+                                    </Link>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* ── LEFT COLUMN: gauges ── */}
-                    <div className="flex w-52 shrink-0 flex-col gap-3">
+                    <div className={`flex w-52 shrink-0 flex-col gap-3 ${activeTab === 'settings' ? 'hidden' : ''}`}>
                         <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-slate-700/60 bg-slate-800/50 p-3 backdrop-blur-sm">
                             <div className="flex items-center gap-1.5 self-start">
                                 <Thermometer className="h-4 w-4 text-cyan-400" />
@@ -305,7 +343,7 @@ export default function Dashboard({
                     </div>
 
                     {/* ── MIDDLE COLUMN: room cards 1-3 ── */}
-                    <div className="flex h-full w-56 shrink-0 flex-col gap-3">
+                    <div className={`flex h-full w-56 shrink-0 flex-col gap-3 ${activeTab === 'settings' ? 'hidden' : ''}`}>
                         {colMiddleRooms.length > 0
                             ? colMiddleRooms.map((room) => (
                                   <RoomCard
@@ -323,7 +361,7 @@ export default function Dashboard({
                     </div>
 
                     {/* ── RIGHT AREA ── */}
-                    <div className="flex flex-1 flex-col gap-3 overflow-hidden">
+                    <div className={`flex flex-1 flex-col gap-3 overflow-hidden ${activeTab === 'settings' ? 'hidden' : ''}`}>
                         {colRightRooms.length > 0 && (
                             <div className="flex shrink-0 gap-3">
                                 {colRightRooms.map((room) => (
@@ -518,17 +556,9 @@ export default function Dashboard({
                         {(
                             [
                                 { key: 'home', Icon: Home, label: 'Home' },
-                                {
-                                    key: 'chart',
-                                    Icon: BarChart2,
-                                    label: 'Chart',
-                                },
+                                { key: 'chart', Icon: BarChart2, label: 'Chart' },
                                 { key: 'alarm', Icon: Bell, label: 'Alarm' },
-                                {
-                                    key: 'settings',
-                                    Icon: Settings,
-                                    label: 'Settings',
-                                },
+                                { key: 'settings', Icon: Settings, label: 'Settings', },
                             ] as const
                         ).map(({ key, Icon, label }) => (
                             <button

@@ -1,6 +1,7 @@
 import { Head, Link, useForm, router } from '@inertiajs/react';
 import {
     ArrowLeft,
+    Cpu,
     Plus,
     Pencil,
     Trash2,
@@ -455,6 +456,14 @@ export default function RoomsIndex({ rooms }: RoomsIndexProps) {
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <div className="flex items-center justify-end gap-1">
+                                                    <Link
+                                                        href={`/rooms/${room.id}/devices`}
+                                                        title="Kelola Perangkat"
+                                                        className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-[11px] font-semibold tracking-wider text-slate-400 transition-colors hover:bg-cyan-500/10 hover:text-cyan-400 uppercase"
+                                                    >
+                                                        <Cpu className="h-3.5 w-3.5" />
+                                                        Perangkat
+                                                    </Link>
                                                     <button
                                                         type="button"
                                                         title="Edit"

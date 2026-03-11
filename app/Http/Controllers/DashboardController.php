@@ -152,7 +152,11 @@ class DashboardController extends Controller
      */
     private function resolveRoomStatus(Collection|\Illuminate\Support\Collection $sensors): string
     {
-        $statuses = $sensors->pluck('latestData.status')->filter()->unique();
+        if ($sensors->isEmpty()) {
+            return 'OFFLINE';
+        }
+
+        $statuses = $sensors->map(fn ($s) => $s->latestData?->status ?? 'OFFLINE')->unique();
 
         if ($statuses->contains('CRITICAL')) {
             return 'CRITICAL';
@@ -162,7 +166,7 @@ class DashboardController extends Controller
             return 'WARNING';
         }
 
-        if ($statuses->isNotEmpty() && $statuses->every(fn ($s) => $s === 'OFFLINE')) {
+        if ($statuses->every(fn ($s) => $s === 'OFFLINE')) {
             return 'OFFLINE';
         }
 

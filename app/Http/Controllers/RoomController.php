@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreRoomRequest;
 use App\Http\Requests\UpdateRoomRequest;
+use App\Models\Hmi;
 use App\Models\Room;
+use App\Models\Sensor;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -33,6 +35,38 @@ class RoomController extends Controller
 
         return Inertia::render('rooms/index', [
             'rooms' => $rooms->all(),
+        ]);
+    }
+
+    public function devices(Room $room): Response
+    {
+        $room->load([
+            'hmis' => fn ($query) => $query->orderBy('name')
+                ->with(['sensors' => fn ($q) => $q->orderBy('name')]),
+        ]);
+
+        return Inertia::render('rooms/devices', [
+            'room' => [
+                'id' => $room->id,
+                'name' => $room->name,
+                'location' => $room->location,
+                'temp_max_limit' => (float) $room->temp_max_limit,
+                'hum_max_limit' => (float) $room->hum_max_limit,
+            ],
+            'hmis' => $room->hmis->map(fn (Hmi $hmi) => [
+                'id' => $hmi->id,
+                'name' => $hmi->name,
+                'ip_address' => $hmi->ip_address,
+                'port' => $hmi->port,
+                'is_active' => $hmi->is_active,
+                'sensors' => $hmi->sensors->map(fn (Sensor $sensor) => [
+                    'id' => $sensor->id,
+                    'name' => $sensor->name,
+                    'unit_id' => $sensor->unit_id,
+                    'modbus_address_temp' => $sensor->modbus_address_temp,
+                    'modbus_address_hum' => $sensor->modbus_address_hum,
+                ]),
+            ]),
         ]);
     }
 
