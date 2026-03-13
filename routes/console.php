@@ -13,9 +13,9 @@ Schedule::command('aggregate:room-logs')
     ->everyFifteenMinutes()
     ->withoutOverlapping();
 
-// Agregasi rata-rata per-sensor ke sensor_readings (setiap 5 menit)
+// Agregasi rata-rata per-sensor ke sensor_readings (setiap 1 menit)
 Schedule::command('aggregate:sensor-readings')
-    ->everyFiveMinutes()
+    ->everyMinute()
     ->withoutOverlapping();
 
 // Purge data > 90 hari (setiap hari tengah malam)

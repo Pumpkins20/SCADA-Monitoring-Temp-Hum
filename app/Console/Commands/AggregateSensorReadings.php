@@ -10,7 +10,7 @@ class AggregateSensorReadings extends Command
 {
     protected $signature = 'aggregate:sensor-readings';
 
-    protected $description = 'Aggregate per-sensor values into sensor_readings (runs every 5 minutes)';
+    protected $description = 'Aggregate per-sensor values into sensor_readings (runs every minute)';
 
     public function handle(): int
     {

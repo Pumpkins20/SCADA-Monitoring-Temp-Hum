@@ -11,19 +11,21 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
+import { ArcGauge } from '@/components/scada/arc-gauge';
+import {
+    statusDotColor
+    
+    
+} from '@/components/scada/scada-helpers';
+import type {RoomData, ChartPoint} from '@/components/scada/scada-helpers';
+import { SensorCard } from '@/components/scada/sensor-card';
 import {
     ChartContainer,
     ChartTooltip,
-    ChartTooltipContent,
-    type ChartConfig,
+    ChartTooltipContent
+    
 } from '@/components/ui/chart';
-import { ArcGauge } from '@/components/scada/arc-gauge';
-import { SensorCard } from '@/components/scada/sensor-card';
-import {
-    statusDotColor,
-    type RoomData,
-    type ChartPoint,
-} from '@/components/scada/scada-helpers';
+import type {ChartConfig} from '@/components/ui/chart';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

@@ -1,31 +1,25 @@
 import { Head, Link, router } from '@inertiajs/react';
-import {
-    Bell,
-    BarChart2,
-    Cpu,
-    Home,
-    Settings,
-    Thermometer,
-    Droplets,
-    LogOut,
-} from 'lucide-react';
+import { BarChart2, Cpu, Thermometer, Droplets } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
-import {
-    ChartContainer,
-    ChartTooltip,
-    ChartTooltipContent,
-    type ChartConfig,
-} from '@/components/ui/chart';
 import { ArcGauge } from '@/components/scada/arc-gauge';
+import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
 import {
     fmt,
     statusDotColor,
     statusBadgeClasses,
-    type RoomData,
-    type ChartPoint,
-    type GlobalStats,
 } from '@/components/scada/scada-helpers';
+import type {
+    RoomData,
+    ChartPoint,
+    GlobalStats,
+} from '@/components/scada/scada-helpers';
+import {
+    ChartContainer,
+    ChartTooltip,
+    ChartTooltipContent,
+} from '@/components/ui/chart';
+import type { ChartConfig } from '@/components/ui/chart';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -308,7 +302,9 @@ export default function Dashboard({
                     )}
 
                     {/* ── LEFT COLUMN: gauges ── */}
-                    <div className={`flex w-52 shrink-0 flex-col gap-3 ${activeTab === 'settings' ? 'hidden' : ''}`}>
+                    <div
+                        className={`flex w-52 shrink-0 flex-col gap-3 ${activeTab === 'settings' ? 'hidden' : ''}`}
+                    >
                         <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-slate-700/60 bg-slate-800/50 p-3 backdrop-blur-sm">
                             <div className="flex items-center gap-1.5 self-start">
                                 <Thermometer className="h-4 w-4 text-cyan-400" />
@@ -343,7 +339,9 @@ export default function Dashboard({
                     </div>
 
                     {/* ── MIDDLE COLUMN: room cards 1-3 ── */}
-                    <div className={`flex h-full w-56 shrink-0 flex-col gap-3 ${activeTab === 'settings' ? 'hidden' : ''}`}>
+                    <div
+                        className={`flex h-full w-56 shrink-0 flex-col gap-3 ${activeTab === 'settings' ? 'hidden' : ''}`}
+                    >
                         {colMiddleRooms.length > 0
                             ? colMiddleRooms.map((room) => (
                                   <RoomCard
@@ -361,7 +359,9 @@ export default function Dashboard({
                     </div>
 
                     {/* ── RIGHT AREA ── */}
-                    <div className={`flex flex-1 flex-col gap-3 overflow-hidden ${activeTab === 'settings' ? 'hidden' : ''}`}>
+                    <div
+                        className={`flex flex-1 flex-col gap-3 overflow-hidden ${activeTab === 'settings' ? 'hidden' : ''}`}
+                    >
                         {colRightRooms.length > 0 && (
                             <div className="flex shrink-0 gap-3">
                                 {colRightRooms.map((room) => (
@@ -535,86 +535,15 @@ export default function Dashboard({
                 </main>
 
                 {/* ── FOOTER ──────────────────────────────────────── */}
-                <footer className="flex shrink-0 items-center border-t border-slate-700/50 bg-[#0f1316] px-4 py-2">
-                    <div className="flex w-56 shrink-0 flex-col gap-0.5">
-                        <div className="flex items-center gap-1.5">
-                            <Bell
-                                className={`h-4 w-4 ${hasAlarms ? 'animate-pulse text-red-400' : 'text-slate-500'}`}
-                            />
-                            <span
-                                className={`text-xs font-semibold ${hasAlarms ? 'text-red-400' : 'text-slate-500'}`}
-                            >
-                                ALARM AKTIF : {hasAlarms ? alarmRoomNames : '—'}
-                            </span>
-                        </div>
-                        <span className="text-[10px] text-slate-500">
-                            LAST UPDATE : {lastUpdate} | {dateStr}
-                        </span>
-                    </div>
-
-                    <div className="flex flex-1 items-center justify-center gap-3">
-                        {(
-                            [
-                                { key: 'home', Icon: Home, label: 'Home' },
-                                { key: 'chart', Icon: BarChart2, label: 'Chart' },
-                                { key: 'alarm', Icon: Bell, label: 'Alarm' },
-                                { key: 'settings', Icon: Settings, label: 'Settings', },
-                            ] as const
-                        ).map(({ key, Icon, label }) => (
-                            <button
-                                key={key}
-                                type="button"
-                                title={label}
-                                onClick={() => setActiveTab(key)}
-                                className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${
-                                    activeTab === key
-                                        ? 'bg-cyan-500 text-white shadow-[0_0_10px_#22d3ee80]'
-                                        : 'bg-slate-700/60 text-slate-400 hover:bg-slate-600/60 hover:text-white'
-                                }`}
-                            >
-                                <Icon className="h-5 w-5" />
-                            </button>
-                        ))}
-
-                        <div className="mx-1 h-6 w-px bg-slate-600/80" />
-
-                        <button
-                            type="button"
-                            title="Logout"
-                            onClick={() => router.post('/logout')}
-                            className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-700/60 text-slate-400 transition-colors hover:bg-red-500/80 hover:text-white"
-                        >
-                            <LogOut className="h-5 w-5" />
-                        </button>
-                    </div>
-
-                    <div className="flex w-56 shrink-0 items-center justify-end gap-2">
-                        {rooms.map((room, i) => (
-                            <div
-                                key={room.id}
-                                className="flex flex-col items-center gap-0.5"
-                            >
-                                <svg width="12" height="12" viewBox="0 0 12 12">
-                                    <circle
-                                        cx="6"
-                                        cy="6"
-                                        r="5"
-                                        fill={statusDotColor(room.status)}
-                                        style={{
-                                            filter:
-                                                room.status !== 'OFFLINE'
-                                                    ? `drop-shadow(0 0 3px ${statusDotColor(room.status)})`
-                                                    : 'none',
-                                        }}
-                                    />
-                                </svg>
-                                <span className="text-[9px] text-slate-500">
-                                    R{i + 1}
-                                </span>
-                            </div>
-                        ))}
-                    </div>
-                </footer>
+                <ScadaFooterNav
+                    activeMenu="dashboard"
+                    onDashboardClick={() => setActiveTab('home')}
+                    rooms={rooms}
+                    hasAlarms={hasAlarms}
+                    alarmRoomNames={alarmRoomNames}
+                    lastUpdate={lastUpdate}
+                    dateStr={dateStr}
+                />
             </div>
         </>
     );

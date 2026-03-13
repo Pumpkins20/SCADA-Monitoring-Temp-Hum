@@ -1,5 +1,6 @@
 import { Cpu } from 'lucide-react';
-import { fmt, type SensorData } from '@/components/scada/scada-helpers';
+import { fmt  } from '@/components/scada/scada-helpers';
+import type {SensorData} from '@/components/scada/scada-helpers';
 
 // ─── Sensor Card (SCADA Industrial Style) ────────────────────────────────────
 

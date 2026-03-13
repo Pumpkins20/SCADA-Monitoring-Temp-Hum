@@ -4,6 +4,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HmiController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\SensorController;
+use App\Http\Controllers\SensorLogController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
 
@@ -31,6 +32,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('sensors', [SensorController::class, 'store'])->name('sensors.store');
     Route::put('sensors/{sensor}', [SensorController::class, 'update'])->name('sensors.update');
     Route::delete('sensors/{sensor}', [SensorController::class, 'destroy'])->name('sensors.destroy');
+
+    Route::get('logs', [SensorLogController::class, 'index'])->name('logs.index');
+    Route::get('logs/export', [SensorLogController::class, 'export'])->name('logs.export');
 });
 
 require __DIR__.'/settings.php';
