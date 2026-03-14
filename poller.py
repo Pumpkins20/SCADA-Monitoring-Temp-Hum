@@ -8,10 +8,11 @@ import logging
 import os
 import sys
 import time
-from datetime import datetime
+# from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
-import pymysql
-import pymysql.cursors
+import psycopg2
+# import psycopg2.extras
 from dotenv import load_dotenv
 from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ConnectionException, ModbusException
@@ -26,7 +27,7 @@ DB_CONFIG: dict = {
     "user":     os.environ.get("DB_USERNAME", "root"),
     "password": os.environ.get("DB_PASSWORD", ""),
     "database": os.environ.get("DB_DATABASE", "scada_db"),
-    "charset":  "utf8mb4",
+    # "charset":  "utf8mb4",
 }
 
 MODBUS_TIMEOUT = 3      # seconds — per OFFLINE rule in BACKEND-PLAN.md
@@ -60,9 +61,11 @@ def compute_status(temp: float, hum: float, temp_limit: float, hum_limit: float)
 
 # ─── Database Helpers ─────────────────────────────────────────────────────────
 
-def get_connection() -> pymysql.Connection:
-    return pymysql.connect(**DB_CONFIG, cursorclass=pymysql.cursors.Cursor)
+# def get_connection() -> pymysql.Connection:
+#     return pymysql.connect(**DB_CONFIG, cursorclass=pymysql.cursors.Cursor)
 
+def get_connection():
+    return psycopg2.connect(**DB_CONFIG)
 
 def load_hmis(cursor) -> list[dict]:
     """
@@ -120,17 +123,33 @@ def load_hmis(cursor) -> list[dict]:
 
 def upsert_sensor_data(cursor, rows: list[tuple]) -> None:
     """Bulk UPSERT into sensor_latest_data — 1 query for all sensors in an HMI."""
+    # cursor.executemany(
+    #     """
+    #     INSERT INTO sensor_latest_data
+    #         (sensor_id, temperature, humidity, status, last_read_at, updated_at)
+    #     VALUES (%s, %s, %s, %s, %s, %s)
+    #     ON DUPLICATE KEY UPDATE
+    #         temperature  = VALUES(temperature),
+    #         humidity     = VALUES(humidity),
+    #         status       = VALUES(status),
+    #         last_read_at = VALUES(last_read_at),
+    #         updated_at   = VALUES(updated_at)
+    #     """,
+    #     rows,
+    # )
+
+    #Posgre
     cursor.executemany(
         """
         INSERT INTO sensor_latest_data
             (sensor_id, temperature, humidity, status, last_read_at, updated_at)
         VALUES (%s, %s, %s, %s, %s, %s)
-        ON DUPLICATE KEY UPDATE
-            temperature  = VALUES(temperature),
-            humidity     = VALUES(humidity),
-            status       = VALUES(status),
-            last_read_at = VALUES(last_read_at),
-            updated_at   = VALUES(updated_at)
+        ON CONFLICT (sensor_id) DO UPDATE SET
+            temperature  = EXCLUDED.temperature,
+            humidity     = EXCLUDED.humidity,
+            status       = EXCLUDED.status,
+            last_read_at = EXCLUDED.last_read_at,
+            updated_at   = EXCLUDED.updated_at
         """,
         rows,
     )
@@ -141,13 +160,27 @@ def mark_hmi_offline(cursor, hmi_id: int, now: datetime) -> None:
     Bulk UPDATE all sensors on this HMI to OFFLINE via JOIN.
     Skips sensors already OFFLINE to avoid unnecessary disk writes (write-amplification prevention).
     """
+    # cursor.execute(
+    #     """
+    #     UPDATE sensor_latest_data sld
+    #     JOIN sensors s ON s.id = sld.sensor_id
+    #     SET sld.status     = 'OFFLINE',
+    #         sld.updated_at = %s
+    #     WHERE s.hmi_id = %s
+    #       AND sld.status != 'OFFLINE'
+    #     """,
+    #     (now, hmi_id),
+    # )
+
+    #Posgre
     cursor.execute(
         """
         UPDATE sensor_latest_data sld
-        JOIN sensors s ON s.id = sld.sensor_id
-        SET sld.status     = 'OFFLINE',
-            sld.updated_at = %s
-        WHERE s.hmi_id = %s
+        SET status     = 'OFFLINE',
+            updated_at = %s
+        FROM sensors s
+        WHERE s.id = sld.sensor_id
+          AND s.hmi_id = %s
           AND sld.status != 'OFFLINE'
         """,
         (now, hmi_id),
@@ -240,7 +273,7 @@ def main() -> None:
     )
 
     db = get_connection()
-    log.info("MySQL connected → %s/%s", DB_CONFIG["host"], DB_CONFIG["database"])
+    log.info("PostgreSQL connected → %s/%s", DB_CONFIG["host"], DB_CONFIG["database"])
 
     try:
         while True:
@@ -251,17 +284,25 @@ def main() -> None:
                     if not hmis:
                         log.warning("No active HMIs found — sleeping %ss", POLL_INTERVAL)
                     else:
-                        now = datetime.now()
+                        # now = datetime.now()
+                        # for hmi in hmis:
+                        #     poll_hmi(hmi, cursor, now)
+                        wib = timezone(timedelta(hours=7))
+                        now = datetime.now(wib).strftime('%Y-%m-%d %H:%M:%S')
+                        
                         for hmi in hmis:
                             poll_hmi(hmi, cursor, now)
                         db.commit()
 
-            except pymysql.OperationalError as exc:
-                log.error("MySQL connection lost, reconnecting — %s", exc)
+            except psycopg2.OperationalError as exc:
+                log.error("PostgreSQL connection lost, reconnecting — %s", exc)
                 try:
-                    db.ping(reconnect=True)
-                except Exception:
+                #     db.ping(reconnect=True)
+                # except Exception:
+                #     db = get_connection()
                     db = get_connection()
+                except Exception as e:
+                    log.error("Gagal menyambung ulang ke PostgreSQL: %s", e)
 
             time.sleep(POLL_INTERVAL)
 
@@ -270,7 +311,7 @@ def main() -> None:
 
     finally:
         db.close()
-        log.info("MySQL connection closed")
+        log.info("PostgreSQL connection closed")
 
 
 if __name__ == "__main__":
