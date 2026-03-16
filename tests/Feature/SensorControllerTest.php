@@ -8,7 +8,8 @@ use App\Models\User;
 
 test('can create a new sensor', function () {
     $hmi = Hmi::factory()->create();
-    $this->actingAs(User::factory()->create())
+    $this->actingAs(User::factory()->create(['is_admin' => true]))
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->post(route('sensors.store'), [
             'hmi_id' => $hmi->id,
             'name' => 'SENSOR-01',
@@ -22,7 +23,8 @@ test('can create a new sensor', function () {
 });
 
 test('sensor store validation fails when hmi_id does not exist', function () {
-    $this->actingAs(User::factory()->create())
+    $this->actingAs(User::factory()->create(['is_admin' => true]))
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->post(route('sensors.store'), [
             'hmi_id' => 99999,
             'name' => 'SENSOR-01',
@@ -35,7 +37,8 @@ test('sensor store validation fails when hmi_id does not exist', function () {
 
 test('sensor store validation fails when unit_id is out of range', function () {
     $hmi = Hmi::factory()->create();
-    $this->actingAs(User::factory()->create())
+    $this->actingAs(User::factory()->create(['is_admin' => true]))
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->post(route('sensors.store'), [
             'hmi_id' => $hmi->id,
             'name' => 'SENSOR-01',
@@ -50,7 +53,8 @@ test('sensor store validation fails when unit_id is out of range', function () {
 
 test('can update an existing sensor', function () {
     $sensor = Sensor::factory()->create(['name' => 'OLD-SENSOR']);
-    $this->actingAs(User::factory()->create())
+    $this->actingAs(User::factory()->create(['is_admin' => true]))
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->put(route('sensors.update', $sensor), [
             'name' => 'SENSOR-UPDATED',
             'unit_id' => 2,
@@ -67,9 +71,38 @@ test('can update an existing sensor', function () {
 test('can delete a sensor', function () {
     $sensor = Sensor::factory()->create();
     $roomId = $sensor->hmi->room_id;
-    $this->actingAs(User::factory()->create())
+    $this->actingAs(User::factory()->create(['is_admin' => true]))
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->delete(route('sensors.destroy', $sensor))
         ->assertRedirect(route('rooms.devices', $roomId));
 
     $this->assertDatabaseMissing('sensors', ['id' => $sensor->id]);
+});
+
+test('non-admin users are forbidden from sensor mutations', function () {
+    $hmi = Hmi::factory()->create();
+    $sensor = Sensor::factory()->create(['hmi_id' => $hmi->id]);
+
+    $this->actingAs(User::factory()->create(['is_admin' => false]))
+        ->post(route('sensors.store'), [
+            'hmi_id' => $hmi->id,
+            'name' => 'SENSOR-X',
+            'unit_id' => 1,
+            'modbus_address_temp' => 0,
+            'modbus_address_hum' => 1,
+        ])
+        ->assertForbidden();
+
+    $this->actingAs(User::factory()->create(['is_admin' => false]))
+        ->put(route('sensors.update', $sensor), [
+            'name' => 'SENSOR-Y',
+            'unit_id' => 1,
+            'modbus_address_temp' => 0,
+            'modbus_address_hum' => 1,
+        ])
+        ->assertForbidden();
+
+    $this->actingAs(User::factory()->create(['is_admin' => false]))
+        ->delete(route('sensors.destroy', $sensor))
+        ->assertForbidden();
 });

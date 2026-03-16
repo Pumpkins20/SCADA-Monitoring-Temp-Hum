@@ -25,6 +25,7 @@ class DatabaseSeeder extends Seeder
         User::factory()->create([
             'name' => 'Admin SCADA',
             'email' => 'admin@scada.local',
+            'is_admin' => true,
         ]);
 
         // ─── Real hardware configuration ──────────────────────────────────────

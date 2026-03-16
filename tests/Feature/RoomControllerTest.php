@@ -12,7 +12,8 @@ test('guests are redirected to login from rooms.index', function () {
 });
 
 test('authenticated users can visit rooms.index', function () {
-    $this->actingAs(User::factory()->create())
+    $this->actingAs(User::factory()->create(['is_admin' => true]))
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->get(route('rooms.index'))
         ->assertOk()
         ->assertInertia(
@@ -20,10 +21,24 @@ test('authenticated users can visit rooms.index', function () {
         );
 });
 
+test('non-admin users are forbidden from rooms.index', function () {
+    $this->actingAs(User::factory()->create(['is_admin' => false]))
+        ->withSession(['auth.password_confirmed_at' => time()])
+        ->get(route('rooms.index'))
+        ->assertForbidden();
+});
+
+test('rooms.index requires password confirmation for admins', function () {
+    $this->actingAs(User::factory()->create(['is_admin' => true]))
+        ->get(route('rooms.index'))
+        ->assertRedirect(route('password.confirm'));
+});
+
 // ─── Store ───────────────────────────────────────────────────────────────────
 
 test('can create a new room', function () {
-    $this->actingAs(User::factory()->create())
+    $this->actingAs(User::factory()->create(['is_admin' => true]))
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->post(route('rooms.store'), [
             'name' => 'RUANG SERVER A',
             'location' => 'LT.3',
@@ -36,7 +51,8 @@ test('can create a new room', function () {
 });
 
 test('store validation fails when name is missing', function () {
-    $this->actingAs(User::factory()->create())
+    $this->actingAs(User::factory()->create(['is_admin' => true]))
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->post(route('rooms.store'), [
             'name' => '',
             'temp_max_limit' => 25.00,
@@ -46,7 +62,8 @@ test('store validation fails when name is missing', function () {
 });
 
 test('store validation fails when temp_max_limit is not numeric', function () {
-    $this->actingAs(User::factory()->create())
+    $this->actingAs(User::factory()->create(['is_admin' => true]))
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->post(route('rooms.store'), [
             'name' => 'RUANG TEST',
             'temp_max_limit' => 'abc',
@@ -60,7 +77,8 @@ test('store validation fails when temp_max_limit is not numeric', function () {
 test('can update an existing room', function () {
     $room = Room::factory()->create(['name' => 'OLD NAME']);
 
-    $this->actingAs(User::factory()->create())
+    $this->actingAs(User::factory()->create(['is_admin' => true]))
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->put(route('rooms.update', $room), [
             'name' => 'NEW NAME',
             'location' => 'LT.5',
@@ -77,7 +95,8 @@ test('can update an existing room', function () {
 test('can delete a room', function () {
     $room = Room::factory()->create();
 
-    $this->actingAs(User::factory()->create())
+    $this->actingAs(User::factory()->create(['is_admin' => true]))
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->delete(route('rooms.destroy', $room))
         ->assertRedirect(route('rooms.index'));
 
@@ -89,7 +108,8 @@ test('deleting a room cascades to hmis and sensors', function () {
     $hmi = Hmi::factory()->create(['room_id' => $room->id]);
     $sensor = Sensor::factory()->create(['hmi_id' => $hmi->id]);
 
-    $this->actingAs(User::factory()->create())
+    $this->actingAs(User::factory()->create(['is_admin' => true]))
+        ->withSession(['auth.password_confirmed_at' => time()])
         ->delete(route('rooms.destroy', $room));
 
     $this->assertDatabaseMissing('rooms', ['id' => $room->id]);

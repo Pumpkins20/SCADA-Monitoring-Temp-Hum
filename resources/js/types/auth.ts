@@ -12,6 +12,15 @@ export type User = {
 
 export type Auth = {
     user: User;
+    can?: {
+        manage_devices?: boolean;
+    };
+    password_confirmation?: {
+        is_active?: boolean;
+        timeout_seconds?: number;
+        remaining_seconds?: number;
+        expires_at?: string | null;
+    };
 };
 
 export type TwoFactorSetupData = {

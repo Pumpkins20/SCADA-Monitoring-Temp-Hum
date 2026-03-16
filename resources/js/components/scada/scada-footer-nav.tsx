@@ -6,6 +6,7 @@ import type { RoomData } from '@/components/scada/scada-helpers';
 interface ScadaFooterNavProps {
     activeMenu: 'dashboard' | 'logs' | 'rooms';
     onDashboardClick?: () => void;
+    onRoomsClick?: () => void;
     rooms?: RoomData[];
     hasAlarms?: boolean;
     alarmRoomNames?: string;
@@ -16,6 +17,7 @@ interface ScadaFooterNavProps {
 export function ScadaFooterNav({
     activeMenu,
     onDashboardClick,
+    onRoomsClick,
     rooms = [],
     hasAlarms = false,
     alarmRoomNames = '',
@@ -87,18 +89,34 @@ export function ScadaFooterNav({
                     <span className="text-[9px] leading-none">Logs</span>
                 </Link>
 
-                <Link
-                    href="/rooms"
-                    title="Kelola Ruangan"
-                    className={`flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-lg transition-colors ${
-                        isRoomsActive
-                            ? 'bg-cyan-500 text-white shadow-[0_0_10px_#22d3ee80]'
-                            : 'bg-slate-700/60 text-slate-400 hover:bg-slate-600/60 hover:text-white'
-                    }`}
-                >
-                    <DoorOpen className="h-4 w-4" />
-                    <span className="text-[9px] leading-none">Ruangan</span>
-                </Link>
+                {onRoomsClick ? (
+                    <button
+                        type="button"
+                        title="Kelola Ruangan"
+                        onClick={onRoomsClick}
+                        className={`flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-lg transition-colors ${
+                            isRoomsActive
+                                ? 'bg-cyan-500 text-white shadow-[0_0_10px_#22d3ee80]'
+                                : 'bg-slate-700/60 text-slate-400 hover:bg-slate-600/60 hover:text-white'
+                        }`}
+                    >
+                        <DoorOpen className="h-4 w-4" />
+                        <span className="text-[9px] leading-none">Ruangan</span>
+                    </button>
+                ) : (
+                    <Link
+                        href="/rooms"
+                        title="Kelola Ruangan"
+                        className={`flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-lg transition-colors ${
+                            isRoomsActive
+                                ? 'bg-cyan-500 text-white shadow-[0_0_10px_#22d3ee80]'
+                                : 'bg-slate-700/60 text-slate-400 hover:bg-slate-600/60 hover:text-white'
+                        }`}
+                    >
+                        <DoorOpen className="h-4 w-4" />
+                        <span className="text-[9px] leading-none">Ruangan</span>
+                    </Link>
+                )}
 
                 <div className="mx-1 h-6 w-px bg-slate-600/80" />
 

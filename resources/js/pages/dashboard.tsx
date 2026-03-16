@@ -1,9 +1,10 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { BarChart2, Cpu, Thermometer, Droplets } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
 import { ArcGauge } from '@/components/scada/arc-gauge';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
+import { Button } from '@/components/ui/button';
 import {
     fmt,
     statusDotColor,
@@ -19,6 +20,14 @@ import {
     ChartTooltip,
     ChartTooltipContent,
 } from '@/components/ui/chart';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import type { ChartConfig } from '@/components/ui/chart';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -149,10 +158,15 @@ export default function Dashboard({
     chartLogs = {},
     globalStats,
 }: DashboardProps) {
+    const canManageDevices =
+        usePage<{ auth?: { can?: { manage_devices?: boolean } } }>().props.auth
+            ?.can?.manage_devices ?? false;
+
     const [now, setNow] = useState(new Date());
     const [activeTab, setActiveTab] = useState<
         'home' | 'chart' | 'floor' | 'table' | 'alarm' | 'settings'
     >('home');
+    const [showRoomAccessPrompt, setShowRoomAccessPrompt] = useState(false);
 
     useEffect(() => {
         const timer = setInterval(() => setNow(new Date()), 60_000);
@@ -200,6 +214,11 @@ export default function Dashboard({
               hour12: false,
           })
         : '--:--';
+
+    function openDeviceManagement() {
+        setShowRoomAccessPrompt(false);
+        router.visit('/rooms');
+    }
 
     return (
         <>
@@ -277,25 +296,39 @@ export default function Dashboard({
                                     </p>
                                 </div>
                                 <div className="flex flex-wrap justify-center gap-4">
-                                    <Link
-                                        href="/rooms"
-                                        className="group flex w-52 flex-col items-center gap-3 rounded-xl border border-slate-700/60 bg-slate-800/60 p-6 backdrop-blur-sm transition-all hover:border-cyan-500/50 hover:bg-slate-800/80 hover:shadow-[0_0_20px_#22d3ee20]"
-                                    >
-                                        <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-500/10 transition-colors group-hover:border-cyan-500/60 group-hover:bg-cyan-500/20">
-                                            <Cpu className="h-7 w-7 text-cyan-400" />
-                                        </div>
-                                        <div className="text-center">
-                                            <p className="text-sm font-bold tracking-wider text-white uppercase">
-                                                Device Management
+                                    {canManageDevices ? (
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setShowRoomAccessPrompt(true)
+                                            }
+                                            className="group flex w-52 flex-col items-center gap-3 rounded-xl border border-slate-700/60 bg-slate-800/60 p-6 backdrop-blur-sm transition-all hover:border-cyan-500/50 hover:bg-slate-800/80 hover:shadow-[0_0_20px_#22d3ee20]"
+                                        >
+                                            <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-500/10 transition-colors group-hover:border-cyan-500/60 group-hover:bg-cyan-500/20">
+                                                <Cpu className="h-7 w-7 text-cyan-400" />
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="text-sm font-bold tracking-wider text-white uppercase">
+                                                    Device Management
+                                                </p>
+                                                <p className="mt-0.5 text-[11px] text-slate-400">
+                                                    Kelola Ruangan, HMI &amp; Sensor
+                                                </p>
+                                            </div>
+                                            <span className="text-[10px] text-cyan-400 opacity-0 transition-opacity group-hover:opacity-100">
+                                                Buka →
+                                            </span>
+                                        </button>
+                                    ) : (
+                                        <div className="w-72 rounded-xl border border-slate-700/60 bg-slate-800/40 px-5 py-6 text-center">
+                                            <p className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
+                                                Device Management Terkunci
                                             </p>
-                                            <p className="mt-0.5 text-[11px] text-slate-400">
-                                                Kelola Ruangan, HMI &amp; Sensor
+                                            <p className="mt-2 text-[11px] text-slate-500">
+                                                Hanya akun admin yang dapat mengubah konfigurasi perangkat.
                                             </p>
                                         </div>
-                                        <span className="text-[10px] text-cyan-400 opacity-0 transition-opacity group-hover:opacity-100">
-                                            Buka →
-                                        </span>
-                                    </Link>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -538,12 +571,57 @@ export default function Dashboard({
                 <ScadaFooterNav
                     activeMenu="dashboard"
                     onDashboardClick={() => setActiveTab('home')}
+                    onRoomsClick={() => {
+                        if (canManageDevices) {
+                            setShowRoomAccessPrompt(true);
+
+                            return;
+                        }
+
+                        router.visit('/rooms');
+                    }}
                     rooms={rooms}
                     hasAlarms={hasAlarms}
                     alarmRoomNames={alarmRoomNames}
                     lastUpdate={lastUpdate}
                     dateStr={dateStr}
                 />
+
+                <Dialog
+                    open={showRoomAccessPrompt}
+                    onOpenChange={setShowRoomAccessPrompt}
+                >
+                    <DialogContent className="border-slate-700 bg-[#1a2027] text-white sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle className="text-white">
+                                Verifikasi Akses Device Management
+                            </DialogTitle>
+                            <DialogDescription className="text-slate-400">
+                                Sistem akan meminta konfirmasi password sebelum
+                                Anda dapat masuk ke menu Ruangan dan mengubah
+                                konfigurasi perangkat.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <DialogFooter className="gap-2 sm:justify-end">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="border-slate-600 bg-transparent text-slate-200 hover:bg-slate-700"
+                                onClick={() => setShowRoomAccessPrompt(false)}
+                            >
+                                Batal
+                            </Button>
+                            <Button
+                                type="button"
+                                className="bg-cyan-600 text-white hover:bg-cyan-500"
+                                onClick={openDeviceManagement}
+                            >
+                                Lanjutkan
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </div>
         </>
     );

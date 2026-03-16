@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { PasswordSessionFloating } from '@/components/scada/password-session-floating';
 import {
     Dialog,
     DialogContent,
@@ -831,6 +832,8 @@ export default function RoomDevices({ room, hmis }: DevicesPageProps) {
             <Head title={`Kelola Perangkat — ${room.name}`} />
 
             <div className="flex h-screen flex-col overflow-hidden bg-[#151b1f] font-sans text-white">
+                <PasswordSessionFloating className="top-[92px]" />
+
                 {/* ── HEADER ──────────────────────────────────────── */}
                 <header className="flex shrink-0 flex-col border-b border-slate-700/50 bg-[#0f1316]">
                     <div className="flex items-center justify-between px-5 pt-2 pb-1">

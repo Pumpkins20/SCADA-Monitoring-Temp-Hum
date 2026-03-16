@@ -10,23 +10,29 @@ import { store } from '@/routes/password/confirm';
 export default function ConfirmPassword() {
     return (
         <AuthLayout
-            title="Confirm your password"
-            description="This is a secure area of the application. Please confirm your password before continuing."
+            title="Verifikasi Password"
+            description="Area Device Management dilindungi. Konfirmasi password diperlukan sebelum melanjutkan."
         >
-            <Head title="Confirm password" />
+            <Head title="Verifikasi Password" />
 
             <Form {...store.form()} resetOnSuccess={['password']}>
                 {({ processing, errors }) => (
-                    <div className="space-y-6">
+                    <div className="space-y-5">
                         <div className="grid gap-2">
-                            <Label htmlFor="password">Password</Label>
+                            <Label
+                                htmlFor="password"
+                                className="text-xs font-semibold tracking-wider text-slate-200 uppercase"
+                            >
+                                Password
+                            </Label>
                             <Input
                                 id="password"
                                 type="password"
                                 name="password"
-                                placeholder="Password"
+                                placeholder="Masukkan password akun"
                                 autoComplete="current-password"
                                 autoFocus
+                                className="border-slate-600 bg-slate-900/70 text-white placeholder:text-slate-500 focus-visible:border-cyan-500 focus-visible:ring-cyan-500/30"
                             />
 
                             <InputError message={errors.password} />
@@ -34,12 +40,12 @@ export default function ConfirmPassword() {
 
                         <div className="flex items-center">
                             <Button
-                                className="w-full"
+                                className="w-full bg-cyan-600 text-white hover:bg-cyan-500"
                                 disabled={processing}
                                 data-test="confirm-password-button"
                             >
                                 {processing && <Spinner />}
-                                Confirm password
+                                Verifikasi & Lanjutkan
                             </Button>
                         </div>
                     </div>
