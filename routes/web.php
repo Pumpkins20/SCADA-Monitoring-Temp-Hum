@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ChartLogController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HmiController;
 use App\Http\Controllers\RoomController;
@@ -29,6 +30,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('logs', [SensorLogController::class, 'index'])->name('logs.index');
     Route::get('logs/export', [SensorLogController::class, 'export'])->name('logs.export');
+
+    Route::get('chart-logs', [ChartLogController::class, 'index'])->name('chart-logs.index');
 
     Route::middleware(['can:manage-devices'])->group(function () {
         Route::post('hmis/test-connection', [HmiController::class, 'testConnection'])->name('hmis.test-connection');

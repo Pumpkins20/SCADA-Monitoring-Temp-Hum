@@ -1,10 +1,17 @@
 import { Link, router } from '@inertiajs/react';
-import { Bell, ClipboardList, DoorOpen, Home, LogOut } from 'lucide-react';
+import {
+    BarChart2,
+    Bell,
+    ClipboardList,
+    DoorOpen,
+    Home,
+    LogOut,
+} from 'lucide-react';
 import { statusDotColor } from '@/components/scada/scada-helpers';
 import type { RoomData } from '@/components/scada/scada-helpers';
 
 interface ScadaFooterNavProps {
-    activeMenu: 'dashboard' | 'logs' | 'rooms';
+    activeMenu: 'dashboard' | 'logs' | 'chart-logs' | 'rooms';
     onDashboardClick?: () => void;
     onRoomsClick?: () => void;
     rooms?: RoomData[];
@@ -26,6 +33,7 @@ export function ScadaFooterNav({
 }: ScadaFooterNavProps) {
     const isDashboardActive = activeMenu === 'dashboard';
     const isLogsActive = activeMenu === 'logs';
+    const isChartLogsActive = activeMenu === 'chart-logs';
     const isRoomsActive = activeMenu === 'rooms';
 
     return (
@@ -87,6 +95,19 @@ export function ScadaFooterNav({
                 >
                     <ClipboardList className="h-4 w-4" />
                     <span className="text-[9px] leading-none">Logs</span>
+                </Link>
+
+                <Link
+                    href="/chart-logs"
+                    title="Chart Log"
+                    className={`flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-lg transition-colors ${
+                        isChartLogsActive
+                            ? 'bg-cyan-500 text-white shadow-[0_0_10px_#22d3ee80]'
+                            : 'bg-slate-700/60 text-slate-400 hover:bg-slate-600/60 hover:text-white'
+                    }`}
+                >
+                    <BarChart2 className="h-4 w-4" />
+                    <span className="text-[9px] leading-none">Chart</span>
                 </Link>
 
                 {onRoomsClick ? (

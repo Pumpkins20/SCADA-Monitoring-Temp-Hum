@@ -6,7 +6,6 @@ use App\Models\Room;
 use App\Models\Sensor;
 use App\Models\SensorReading;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -55,15 +54,6 @@ class SensorLogController extends Controller
             ->whereIn('created_at', $timestamps)
             ->get();
 
-        $timestampKeys = $timestamps
-            ->map(fn ($timestamp) => Carbon::parse($timestamp)->format('Y-m-d H:i:s'))
-            ->sort()
-            ->values();
-
-        $sensorReadingsByTimestamp = $readings
-            ->groupBy('sensor_id')
-            ->map(fn ($items) => $items->keyBy(fn ($reading) => $reading->created_at->format('Y-m-d H:i:s')));
-
         // Pivot: group by timestamp, map sensor values to columns
         $sensorList = $sensors->values();
         $rows = $readings
@@ -98,31 +88,10 @@ class SensorLogController extends Controller
             ->values()
             ->all();
 
-        $chartSeriesPerSensor = $sensorList
-            ->map(function (Sensor $sensor) use ($timestampKeys, $sensorReadingsByTimestamp) {
-                $series = $sensorReadingsByTimestamp->get($sensor->id);
-
-                return [
-                    'sensorId' => $sensor->id,
-                    'sensorName' => $sensor->name,
-                    'points' => $timestampKeys->map(function (string $timestampKey) use ($series) {
-                        $reading = $series?->get($timestampKey);
-
-                        return [
-                            'time' => Carbon::parse($timestampKey)->format('H:i'),
-                            'avg_temperature' => $reading ? (float) $reading->avg_temp : null,
-                            'avg_humidity' => $reading ? (float) $reading->avg_hum : null,
-                        ];
-                    })->all(),
-                ];
-            })
-            ->all();
-
         return Inertia::render('logs/index', [
             'rooms' => $rooms->map(fn (Room $r) => ['id' => $r->id, 'name' => $r->name])->all(),
             'activeRoomId' => $activeRoomId,
             'sensors' => $sensorList->map(fn (Sensor $s) => ['id' => $s->id, 'name' => $s->name])->all(),
-            'chartSeriesPerSensor' => $chartSeriesPerSensor,
             'logs' => $rows,
             'pagination' => [
                 'currentPage' => $page,
