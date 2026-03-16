@@ -24,6 +24,7 @@ test('authenticated users can visit logs.index', function () {
                 ->has('rooms')
                 ->has('activeRoomId')
                 ->has('sensors')
+                ->has('chartSeriesPerSensor')
                 ->has('logs')
                 ->has('pagination')
         );
@@ -83,6 +84,13 @@ test('log rows contain pivoted sensor data', function () {
         ->assertInertia(
             fn ($page) => $page
                 ->has('logs', 1)
+                ->has('chartSeriesPerSensor', 2)
+                ->where('chartSeriesPerSensor.0.sensorId', $sensor1->id)
+                ->where('chartSeriesPerSensor.1.sensorId', $sensor2->id)
+                ->has('chartSeriesPerSensor.0.points', 1)
+                ->has('chartSeriesPerSensor.1.points', 1)
+                ->has('chartSeriesPerSensor.0.points.0.avg_temperature')
+                ->has('chartSeriesPerSensor.0.points.0.avg_humidity')
                 ->has('logs.0.temp_1')
                 ->has('logs.0.temp_2')
                 ->has('logs.0.hum_1')
@@ -90,5 +98,22 @@ test('log rows contain pivoted sensor data', function () {
                 ->has('logs.0.avg_temp')
                 ->has('logs.0.avg_hum')
                 ->where('logs.0.time', fn ($time) => is_string($time))
+        );
+});
+
+test('chart series are returned with empty points when no readings exist', function () {
+    $room = Room::factory()->create();
+    $hmi = Hmi::factory()->create(['room_id' => $room->id]);
+    $sensor = Sensor::factory()->create(['hmi_id' => $hmi->id]);
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('logs.index', ['room' => $room->id]))
+        ->assertOk()
+        ->assertInertia(
+            fn ($page) => $page
+                ->has('chartSeriesPerSensor', 1)
+                ->where('chartSeriesPerSensor.0.sensorId', $sensor->id)
+                ->where('chartSeriesPerSensor.0.sensorName', $sensor->name)
+                ->has('chartSeriesPerSensor.0.points', 0)
         );
 });
