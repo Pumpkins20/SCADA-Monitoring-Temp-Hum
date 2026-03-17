@@ -1,31 +1,17 @@
 import { Head, Link, router } from '@inertiajs/react';
-import {
-    Bell,
-    BarChart2,
-    Home,
-    Settings,
-    ArrowLeft,
-    Thermometer,
-    Droplets,
-    LogOut,
-} from 'lucide-react';
+import { BarChart2, ArrowLeft, Thermometer, Droplets } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
 import { ArcGauge } from '@/components/scada/arc-gauge';
-import {
-    statusDotColor
-    
-    
-} from '@/components/scada/scada-helpers';
-import type {RoomData, ChartPoint} from '@/components/scada/scada-helpers';
+import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
+import type { RoomData, ChartPoint } from '@/components/scada/scada-helpers';
 import { SensorCard } from '@/components/scada/sensor-card';
 import {
     ChartContainer,
     ChartTooltip,
-    ChartTooltipContent
-    
+    ChartTooltipContent,
 } from '@/components/ui/chart';
-import type {ChartConfig} from '@/components/ui/chart';
+import type { ChartConfig } from '@/components/ui/chart';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -389,97 +375,13 @@ export default function RoomShow({ room, chartLogs }: RoomShowProps) {
                 </main>
 
                 {/* ── FOOTER ──────────────────────────────────────── */}
-                <footer className="flex shrink-0 items-center border-t border-slate-700/50 bg-[#0f1316] px-4 py-2">
-                    <div className="flex w-56 shrink-0 flex-col gap-0.5">
-                        <div className="flex items-center gap-1.5">
-                            <Bell
-                                className={`h-4 w-4 ${hasAlarms ? 'animate-pulse text-red-400' : 'text-slate-500'}`}
-                            />
-                            <span
-                                className={`text-xs font-semibold ${hasAlarms ? 'text-red-400' : 'text-slate-500'}`}
-                            >
-                                ALARM AKTIF :{' '}
-                                {hasAlarms ? alarmSensorNames : '—'}
-                            </span>
-                        </div>
-                        <span className="text-[10px] text-slate-500">
-                            LAST UPDATE : {timeStr} | {dateStr}
-                        </span>
-                    </div>
-
-                    <div className="flex flex-1 items-center justify-center gap-3">
-                        <Link
-                            href="/dashboard"
-                            className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-700/60 text-slate-400 transition-colors hover:bg-slate-600/60 hover:text-white"
-                            title="Back to Overview"
-                        >
-                            <Home className="h-5 w-5" />
-                        </Link>
-
-                        {(
-                            [
-                                {
-                                    key: 'chart',
-                                    Icon: BarChart2,
-                                    label: 'Chart',
-                                },
-                                { key: 'alarm', Icon: Bell, label: 'Alarm' },
-                                {
-                                    key: 'settings',
-                                    Icon: Settings,
-                                    label: 'Settings',
-                                },
-                            ] as const
-                        ).map(({ key, Icon, label }) => (
-                            <button
-                                key={key}
-                                type="button"
-                                title={label}
-                                className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-700/60 text-slate-400 transition-colors hover:bg-slate-600/60 hover:text-white"
-                            >
-                                <Icon className="h-5 w-5" />
-                            </button>
-                        ))}
-
-                        <div className="mx-1 h-6 w-px bg-slate-600/80" />
-
-                        <button
-                            type="button"
-                            title="Logout"
-                            onClick={() => router.post('/logout')}
-                            className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-700/60 text-slate-400 transition-colors hover:bg-red-500/80 hover:text-white"
-                        >
-                            <LogOut className="h-5 w-5" />
-                        </button>
-                    </div>
-
-                    <div className="flex w-56 shrink-0 items-center justify-end gap-2">
-                        {sensors.map((sensor, i) => (
-                            <div
-                                key={sensor.id}
-                                className="flex flex-col items-center gap-0.5"
-                            >
-                                <svg width="12" height="12" viewBox="0 0 12 12">
-                                    <circle
-                                        cx="6"
-                                        cy="6"
-                                        r="5"
-                                        fill={statusDotColor(sensor.status)}
-                                        style={{
-                                            filter:
-                                                sensor.status !== 'OFFLINE'
-                                                    ? `drop-shadow(0 0 3px ${statusDotColor(sensor.status)})`
-                                                    : 'none',
-                                        }}
-                                    />
-                                </svg>
-                                <span className="text-[9px] text-slate-500">
-                                    {i + 1}
-                                </span>
-                            </div>
-                        ))}
-                    </div>
-                </footer>
+                <ScadaFooterNav
+                    activeMenu="dashboard"
+                    hasAlarms={hasAlarms}
+                    alarmRoomNames={alarmSensorNames}
+                    lastUpdate={timeStr}
+                    dateStr={dateStr}
+                />
             </div>
         </>
     );

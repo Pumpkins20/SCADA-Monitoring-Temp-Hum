@@ -18,6 +18,7 @@ import {
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { PasswordSessionFloating } from '@/components/scada/password-session-floating';
+import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
 import {
     Dialog,
     DialogContent,
@@ -121,10 +122,10 @@ function HmiFormDialog({
         setTestMessage('');
 
         const xsrfToken = decodeURIComponent(
-        document.cookie
-            .split('; ')
-            .find((c) => c.startsWith('XSRF-TOKEN='))
-            ?.split('=')[1] ?? '',
+            document.cookie
+                .split('; ')
+                .find((c) => c.startsWith('XSRF-TOKEN='))
+                ?.split('=')[1] ?? '',
         );
 
         try {
@@ -310,9 +311,15 @@ function HmiFormDialog({
                         </Button>
                         <Button
                             type="submit"
-                            disabled={processing || (!isEdit && !hasTestedConnection)}
+                            disabled={
+                                processing || (!isEdit && !hasTestedConnection)
+                            }
                             className="bg-cyan-600 text-white hover:bg-cyan-500 disabled:opacity-40"
-                            title={!isEdit && !hasTestedConnection ? 'Lakukan Test Koneksi terlebih dahulu' : undefined}
+                            title={
+                                !isEdit && !hasTestedConnection
+                                    ? 'Lakukan Test Koneksi terlebih dahulu'
+                                    : undefined
+                            }
                         >
                             {processing
                                 ? 'Menyimpan...'
@@ -473,9 +480,7 @@ function SensorFormDialog({
                             min={1}
                             max={255}
                             value={data.unit_id}
-                            onChange={(e) =>
-                                setData('unit_id', e.target.value)
-                            }
+                            onChange={(e) => setData('unit_id', e.target.value)}
                             className="border-slate-600 bg-slate-800/80 text-white placeholder:text-slate-500 focus-visible:border-cyan-500 focus-visible:ring-cyan-500/30"
                         />
                         {errors.unit_id && (
@@ -630,13 +635,7 @@ function DeleteSensorDialog({
 
 // ─── HMI Card ────────────────────────────────────────────────────────────────
 
-function HmiCard({
-    hmi,
-    roomId,
-}: {
-    hmi: HmiItem;
-    roomId: number;
-}) {
+function HmiCard({ hmi, roomId }: { hmi: HmiItem; roomId: number }) {
     const [showEditHmi, setShowEditHmi] = useState(false);
     const [showDeleteHmi, setShowDeleteHmi] = useState(false);
     const [showAddSensor, setShowAddSensor] = useState(false);
@@ -963,8 +962,8 @@ export default function RoomDevices({ room, hmis }: DevicesPageProps) {
                             <div className="text-center">
                                 <Cpu className="mx-auto mb-2 h-10 w-10 opacity-30" />
                                 <p className="text-sm">
-                                    Belum ada HMI. Klik "Tambah HMI / RTU"
-                                    untuk memulai.
+                                    Belum ada HMI. Klik "Tambah HMI / RTU" untuk
+                                    memulai.
                                 </p>
                             </div>
                         </div>
@@ -982,40 +981,7 @@ export default function RoomDevices({ room, hmis }: DevicesPageProps) {
                 </main>
 
                 {/* ── FOOTER ──────────────────────────────────────── */}
-                <footer className="flex shrink-0 items-center gap-4 border-t border-slate-700/50 bg-[#0f1316] px-4 py-2">
-                    <div className="flex items-center gap-1.5">
-                        <Cpu className="h-4 w-4 text-cyan-400" />
-                        <span className="text-xs font-semibold text-slate-400">
-                            {hmis.length} HMI ·{' '}
-                            {hmis.reduce((acc, h) => acc + h.sensors.length, 0)}{' '}
-                            SENSOR
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        {hmis.map((hmi) => (
-                            <div
-                                key={hmi.id}
-                                className="flex items-center gap-1"
-                            >
-                                <svg width="8" height="8" viewBox="0 0 8 8">
-                                    <circle
-                                        cx="4"
-                                        cy="4"
-                                        r="3"
-                                        fill={
-                                            hmi.is_active
-                                                ? '#4ade80'
-                                                : '#475569'
-                                        }
-                                    />
-                                </svg>
-                                <span className="text-[10px] text-slate-500">
-                                    {hmi.name}
-                                </span>
-                            </div>
-                        ))}
-                    </div>
-                </footer>
+                <ScadaFooterNav activeMenu="rooms" />
             </div>
 
             {/* Add HMI Dialog */}

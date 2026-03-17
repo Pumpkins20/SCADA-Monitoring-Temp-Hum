@@ -1,4 +1,5 @@
-import { Form, Head } from '@inertiajs/react';
+import { Form, Head, router } from '@inertiajs/react';
+import { ArrowLeft } from 'lucide-react';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +9,16 @@ import AuthLayout from '@/layouts/auth-layout';
 import { store } from '@/routes/password/confirm';
 
 export default function ConfirmPassword() {
+    const handleBack = () => {
+        if (window.history.length > 1) {
+            window.history.back();
+
+            return;
+        }
+
+        router.visit('/dashboard');
+    };
+
     return (
         <AuthLayout
             title="Verifikasi Password"
@@ -38,7 +49,17 @@ export default function ConfirmPassword() {
                             <InputError message={errors.password} />
                         </div>
 
-                        <div className="flex items-center">
+                        <div className="flex items-center gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={handleBack}
+                                className="border-slate-600 bg-slate-900/60 text-slate-200 hover:bg-slate-800 hover:text-white"
+                                data-test="confirm-password-back-button"
+                            >
+                                <ArrowLeft className="h-4 w-4" />
+                                Kembali
+                            </Button>
                             <Button
                                 className="w-full bg-cyan-600 text-white hover:bg-cyan-500"
                                 disabled={processing}
