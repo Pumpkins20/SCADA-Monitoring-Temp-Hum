@@ -54,6 +54,18 @@ const humChartConfig = {
     },
 } satisfies ChartConfig;
 
+const temperatureZones = [
+    { from: 0, to: 36, color: '#22c55e' },
+    { from: 36, to: 56, color: '#facc15' },
+    { from: 56, to: 80, color: '#ef4444' },
+];
+
+const humidityZones = [
+    { from: 0, to: 60, color: '#22c55e' },
+    { from: 60, to: 80, color: '#f59e0b' },
+    { from: 80, to: 100, color: '#ef4444' },
+];
+
 // ─── Room Card ───────────────────────────────────────────────────────────────
 
 function RoomCard({
@@ -312,7 +324,8 @@ export default function Dashboard({
                                                     Device Management
                                                 </p>
                                                 <p className="mt-0.5 text-[11px] text-slate-400">
-                                                    Kelola Ruangan, HMI &amp; Sensor
+                                                    Kelola Ruangan, HMI &amp;
+                                                    Sensor
                                                 </p>
                                             </div>
                                             <span className="text-[10px] text-cyan-400 opacity-0 transition-opacity group-hover:opacity-100">
@@ -325,7 +338,8 @@ export default function Dashboard({
                                                 Device Management Terkunci
                                             </p>
                                             <p className="mt-2 text-[11px] text-slate-500">
-                                                Hanya akun admin yang dapat mengubah konfigurasi perangkat.
+                                                Hanya akun admin yang dapat
+                                                mengubah konfigurasi perangkat.
                                             </p>
                                         </div>
                                     )}
@@ -348,9 +362,10 @@ export default function Dashboard({
                             <ArcGauge
                                 value={globalStats.avg_temp}
                                 min={0}
-                                max={40}
+                                max={80}
                                 unit="°C"
                                 color="#22d3ee"
+                                zones={temperatureZones}
                             />
                         </div>
 
@@ -367,6 +382,7 @@ export default function Dashboard({
                                 max={100}
                                 unit="%"
                                 color="#60a5fa"
+                                zones={humidityZones}
                             />
                         </div>
                     </div>

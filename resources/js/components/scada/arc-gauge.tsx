@@ -7,6 +7,7 @@ export function ArcGauge({
     unit = '°C',
     color = '#22d3ee',
     tickCount = 10,
+    zones,
 }: {
     value: number | null;
     min?: number;
@@ -14,6 +15,11 @@ export function ArcGauge({
     unit?: string;
     color?: string;
     tickCount?: number;
+    zones?: Array<{
+        from: number;
+        to: number;
+        color: string;
+    }>;
 }) {
     const size = 200;
     const cx = size / 2;
@@ -46,6 +52,15 @@ export function ArcGauge({
     const clamped = value !== null ? Math.min(Math.max(value, min), max) : min;
     const pct = (clamped - min) / (max - min);
     const valueAngle = startAngle + pct * sweepAngle;
+
+    const zoneSegments = (zones ?? []).filter((zone) => zone.to > zone.from);
+    const activeZone =
+        value !== null
+            ? zoneSegments.find(
+                  (zone) => clamped >= zone.from && clamped <= zone.to,
+              )
+            : null;
+    const activeColor = activeZone?.color ?? color;
 
     // Arc paths
     const bgOuter = arcPath(startAngle, startAngle + sweepAngle, rOuter);
@@ -106,8 +121,16 @@ export function ArcGauge({
                     x2="100%"
                     y2="0%"
                 >
-                    <stop offset="0%" stopColor={color} stopOpacity="0.6" />
-                    <stop offset="100%" stopColor={color} stopOpacity="1" />
+                    <stop
+                        offset="0%"
+                        stopColor={activeColor}
+                        stopOpacity="0.6"
+                    />
+                    <stop
+                        offset="100%"
+                        stopColor={activeColor}
+                        stopOpacity="1"
+                    />
                 </linearGradient>
                 <filter id={`${gaugeId}-glow`}>
                     <feGaussianBlur stdDeviation="3" result="blur" />
@@ -151,12 +174,34 @@ export function ArcGauge({
                 strokeLinecap="round"
             />
 
+            {/* Static colored zones */}
+            {zoneSegments.map((zone, index) => {
+                const zoneFrom = Math.max(min, Math.min(max, zone.from));
+                const zoneTo = Math.max(min, Math.min(max, zone.to));
+                const start =
+                    startAngle + ((zoneFrom - min) / (max - min)) * sweepAngle;
+                const end =
+                    startAngle + ((zoneTo - min) / (max - min)) * sweepAngle;
+
+                return (
+                    <path
+                        key={`${zone.from}-${zone.to}-${index}`}
+                        d={arcPath(start, end, rInner)}
+                        fill="none"
+                        stroke={zone.color}
+                        strokeWidth="7"
+                        strokeLinecap="round"
+                        opacity="0.55"
+                    />
+                );
+            })}
+
             {/* Filled outer arc — glow ring */}
             {fillOuter && (
                 <path
                     d={fillOuter}
                     fill="none"
-                    stroke={color}
+                    stroke={activeColor}
                     strokeWidth="4"
                     strokeLinecap="round"
                     opacity="0.35"
@@ -228,7 +273,7 @@ export function ArcGauge({
                 <>
                     <polygon
                         points={`${needleTip.x},${needleTip.y} ${baseLeft.x},${baseLeft.y} ${baseRight.x},${baseRight.y}`}
-                        fill={color}
+                        fill={activeColor}
                         filter={`url(#${gaugeId}-glow)`}
                     />
                     {/* Center hub */}
@@ -237,10 +282,10 @@ export function ArcGauge({
                         cy={cy}
                         r="7"
                         fill="#1e293b"
-                        stroke={color}
+                        stroke={activeColor}
                         strokeWidth="1.5"
                     />
-                    <circle cx={cx} cy={cy} r="3" fill={color} />
+                    <circle cx={cx} cy={cy} r="3" fill={activeColor} />
                 </>
             )}
 
@@ -253,7 +298,7 @@ export function ArcGauge({
                 fontWeight="bold"
                 fill="white"
                 fontFamily="sans-serif"
-                style={{ textShadow: `0 0 8px ${color}40` }}
+                style={{ textShadow: `0 0 8px ${activeColor}40` }}
             >
                 {value !== null ? clamped.toFixed(1) : '--'}
             </text>
