@@ -1,5 +1,5 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { BarChart2, Cpu, Thermometer, Droplets } from 'lucide-react';
+import { BarChart2, Thermometer, Droplets } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
 import { ArcGauge } from '@/components/scada/arc-gauge';
@@ -13,6 +13,8 @@ import type {
     RoomData,
     ChartPoint,
     GlobalStats,
+    GaugeSettings,
+    GaugeMetricSettings,
 } from '@/components/scada/scada-helpers';
 import { Button } from '@/components/ui/button';
 import {
@@ -36,6 +38,7 @@ interface DashboardProps {
     rooms: RoomData[];
     chartLogs?: Record<number, ChartPoint[]>;
     globalStats: GlobalStats;
+    gaugeSettings: GaugeSettings;
 }
 
 // ─── Chart Configs ────────────────────────────────────────────────────────────
@@ -54,17 +57,57 @@ const humChartConfig = {
     },
 } satisfies ChartConfig;
 
-const temperatureZones = [
-    { from: 0, to: 36, color: '#22c55e' },
-    { from: 36, to: 56, color: '#facc15' },
-    { from: 56, to: 80, color: '#ef4444' },
-];
+const defaultGaugeSettings: GaugeSettings = {
+    temperature: {
+        min: 0,
+        max: 80,
+        zones: [
+            { from: 0, to: 36, color: '#22c55e' },
+            { from: 36, to: 56, color: '#facc15' },
+            { from: 56, to: 80, color: '#ef4444' },
+        ],
+    },
+    humidity: {
+        min: 0,
+        max: 100,
+        zones: [
+            { from: 0, to: 60, color: '#22c55e' },
+            { from: 60, to: 80, color: '#f59e0b' },
+            { from: 80, to: 100, color: '#ef4444' },
+        ],
+    },
+};
 
-const humidityZones = [
-    { from: 0, to: 60, color: '#22c55e' },
-    { from: 60, to: 80, color: '#f59e0b' },
-    { from: 80, to: 100, color: '#ef4444' },
-];
+function normalizeMetricSetting(
+    setting: GaugeMetricSettings | undefined,
+    fallback: GaugeMetricSettings,
+): GaugeMetricSettings {
+    if (!setting || setting.zones.length < 3) {
+        return fallback;
+    }
+
+    return {
+        min: Number(setting.min ?? fallback.min),
+        max: Number(setting.max ?? fallback.max),
+        zones: [
+            {
+                from: Number(setting.zones[0]?.from ?? fallback.zones[0].from),
+                to: Number(setting.zones[0]?.to ?? fallback.zones[0].to),
+                color: setting.zones[0]?.color ?? fallback.zones[0].color,
+            },
+            {
+                from: Number(setting.zones[1]?.from ?? fallback.zones[1].from),
+                to: Number(setting.zones[1]?.to ?? fallback.zones[1].to),
+                color: setting.zones[1]?.color ?? fallback.zones[1].color,
+            },
+            {
+                from: Number(setting.zones[2]?.from ?? fallback.zones[2].from),
+                to: Number(setting.zones[2]?.to ?? fallback.zones[2].to),
+                color: setting.zones[2]?.color ?? fallback.zones[2].color,
+            },
+        ],
+    };
+}
 
 // ─── Room Card ───────────────────────────────────────────────────────────────
 
@@ -181,16 +224,25 @@ export default function Dashboard({
     rooms,
     chartLogs = {},
     globalStats,
+    gaugeSettings,
 }: DashboardProps) {
     const canManageDevices =
         usePage<{ auth?: { can?: { manage_devices?: boolean } } }>().props.auth
             ?.can?.manage_devices ?? false;
 
     const [now, setNow] = useState(new Date());
-    const [activeTab, setActiveTab] = useState<
-        'home' | 'chart' | 'floor' | 'table' | 'alarm' | 'settings'
-    >('home');
     const [showRoomAccessPrompt, setShowRoomAccessPrompt] = useState(false);
+
+    const normalizedGaugeSettings: GaugeSettings = {
+        temperature: normalizeMetricSetting(
+            gaugeSettings?.temperature,
+            defaultGaugeSettings.temperature,
+        ),
+        humidity: normalizeMetricSetting(
+            gaugeSettings?.humidity,
+            defaultGaugeSettings.humidity,
+        ),
+    };
 
     useEffect(() => {
         const timer = setInterval(() => setNow(new Date()), 60_000);
@@ -199,7 +251,9 @@ export default function Dashboard({
 
     useEffect(() => {
         const timer = setInterval(() => {
-            router.reload({ only: ['rooms', 'globalStats', 'chartLogs'] });
+            router.reload({
+                only: ['rooms', 'globalStats', 'chartLogs', 'gaugeSettings'],
+            });
         }, 30_000);
         return () => clearInterval(timer);
     }, []);
@@ -307,63 +361,8 @@ export default function Dashboard({
 
                 {/* ── MAIN CONTENT ─────────────────────────────────── */}
                 <main className="flex flex-1 gap-3 overflow-hidden bg-[#151b1f] p-3">
-                    {/* ── SETTINGS OVERLAY ── */}
-                    {activeTab === 'settings' && (
-                        <div className="flex flex-1 items-center justify-center">
-                            <div className="flex flex-col items-center gap-6">
-                                <div className="text-center">
-                                    <p className="text-xs font-semibold tracking-widest text-slate-500 uppercase">
-                                        Pengaturan Sistem
-                                    </p>
-                                    <p className="mt-1 text-lg font-bold tracking-wider text-white uppercase">
-                                        SCADA Settings
-                                    </p>
-                                </div>
-                                <div className="flex flex-wrap justify-center gap-4">
-                                    {canManageDevices ? (
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                setShowRoomAccessPrompt(true)
-                                            }
-                                            className="group flex w-52 flex-col items-center gap-3 rounded-xl border border-slate-700/60 bg-slate-800/60 p-6 backdrop-blur-sm transition-all hover:border-cyan-500/50 hover:bg-slate-800/80 hover:shadow-[0_0_20px_#22d3ee20]"
-                                        >
-                                            <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-500/10 transition-colors group-hover:border-cyan-500/60 group-hover:bg-cyan-500/20">
-                                                <Cpu className="h-7 w-7 text-cyan-400" />
-                                            </div>
-                                            <div className="text-center">
-                                                <p className="text-sm font-bold tracking-wider text-white uppercase">
-                                                    Device Management
-                                                </p>
-                                                <p className="mt-0.5 text-[11px] text-slate-400">
-                                                    Kelola Ruangan, HMI &amp;
-                                                    Sensor
-                                                </p>
-                                            </div>
-                                            <span className="text-[10px] text-cyan-400 opacity-0 transition-opacity group-hover:opacity-100">
-                                                Buka →
-                                            </span>
-                                        </button>
-                                    ) : (
-                                        <div className="w-72 rounded-xl border border-slate-700/60 bg-slate-800/40 px-5 py-6 text-center">
-                                            <p className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
-                                                Device Management Terkunci
-                                            </p>
-                                            <p className="mt-2 text-[11px] text-slate-500">
-                                                Hanya akun admin yang dapat
-                                                mengubah konfigurasi perangkat.
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
                     {/* ── LEFT COLUMN: gauges ── */}
-                    <div
-                        className={`flex w-52 shrink-0 flex-col gap-3 ${activeTab === 'settings' ? 'hidden' : ''}`}
-                    >
+                    <div className="flex w-52 shrink-0 flex-col gap-3">
                         <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-slate-700/60 bg-slate-800/50 p-3 backdrop-blur-sm">
                             <div className="flex items-center gap-1.5 self-start">
                                 <Thermometer className="h-4 w-4 text-cyan-400" />
@@ -373,11 +372,13 @@ export default function Dashboard({
                             </div>
                             <ArcGauge
                                 value={globalStats.avg_temp}
-                                min={0}
-                                max={80}
+                                min={normalizedGaugeSettings.temperature.min}
+                                max={normalizedGaugeSettings.temperature.max}
                                 unit="°C"
                                 color="#22d3ee"
-                                zones={temperatureZones}
+                                zones={
+                                    normalizedGaugeSettings.temperature.zones
+                                }
                             />
                         </div>
 
@@ -390,19 +391,17 @@ export default function Dashboard({
                             </div>
                             <ArcGauge
                                 value={globalStats.avg_hum}
-                                min={0}
-                                max={100}
+                                min={normalizedGaugeSettings.humidity.min}
+                                max={normalizedGaugeSettings.humidity.max}
                                 unit="%"
                                 color="#60a5fa"
-                                zones={humidityZones}
+                                zones={normalizedGaugeSettings.humidity.zones}
                             />
                         </div>
                     </div>
 
                     {/* ── MIDDLE COLUMN: room cards 1-3 ── */}
-                    <div
-                        className={`flex h-full w-56 shrink-0 flex-col gap-3 ${activeTab === 'settings' ? 'hidden' : ''}`}
-                    >
+                    <div className="flex h-full w-56 shrink-0 flex-col gap-3">
                         {colMiddleRooms.length > 0
                             ? colMiddleRooms.map((room) => (
                                   <RoomCard
@@ -420,9 +419,7 @@ export default function Dashboard({
                     </div>
 
                     {/* ── RIGHT AREA ── */}
-                    <div
-                        className={`flex flex-1 flex-col gap-3 overflow-hidden ${activeTab === 'settings' ? 'hidden' : ''}`}
-                    >
+                    <div className="flex flex-1 flex-col gap-3 overflow-hidden">
                         {colRightRooms.length > 0 && (
                             <div className="flex shrink-0 gap-3">
                                 {colRightRooms.map((room) => (
@@ -598,7 +595,6 @@ export default function Dashboard({
                 {/* ── FOOTER ──────────────────────────────────────── */}
                 <ScadaFooterNav
                     activeMenu="dashboard"
-                    onDashboardClick={() => setActiveTab('home')}
                     onRoomsClick={() => {
                         if (canManageDevices) {
                             setShowRoomAccessPrompt(true);
@@ -608,6 +604,7 @@ export default function Dashboard({
 
                         router.visit('/rooms');
                     }}
+                    onSettingsClick={() => router.visit('/settings-general')}
                     rooms={rooms}
                     hasAlarms={hasAlarms}
                     alarmRoomNames={alarmRoomNames}

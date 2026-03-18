@@ -44,6 +44,23 @@ export interface GlobalStats {
     last_update: string | null;
 }
 
+export interface GaugeZone {
+    from: number;
+    to: number;
+    color: string;
+}
+
+export interface GaugeMetricSettings {
+    min: number;
+    max: number;
+    zones: GaugeZone[];
+}
+
+export interface GaugeSettings {
+    temperature: GaugeMetricSettings;
+    humidity: GaugeMetricSettings;
+}
+
 export function fmt(value: number | string | null, decimals = 1): string {
     if (value === null || value === undefined) return '--';
     return Number(value).toFixed(decimals);

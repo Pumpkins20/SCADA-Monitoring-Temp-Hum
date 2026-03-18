@@ -54,21 +54,27 @@ export function ArcGauge({
     const valueAngle = startAngle + pct * sweepAngle;
 
     const zoneSegments = (zones ?? []).filter((zone) => zone.to > zone.from);
+    const hasZoneSegments = zoneSegments.length > 0;
     const activeZone =
         value !== null
             ? zoneSegments.find(
                   (zone) => clamped >= zone.from && clamped <= zone.to,
               )
             : null;
-    const activeColor = activeZone?.color ?? color;
+    const needleColor = activeZone?.color ?? color;
+    const gaugeAccentColor = color;
 
     // Arc paths
     const bgOuter = arcPath(startAngle, startAngle + sweepAngle, rOuter);
     const bgInner = arcPath(startAngle, startAngle + sweepAngle, rInner);
     const fillOuter =
-        value !== null ? arcPath(startAngle, valueAngle, rOuter) : null;
+        value !== null && !hasZoneSegments
+            ? arcPath(startAngle, valueAngle, rOuter)
+            : null;
     const fillInner =
-        value !== null ? arcPath(startAngle, valueAngle, rInner) : null;
+        value !== null && !hasZoneSegments
+            ? arcPath(startAngle, valueAngle, rInner)
+            : null;
 
     // Generate ticks — 5 minor ticks per major division
     const totalMinorTicks = tickCount * 5;
@@ -123,12 +129,12 @@ export function ArcGauge({
                 >
                     <stop
                         offset="0%"
-                        stopColor={activeColor}
+                        stopColor={gaugeAccentColor}
                         stopOpacity="0.6"
                     />
                     <stop
                         offset="100%"
-                        stopColor={activeColor}
+                        stopColor={gaugeAccentColor}
                         stopOpacity="1"
                     />
                 </linearGradient>
@@ -201,7 +207,7 @@ export function ArcGauge({
                 <path
                     d={fillOuter}
                     fill="none"
-                    stroke={activeColor}
+                    stroke={gaugeAccentColor}
                     strokeWidth="4"
                     strokeLinecap="round"
                     opacity="0.35"
@@ -273,7 +279,7 @@ export function ArcGauge({
                 <>
                     <polygon
                         points={`${needleTip.x},${needleTip.y} ${baseLeft.x},${baseLeft.y} ${baseRight.x},${baseRight.y}`}
-                        fill={activeColor}
+                        fill={needleColor}
                         filter={`url(#${gaugeId}-glow)`}
                     />
                     {/* Center hub */}
@@ -282,10 +288,10 @@ export function ArcGauge({
                         cy={cy}
                         r="7"
                         fill="#1e293b"
-                        stroke={activeColor}
+                        stroke={gaugeAccentColor}
                         strokeWidth="1.5"
                     />
-                    <circle cx={cx} cy={cy} r="3" fill={activeColor} />
+                    <circle cx={cx} cy={cy} r="3" fill={gaugeAccentColor} />
                 </>
             )}
 
@@ -298,7 +304,7 @@ export function ArcGauge({
                 fontWeight="bold"
                 fill="white"
                 fontFamily="sans-serif"
-                style={{ textShadow: `0 0 8px ${activeColor}40` }}
+                style={{ textShadow: `0 0 8px ${gaugeAccentColor}40` }}
             >
                 {value !== null ? clamped.toFixed(1) : '--'}
             </text>

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\GaugeSetting;
 use App\Models\Room;
 use Illuminate\Database\Eloquent\Collection;
 use Inertia\Inertia;
@@ -11,6 +12,8 @@ class DashboardController extends Controller
 {
     public function index(): Response
     {
+        $gaugeSetting = GaugeSetting::query()->first();
+
         $rooms = Room::with([
             'hmis.sensors' => fn ($q) => $q->select(['id', 'hmi_id', 'name']),
             'hmis.sensors.latestData' => fn ($q) => $q->select([
@@ -96,6 +99,26 @@ class DashboardController extends Controller
                 'avg_hum' => $globalAvgHum,
                 'active_alarms' => $activeAlarms,
                 'last_update' => now()->toDateTimeString(),
+            ],
+            'gaugeSettings' => [
+                'temperature' => [
+                    'min' => $gaugeSetting?->temp_min ?? 0,
+                    'max' => $gaugeSetting?->temp_max ?? 80,
+                    'zones' => [
+                        ['from' => $gaugeSetting?->temp_green_from ?? 0, 'to' => $gaugeSetting?->temp_green_to ?? 36, 'color' => '#22c55e'],
+                        ['from' => $gaugeSetting?->temp_yellow_from ?? 36, 'to' => $gaugeSetting?->temp_yellow_to ?? 56, 'color' => '#facc15'],
+                        ['from' => $gaugeSetting?->temp_red_from ?? 56, 'to' => $gaugeSetting?->temp_red_to ?? 80, 'color' => '#ef4444'],
+                    ],
+                ],
+                'humidity' => [
+                    'min' => $gaugeSetting?->hum_min ?? 0,
+                    'max' => $gaugeSetting?->hum_max ?? 100,
+                    'zones' => [
+                        ['from' => $gaugeSetting?->hum_green_from ?? 0, 'to' => $gaugeSetting?->hum_green_to ?? 60, 'color' => '#22c55e'],
+                        ['from' => $gaugeSetting?->hum_yellow_from ?? 60, 'to' => $gaugeSetting?->hum_yellow_to ?? 80, 'color' => '#f59e0b'],
+                        ['from' => $gaugeSetting?->hum_red_from ?? 80, 'to' => $gaugeSetting?->hum_red_to ?? 100, 'color' => '#ef4444'],
+                    ],
+                ],
             ],
             'rooms' => $payload->values()->all(),
             'chartLogs' => $chartlogs,

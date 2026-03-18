@@ -6,14 +6,16 @@ import {
     DoorOpen,
     Home,
     LogOut,
+    SlidersHorizontal,
 } from 'lucide-react';
 import { statusDotColor } from '@/components/scada/scada-helpers';
 import type { RoomData } from '@/components/scada/scada-helpers';
 
 interface ScadaFooterNavProps {
-    activeMenu: 'dashboard' | 'logs' | 'chart-logs' | 'rooms';
+    activeMenu: 'dashboard' | 'logs' | 'chart-logs' | 'rooms' | 'settings';
     onDashboardClick?: () => void;
     onRoomsClick?: () => void;
+    onSettingsClick?: () => void;
     rooms?: RoomData[];
     hasAlarms?: boolean;
     alarmRoomNames?: string;
@@ -25,6 +27,7 @@ export function ScadaFooterNav({
     activeMenu,
     onDashboardClick,
     onRoomsClick,
+    onSettingsClick,
     rooms = [],
     hasAlarms = false,
     alarmRoomNames = '',
@@ -35,6 +38,7 @@ export function ScadaFooterNav({
     const isLogsActive = activeMenu === 'logs';
     const isChartLogsActive = activeMenu === 'chart-logs';
     const isRoomsActive = activeMenu === 'rooms';
+    const isSettingsActive = activeMenu === 'settings';
 
     return (
         <footer className="flex shrink-0 items-center border-t border-slate-700/50 bg-[#0f1316] px-4 py-2">
@@ -136,6 +140,35 @@ export function ScadaFooterNav({
                     >
                         <DoorOpen className="h-4 w-4" />
                         <span className="text-[9px] leading-none">Ruangan</span>
+                    </Link>
+                )}
+
+                {onSettingsClick ? (
+                    <button
+                        type="button"
+                        title="Setting"
+                        onClick={onSettingsClick}
+                        className={`flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-lg transition-colors ${
+                            isSettingsActive
+                                ? 'bg-cyan-500 text-white shadow-[0_0_10px_#22d3ee80]'
+                                : 'bg-slate-700/60 text-slate-400 hover:bg-slate-600/60 hover:text-white'
+                        }`}
+                    >
+                        <SlidersHorizontal className="h-4 w-4" />
+                        <span className="text-[9px] leading-none">Setting</span>
+                    </button>
+                ) : (
+                    <Link
+                        href="/settings-general"
+                        title="Setting"
+                        className={`flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-lg transition-colors ${
+                            isSettingsActive
+                                ? 'bg-cyan-500 text-white shadow-[0_0_10px_#22d3ee80]'
+                                : 'bg-slate-700/60 text-slate-400 hover:bg-slate-600/60 hover:text-white'
+                        }`}
+                    >
+                        <SlidersHorizontal className="h-4 w-4" />
+                        <span className="text-[9px] leading-none">Setting</span>
                     </Link>
                 )}
 
