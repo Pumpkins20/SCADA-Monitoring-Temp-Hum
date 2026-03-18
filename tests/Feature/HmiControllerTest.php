@@ -73,6 +73,8 @@ test('can create a new hmi', function () {
         'hmi_id' => $hmi->id,
         'name' => 'Sensor 1',
         'unit_id' => 1,
+        'modbus_address_temp' => 9,
+        'modbus_address_hum' => 11,
     ]);
 });
 

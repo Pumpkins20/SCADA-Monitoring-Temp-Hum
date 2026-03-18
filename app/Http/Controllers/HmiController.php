@@ -9,22 +9,36 @@ use App\Models\Sensor;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class HmiController extends Controller
 {
     public function store(StoreHmiRequest $request): RedirectResponse
     {
-        $hmi = Hmi::create($request->validated());
+        $validated = $request->validated();
 
-        // Auto-create 4 sensor sesuai posisi Device_1..4 di HMI Haiwell D4.
-        // Nama dan unit_id bisa diubah operator via form edit sensor.
-        foreach (range(1, 4) as $position) {
-            Sensor::create([
-                'hmi_id' => $hmi->id,
-                'name' => "Sensor {$position}",
-                'unit_id' => 1,
-            ]);
-        }
+        $sensorMap = [
+            1 => ['temp' => 9, 'hum' => 11],
+            2 => ['temp' => 33, 'hum' => 35],
+            3 => ['temp' => 57, 'hum' => 59],
+            4 => ['temp' => 81, 'hum' => 83],
+        ];
+
+        DB::transaction(function () use ($validated, $sensorMap): void {
+            $hmi = Hmi::create($validated);
+
+            // Auto-create 4 sensor sesuai posisi Device_1..4 di HMI Haiwell D4.
+            // Register address disimpan sebagai referensi UI/reporting.
+            foreach (range(1, 4) as $position) {
+                Sensor::create([
+                    'hmi_id' => $hmi->id,
+                    'name' => "Sensor {$position}",
+                    'unit_id' => 1,
+                    'modbus_address_temp' => $sensorMap[$position]['temp'],
+                    'modbus_address_hum' => $sensorMap[$position]['hum'],
+                ]);
+            }
+        });
 
         return redirect()->route('rooms.devices', $request->validated('room_id'));
     }
