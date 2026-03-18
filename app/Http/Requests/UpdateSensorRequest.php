@@ -24,8 +24,12 @@ class UpdateSensorRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:100'],
             'unit_id' => ['required', 'integer', 'min:1', 'max:255'],
+            'modbus_register_function' => ['required', 'in:01,02,03,04'],
             'modbus_address_temp' => ['required', 'integer', 'min:0', 'max:65535'],
             'modbus_address_hum' => ['required', 'integer', 'min:0', 'max:65535'],
+            'modbus_coil_alarm_temp' => ['nullable', 'integer', 'min:1', 'max:65535'],
+            'modbus_coil_alarm_hum' => ['nullable', 'integer', 'min:1', 'max:65535'],
+            'modbus_coil_connection' => ['nullable', 'integer', 'min:1', 'max:65535'],
         ];
     }
 
@@ -41,10 +45,21 @@ class UpdateSensorRequest extends FormRequest
             'unit_id.integer' => 'Slave ID harus berupa angka.',
             'unit_id.min' => 'Slave ID minimal 1.',
             'unit_id.max' => 'Slave ID maksimal 255.',
+            'modbus_register_function.required' => 'Function register wajib dipilih.',
+            'modbus_register_function.in' => 'Function register harus salah satu dari 01, 02, 03, atau 04.',
             'modbus_address_temp.required' => 'Register suhu wajib diisi.',
             'modbus_address_temp.integer' => 'Register suhu harus berupa angka.',
             'modbus_address_hum.required' => 'Register kelembapan wajib diisi.',
             'modbus_address_hum.integer' => 'Register kelembapan harus berupa angka.',
+            'modbus_coil_alarm_temp.integer' => 'Coil alarm suhu harus berupa angka.',
+            'modbus_coil_alarm_temp.min' => 'Coil alarm suhu minimal 1.',
+            'modbus_coil_alarm_temp.max' => 'Coil alarm suhu maksimal 65535.',
+            'modbus_coil_alarm_hum.integer' => 'Coil alarm kelembapan harus berupa angka.',
+            'modbus_coil_alarm_hum.min' => 'Coil alarm kelembapan minimal 1.',
+            'modbus_coil_alarm_hum.max' => 'Coil alarm kelembapan maksimal 65535.',
+            'modbus_coil_connection.integer' => 'Coil status koneksi harus berupa angka.',
+            'modbus_coil_connection.min' => 'Coil status koneksi minimal 1.',
+            'modbus_coil_connection.max' => 'Coil status koneksi maksimal 65535.',
         ];
     }
 }

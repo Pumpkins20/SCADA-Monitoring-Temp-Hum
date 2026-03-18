@@ -45,18 +45,40 @@ log = logging.getLogger(__name__)
 
 # ─── Status Computation ───────────────────────────────────────────────────────
 
-def compute_status(temp: float, hum: float, temp_limit: float, hum_limit: float) -> str:
-    """
-    Return NORMAL / WARNING / CRITICAL based on room thresholds.
-      NORMAL   — both values within limit
-      WARNING  — any value exceeds limit
-      CRITICAL — any value exceeds 2x limit
-    """
+def compute_alarms(
+    temp: float,
+    hum: float,
+    temp_limit: float,
+    hum_limit: float,
+    alarm_temp: bool | None,
+    alarm_hum: bool | None,
+    alarm_disconnect: bool | None,
+) -> dict:
+    """Compute final alarm states and room status with fallback behavior."""
+    if alarm_disconnect:
+        return {
+            "alarm_temp": False,
+            "alarm_hum": False,
+            "alarm_disconnect": True,
+            "status": "OFFLINE",
+        }
+
+    final_alarm_temp = alarm_temp if alarm_temp is not None else (temp > temp_limit)
+    final_alarm_hum = alarm_hum if alarm_hum is not None else (hum > hum_limit)
+
     if temp > temp_limit * 2 or hum > hum_limit * 2:
-        return "CRITICAL"
-    if temp > temp_limit or hum > hum_limit:
-        return "WARNING"
-    return "NORMAL"
+        status = "CRITICAL"
+    elif final_alarm_temp or final_alarm_hum:
+        status = "WARNING"
+    else:
+        status = "NORMAL"
+
+    return {
+        "alarm_temp": final_alarm_temp,
+        "alarm_hum": final_alarm_hum,
+        "alarm_disconnect": False,
+        "status": status,
+    }
 
 
 # ─── Database Helpers ─────────────────────────────────────────────────────────
@@ -81,7 +103,7 @@ def load_hmis(cursor) -> list[dict]:
             r.hum_max_limit
         FROM hmis h
         JOIN rooms r ON r.id = h.room_id
-        WHERE h.is_active = 1
+        WHERE h.is_active IS TRUE
     """)
     rows = cursor.fetchall()
     if not rows:
@@ -102,19 +124,36 @@ def load_hmis(cursor) -> list[dict]:
     placeholders = ", ".join(["%s"] * len(hmis))
     cursor.execute(
         f"""
-        SELECT id, hmi_id, name, modbus_address_temp, modbus_address_hum, unit_id
+        SELECT id, hmi_id, name, modbus_address_temp, modbus_address_hum,
+               modbus_coil_alarm_temp, modbus_coil_alarm_hum, modbus_coil_connection,
+               unit_id, modbus_register_function
         FROM sensors
         WHERE hmi_id IN ({placeholders})
         """,
         list(hmis.keys()),
     )
-    for sensor_id, hmi_id, sensor_name, addr_temp, addr_hum, unit_id in cursor.fetchall():
+    for (
+        sensor_id,
+        hmi_id,
+        sensor_name,
+        addr_temp,
+        addr_hum,
+        coil_alarm_temp,
+        coil_alarm_hum,
+        coil_connection,
+        unit_id,
+        register_function,
+    ) in cursor.fetchall():
         hmis[hmi_id]["sensors"].append({
             "sensor_id": sensor_id,
             "name":      sensor_name,
             "addr_temp":  addr_temp,
             "addr_hum":   addr_hum,
+            "coil_alarm_temp": coil_alarm_temp,
+            "coil_alarm_hum": coil_alarm_hum,
+            "coil_connection": coil_connection,
             "unit_id":    unit_id,
+            "register_function": register_function or "04",
         })
 
     # Only return HMIs that have at least one sensor
@@ -142,12 +181,17 @@ def upsert_sensor_data(cursor, rows: list[tuple]) -> None:
     cursor.executemany(
         """
         INSERT INTO sensor_latest_data
-            (sensor_id, temperature, humidity, status, last_read_at, updated_at)
-        VALUES (%s, %s, %s, %s, %s, %s)
+            (sensor_id, temperature, humidity, status,
+             alarm_temp, alarm_hum, alarm_disconnect,
+             last_read_at, updated_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (sensor_id) DO UPDATE SET
             temperature  = EXCLUDED.temperature,
             humidity     = EXCLUDED.humidity,
             status       = EXCLUDED.status,
+            alarm_temp   = EXCLUDED.alarm_temp,
+            alarm_hum    = EXCLUDED.alarm_hum,
+            alarm_disconnect = EXCLUDED.alarm_disconnect,
             last_read_at = EXCLUDED.last_read_at,
             updated_at   = EXCLUDED.updated_at
         """,
@@ -177,6 +221,9 @@ def mark_hmi_offline(cursor, hmi_id: int, now: datetime) -> None:
         """
         UPDATE sensor_latest_data sld
         SET status     = 'OFFLINE',
+            alarm_disconnect = TRUE,
+            alarm_temp = FALSE,
+            alarm_hum = FALSE,
             updated_at = %s
         FROM sensors s
         WHERE s.id = sld.sensor_id
@@ -189,10 +236,38 @@ def mark_hmi_offline(cursor, hmi_id: int, now: datetime) -> None:
 
 # ─── Modbus Polling ───────────────────────────────────────────────────────────
 
-def read_register(client: ModbusTcpClient, address: int, unit_id: int) -> float:
-    result = client.read_input_registers(address=address, count=1, device_id=unit_id)
+def read_coil(client: ModbusTcpClient, address: int, unit_id: int) -> bool | None:
+    """
+    Read one alarm coil via FC01.
+    Haiwell coil addresses are 1-based, while pymodbus expects 0-based.
+    """
+    try:
+        result = client.read_coils(address=address - 1, count=1, device_id=unit_id)
+        if result.isError():
+            return None
+
+        return bool(result.bits[0])
+    except (ModbusException, OSError):
+        return None
+
+def read_register(client: ModbusTcpClient, address: int, unit_id: int, register_function: str) -> float:
+    if register_function == "01":
+        result = client.read_coils(address=address, count=1, device_id=unit_id)
+    elif register_function == "02":
+        result = client.read_discrete_inputs(address=address, count=1, device_id=unit_id)
+    elif register_function == "03":
+        result = client.read_holding_registers(address=address, count=1, device_id=unit_id)
+    else:
+        result = client.read_input_registers(address=address, count=1, device_id=unit_id)
+
     if result.isError():
-        raise ModbusException(f"Slave {unit_id} register {address} returned error response")
+        raise ModbusException(
+            f"Slave {unit_id} {register_function} register {address} returned error response"
+        )
+
+    if register_function in ("01", "02"):
+        return float(int(result.bits[0]))
+
     return result.registers[0] / REGISTER_SCALE
 
 
@@ -214,22 +289,51 @@ def poll_hmi(hmi: dict, cursor, now: datetime) -> None:
 
         for sensor in hmi["sensors"]:
             unit_id = sensor["unit_id"]
+            register_function = sensor.get("register_function", "04")
+
             try:
-                temp   = read_register(client, sensor["addr_temp"], unit_id)
-                hum    = read_register(client, sensor["addr_hum"],  unit_id)
-                status = compute_status(temp, hum, hmi["temp_max_limit"], hmi["hum_max_limit"])
+                temp   = read_register(client, sensor["addr_temp"], unit_id, register_function)
+                hum    = read_register(client, sensor["addr_hum"],  unit_id, register_function)
+
+                alarm_temp = (
+                    read_coil(client, sensor["coil_alarm_temp"], unit_id)
+                    if sensor["coil_alarm_temp"] is not None else None
+                )
+                alarm_hum = (
+                    read_coil(client, sensor["coil_alarm_hum"], unit_id)
+                    if sensor["coil_alarm_hum"] is not None else None
+                )
+                connected = (
+                    read_coil(client, sensor["coil_connection"], unit_id)
+                    if sensor["coil_connection"] is not None else None
+                )
+                alarm_disconnect = (not connected) if connected is not None else None
+
+                alarms = compute_alarms(
+                    temp,
+                    hum,
+                    hmi["temp_max_limit"],
+                    hmi["hum_max_limit"],
+                    alarm_temp,
+                    alarm_hum,
+                    alarm_disconnect,
+                )
+
                 ok_rows.append((
                     sensor["sensor_id"],
                     round(temp, 2),
                     round(hum, 2),
-                    status,
+                    alarms["status"],
+                    alarms["alarm_temp"],
+                    alarms["alarm_hum"],
+                    alarms["alarm_disconnect"],
                     now,
                     now,
                 ))
             except (ModbusException, OSError) as exc:
                 log.warning(
-                    "HMI %d sensor %s (unit_id=%d) OFFLINE — %s",
-                    hmi["hmi_id"], sensor.get("name", sensor["sensor_id"]), unit_id, exc,
+                    "HMI %d sensor %s (unit_id=%d, function=%s) OFFLINE — %s",
+                    hmi["hmi_id"], sensor.get("name", sensor["sensor_id"]), unit_id, register_function, exc,
                 )
                 offline_ids.append(sensor["sensor_id"])
 
@@ -241,6 +345,9 @@ def poll_hmi(hmi: dict, cursor, now: datetime) -> None:
                 f"""
                 UPDATE sensor_latest_data
                 SET    status     = 'OFFLINE',
+                                             alarm_disconnect = TRUE,
+                                             alarm_temp = FALSE,
+                                             alarm_hum = FALSE,
                        updated_at = %s
                 WHERE  sensor_id IN ({','.join(['%s'] * len(offline_ids))})
                   AND  status != 'OFFLINE'

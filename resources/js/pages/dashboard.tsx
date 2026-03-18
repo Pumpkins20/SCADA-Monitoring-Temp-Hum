@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
 import { ArcGauge } from '@/components/scada/arc-gauge';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
-import { Button } from '@/components/ui/button';
 import {
     fmt,
     statusDotColor,
@@ -15,11 +14,13 @@ import type {
     ChartPoint,
     GlobalStats,
 } from '@/components/scada/scada-helpers';
+import { Button } from '@/components/ui/button';
 import {
     ChartContainer,
     ChartTooltip,
     ChartTooltipContent,
 } from '@/components/ui/chart';
+import type { ChartConfig } from '@/components/ui/chart';
 import {
     Dialog,
     DialogContent,
@@ -28,7 +29,6 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import type { ChartConfig } from '@/components/ui/chart';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -78,6 +78,12 @@ function RoomCard({
     const isOnline = room.status !== 'OFFLINE';
     const onlineCount = room.sensors.filter(
         (s) => s.status !== 'OFFLINE',
+    ).length;
+    const activeAlarmCount = room.sensors.filter(
+        (sensor) =>
+            sensor.alarms?.temp ||
+            sensor.alarms?.hum ||
+            sensor.alarms?.disconnect,
     ).length;
     const totalCount = room.sensors.length;
 
@@ -155,9 +161,15 @@ function RoomCard({
                 <span className="text-[10px] text-slate-500">
                     {onlineCount}/{totalCount} sensor online
                 </span>
-                <span className="text-[10px] text-cyan-400 opacity-0 transition-opacity group-hover:opacity-100">
-                    Detail →
-                </span>
+                {activeAlarmCount > 0 ? (
+                    <span className="rounded border border-red-500/40 bg-red-500/10 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-red-300 uppercase">
+                        {activeAlarmCount} alarm
+                    </span>
+                ) : (
+                    <span className="text-[10px] text-cyan-400 opacity-0 transition-opacity group-hover:opacity-100">
+                        Detail →
+                    </span>
+                )}
             </div>
         </Link>
     );

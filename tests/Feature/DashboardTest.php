@@ -26,7 +26,7 @@ test('dashboard response contains globalStats with required keys', function () {
 
     $this->get(route('dashboard'))
         ->assertInertia(
-            fn($page) => $page
+            fn ($page) => $page
                 ->component('dashboard')
                 ->has('globalStats')
                 ->has('globalStats.avg_temp')
@@ -41,7 +41,7 @@ test('dashboard response contains rooms array', function () {
 
     $this->get(route('dashboard'))
         ->assertInertia(
-            fn($page) => $page
+            fn ($page) => $page
                 ->has('rooms')
         );
 });
@@ -57,10 +57,10 @@ test('each room in payload has required keys', function () {
     $this->actingAs(User::factory()->create())
         ->get(route('dashboard'))
         ->assertInertia(
-            fn($page) => $page
+            fn ($page) => $page
                 ->has(
                     'rooms.0',
-                    fn($r) => $r
+                    fn ($r) => $r
                         ->has('id')
                         ->has('name')
                         ->has('location')
@@ -82,17 +82,36 @@ test('each sensor in payload has required keys', function () {
     $this->actingAs(User::factory()->create())
         ->get(route('dashboard'))
         ->assertInertia(
-            fn($page) => $page
+            fn ($page) => $page
                 ->has(
                     'rooms.0.sensors.0',
-                    fn($s) => $s
+                    fn ($s) => $s
                         ->has('id')
                         ->has('name')
                         ->has('temperature')
                         ->has('humidity')
                         ->has('status')
+                        ->has('alarms')
+                        ->has('alarms.temp')
+                        ->has('alarms.hum')
+                        ->has('alarms.disconnect')
                         ->etc()
                 )
+        );
+});
+
+test('sensor alarms default disconnect true when latest data is missing', function () {
+    $room = Room::factory()->create();
+    $hmi = Hmi::factory()->create(['room_id' => $room->id]);
+    Sensor::factory()->create(['hmi_id' => $hmi->id]);
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('dashboard'))
+        ->assertInertia(
+            fn ($page) => $page
+                ->where('rooms.0.sensors.0.alarms.temp', false)
+                ->where('rooms.0.sensors.0.alarms.hum', false)
+                ->where('rooms.0.sensors.0.alarms.disconnect', true)
         );
 });
 
@@ -107,7 +126,7 @@ test('room with all offline sensors has null avg and OFFLINE status', function (
     $this->actingAs(User::factory()->create())
         ->get(route('dashboard'))
         ->assertInertia(
-            fn($page) => $page
+            fn ($page) => $page
                 ->where('rooms.0.room_avg_temp', null)
                 ->where('rooms.0.room_avg_hum', null)
                 ->where('rooms.0.status', 'OFFLINE')
@@ -128,7 +147,7 @@ test('room status is CRITICAL when any sensor is CRITICAL', function () {
     $this->actingAs(User::factory()->create())
         ->get(route('dashboard'))
         ->assertInertia(
-            fn($page) => $page
+            fn ($page) => $page
                 ->where('rooms.0.status', 'CRITICAL')
         );
 });
@@ -145,7 +164,7 @@ test('room status is WARNING when any sensor is WARNING but none CRITICAL', func
     $this->actingAs(User::factory()->create())
         ->get(route('dashboard'))
         ->assertInertia(
-            fn($page) => $page
+            fn ($page) => $page
                 ->where('rooms.0.status', 'WARNING')
         );
 });
@@ -166,7 +185,7 @@ test('globalStats active_alarms counts WARNING and CRITICAL sensors', function (
     $this->actingAs(User::factory()->create())
         ->get(route('dashboard'))
         ->assertInertia(
-            fn($page) => $page
+            fn ($page) => $page
                 ->where('globalStats.active_alarms', 3)
         );
 });
@@ -197,11 +216,11 @@ test('rooms.show payload contains room data with sensors and chartLogs', functio
     $this->actingAs(User::factory()->create())
         ->get(route('rooms.show', $room))
         ->assertInertia(
-            fn($page) => $page
+            fn ($page) => $page
                 ->component('rooms/show')
                 ->has(
                     'room',
-                    fn($r) => $r
+                    fn ($r) => $r
                         ->has('id')
                         ->has('name')
                         ->has('room_avg_temp')
@@ -210,12 +229,16 @@ test('rooms.show payload contains room data with sensors and chartLogs', functio
                         ->has('sensors')
                         ->has(
                             'sensors.0',
-                            fn($s) => $s
+                            fn ($s) => $s
                                 ->has('id')
                                 ->has('name')
                                 ->has('temperature')
                                 ->has('humidity')
                                 ->has('status')
+                                ->has('alarms')
+                                ->has('alarms.temp')
+                                ->has('alarms.hum')
+                                ->has('alarms.disconnect')
                                 ->etc()
                         )
                         ->etc()

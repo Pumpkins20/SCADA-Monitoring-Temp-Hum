@@ -30,7 +30,20 @@ test('hmis table has correct columns', function () {
 test('sensors table has correct columns', function () {
     expect(Schema::hasTable('sensors'))->toBeTrue();
 
-    foreach (['id', 'hmi_id', 'name', 'modbus_address_temp', 'modbus_address_hum', 'unit_id', 'created_at', 'updated_at'] as $column) {
+    foreach ([
+        'id',
+        'hmi_id',
+        'name',
+        'modbus_address_temp',
+        'modbus_address_hum',
+        'modbus_coil_alarm_temp',
+        'modbus_coil_alarm_hum',
+        'modbus_coil_connection',
+        'unit_id',
+        'modbus_register_function',
+        'created_at',
+        'updated_at',
+    ] as $column) {
         expect(Schema::hasColumn('sensors', $column))
             ->toBeTrue("sensors.{$column} column is missing");
     }
@@ -41,7 +54,19 @@ test('sensors table has correct columns', function () {
 test('sensor_latest_data table has correct columns', function () {
     expect(Schema::hasTable('sensor_latest_data'))->toBeTrue();
 
-    foreach (['id', 'sensor_id', 'temperature', 'humidity', 'status', 'last_read_at', 'created_at', 'updated_at'] as $column) {
+    foreach ([
+        'id',
+        'sensor_id',
+        'temperature',
+        'humidity',
+        'status',
+        'alarm_temp',
+        'alarm_hum',
+        'alarm_disconnect',
+        'last_read_at',
+        'created_at',
+        'updated_at',
+    ] as $column) {
         expect(Schema::hasColumn('sensor_latest_data', $column))
             ->toBeTrue("sensor_latest_data.{$column} column is missing");
     }

@@ -13,7 +13,17 @@ class DashboardController extends Controller
     {
         $rooms = Room::with([
             'hmis.sensors' => fn ($q) => $q->select(['id', 'hmi_id', 'name']),
-            'hmis.sensors.latestData' => fn ($q) => $q->select(['id', 'sensor_id', 'temperature', 'humidity', 'status', 'last_read_at']),
+            'hmis.sensors.latestData' => fn ($q) => $q->select([
+                'id',
+                'sensor_id',
+                'temperature',
+                'humidity',
+                'status',
+                'alarm_temp',
+                'alarm_hum',
+                'alarm_disconnect',
+                'last_read_at',
+            ]),
         ])
             ->select(['id', 'name', 'location', 'temp_max_limit', 'hum_max_limit'])
             ->get();
@@ -57,6 +67,11 @@ class DashboardController extends Controller
                         ? (float) $s->latestData->humidity
                         : null,
                     'status' => $s->latestData?->status ?? 'OFFLINE',
+                    'alarms' => [
+                        'temp' => $s->latestData?->alarm_temp ?? false,
+                        'hum' => $s->latestData?->alarm_hum ?? false,
+                        'disconnect' => $s->latestData?->alarm_disconnect ?? true,
+                    ],
                     'last_read_at' => $s->latestData?->last_read_at?->format('Y-m-d H:i:s'),
                 ])->values()->all(),
             ];
@@ -94,7 +109,17 @@ class DashboardController extends Controller
     {
         $room->load([
             'hmis.sensors' => fn ($q) => $q->select(['id', 'hmi_id', 'name']),
-            'hmis.sensors.latestData' => fn ($q) => $q->select(['id', 'sensor_id', 'temperature', 'humidity', 'status', 'last_read_at']),
+            'hmis.sensors.latestData' => fn ($q) => $q->select([
+                'id',
+                'sensor_id',
+                'temperature',
+                'humidity',
+                'status',
+                'alarm_temp',
+                'alarm_hum',
+                'alarm_disconnect',
+                'last_read_at',
+            ]),
         ]);
 
         $sensors = $room->hmis->flatMap->sensors;
@@ -137,6 +162,11 @@ class DashboardController extends Controller
                     ? (float) $s->latestData->humidity
                     : null,
                 'status' => $s->latestData?->status ?? 'OFFLINE',
+                'alarms' => [
+                    'temp' => $s->latestData?->alarm_temp ?? false,
+                    'hum' => $s->latestData?->alarm_hum ?? false,
+                    'disconnect' => $s->latestData?->alarm_disconnect ?? true,
+                ],
                 'last_read_at' => $s->latestData?->last_read_at?->format('Y-m-d H:i:s'),
             ])->values()->all(),
         ];

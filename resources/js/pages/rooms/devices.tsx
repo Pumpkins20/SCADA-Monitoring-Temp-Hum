@@ -52,8 +52,12 @@ interface SensorItem {
     id: number;
     name: string;
     unit_id: number;
+    modbus_register_function: '01' | '02' | '03' | '04';
     modbus_address_temp: number;
     modbus_address_hum: number;
+    modbus_coil_alarm_temp: number | null;
+    modbus_coil_alarm_hum: number | null;
+    modbus_coil_connection: number | null;
 }
 
 interface HmiItem {
@@ -412,8 +416,12 @@ function SensorFormDialog({
         hmi_id: hmiId,
         name: sensor?.name ?? '',
         unit_id: sensor?.unit_id?.toString() ?? '1',
+        modbus_register_function: sensor?.modbus_register_function ?? '04',
         modbus_address_temp: sensor?.modbus_address_temp?.toString() ?? '0',
         modbus_address_hum: sensor?.modbus_address_hum?.toString() ?? '1',
+        modbus_coil_alarm_temp: sensor?.modbus_coil_alarm_temp?.toString() ?? '',
+        modbus_coil_alarm_hum: sensor?.modbus_coil_alarm_hum?.toString() ?? '',
+        modbus_coil_connection: sensor?.modbus_coil_connection?.toString() ?? '',
     });
 
     function submit(e: React.FormEvent) {
@@ -491,6 +499,84 @@ function SensorFormDialog({
                     </div>
 
                     {/* Modbus registers */}
+                    <div className="flex flex-col gap-1.5">
+                        <Label className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
+                            Function Register
+                        </Label>
+                        <div className="grid grid-cols-2 gap-2">
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setData(
+                                        'modbus_register_function',
+                                        '01',
+                                    )
+                                }
+                                className={`flex h-10 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors ${
+                                    data.modbus_register_function === '01'
+                                        ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300'
+                                        : 'border-slate-600 bg-slate-800/80 text-slate-400'
+                                }`}
+                            >
+                                01: Coil Status
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setData(
+                                        'modbus_register_function',
+                                        '02',
+                                    )
+                                }
+                                className={`flex h-10 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors ${
+                                    data.modbus_register_function === '02'
+                                        ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300'
+                                        : 'border-slate-600 bg-slate-800/80 text-slate-400'
+                                }`}
+                            >
+                                02: Input Status
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setData(
+                                        'modbus_register_function',
+                                        '03',
+                                    )
+                                }
+                                className={`flex h-10 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors ${
+                                    data.modbus_register_function === '03'
+                                        ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300'
+                                        : 'border-slate-600 bg-slate-800/80 text-slate-400'
+                                }`}
+                            >
+                                03: Holding Register
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setData(
+                                        'modbus_register_function',
+                                        '04',
+                                    )
+                                }
+                                className={`flex h-10 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors ${
+                                    data.modbus_register_function === '04'
+                                        ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300'
+                                        : 'border-slate-600 bg-slate-800/80 text-slate-400'
+                                }`}
+                            >
+                                04: Input Register
+                            </button>
+                        </div>
+                        {errors.modbus_register_function && (
+                            <span className="text-xs text-red-400">
+                                {errors.modbus_register_function}
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Modbus registers */}
                     <div className="grid grid-cols-2 gap-3">
                         <div className="flex flex-col gap-1.5">
                             <Label className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
@@ -543,6 +629,88 @@ function SensorFormDialog({
                                     {errors.modbus_address_hum}
                                 </span>
                             )}
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                        <Label className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
+                            Coil Alarm (FC01)
+                        </Label>
+                        <div className="grid grid-cols-3 gap-3">
+                            <div className="flex flex-col gap-1.5">
+                                <Label className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+                                    Coil Temp
+                                </Label>
+                                <Input
+                                    type="number"
+                                    min={1}
+                                    max={65535}
+                                    placeholder="1"
+                                    value={data.modbus_coil_alarm_temp}
+                                    onChange={(e) =>
+                                        setData(
+                                            'modbus_coil_alarm_temp',
+                                            e.target.value,
+                                        )
+                                    }
+                                    className="border-slate-600 bg-slate-800/80 text-white placeholder:text-slate-500 focus-visible:border-cyan-500 focus-visible:ring-cyan-500/30"
+                                />
+                                {errors.modbus_coil_alarm_temp && (
+                                    <span className="text-xs text-red-400">
+                                        {errors.modbus_coil_alarm_temp}
+                                    </span>
+                                )}
+                            </div>
+
+                            <div className="flex flex-col gap-1.5">
+                                <Label className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+                                    Coil Hum
+                                </Label>
+                                <Input
+                                    type="number"
+                                    min={1}
+                                    max={65535}
+                                    placeholder="2"
+                                    value={data.modbus_coil_alarm_hum}
+                                    onChange={(e) =>
+                                        setData(
+                                            'modbus_coil_alarm_hum',
+                                            e.target.value,
+                                        )
+                                    }
+                                    className="border-slate-600 bg-slate-800/80 text-white placeholder:text-slate-500 focus-visible:border-cyan-500 focus-visible:ring-cyan-500/30"
+                                />
+                                {errors.modbus_coil_alarm_hum && (
+                                    <span className="text-xs text-red-400">
+                                        {errors.modbus_coil_alarm_hum}
+                                    </span>
+                                )}
+                            </div>
+
+                            <div className="flex flex-col gap-1.5">
+                                <Label className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+                                    Coil Conn
+                                </Label>
+                                <Input
+                                    type="number"
+                                    min={1}
+                                    max={65535}
+                                    placeholder="9"
+                                    value={data.modbus_coil_connection}
+                                    onChange={(e) =>
+                                        setData(
+                                            'modbus_coil_connection',
+                                            e.target.value,
+                                        )
+                                    }
+                                    className="border-slate-600 bg-slate-800/80 text-white placeholder:text-slate-500 focus-visible:border-cyan-500 focus-visible:ring-cyan-500/30"
+                                />
+                                {errors.modbus_coil_connection && (
+                                    <span className="text-xs text-red-400">
+                                        {errors.modbus_coil_connection}
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     </div>
 
@@ -713,6 +881,9 @@ function HmiCard({ hmi, roomId }: { hmi: HmiItem; roomId: number }) {
                             Slave ID
                         </TableHead>
                         <TableHead className="text-center text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+                            Function
+                        </TableHead>
+                        <TableHead className="text-center text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
                             Reg. Suhu
                         </TableHead>
                         <TableHead className="text-center text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
@@ -727,7 +898,7 @@ function HmiCard({ hmi, roomId }: { hmi: HmiItem; roomId: number }) {
                     {hmi.sensors.length === 0 ? (
                         <TableRow className="border-slate-700/60 hover:bg-transparent">
                             <TableCell
-                                colSpan={5}
+                                colSpan={6}
                                 className="py-6 text-center text-xs text-slate-600"
                             >
                                 Belum ada sensor. Klik "Tambah Sensor" untuk
@@ -748,6 +919,11 @@ function HmiCard({ hmi, roomId }: { hmi: HmiItem; roomId: number }) {
                                 </TableCell>
                                 <TableCell className="text-center text-slate-300 tabular-nums">
                                     {sensor.unit_id}
+                                </TableCell>
+                                <TableCell className="text-center text-slate-300">
+                                    <span className="rounded-full border border-slate-600/80 px-2 py-0.5 text-[10px] font-semibold text-slate-300 uppercase">
+                                        {sensor.modbus_register_function}
+                                    </span>
                                 </TableCell>
                                 <TableCell className="text-center text-cyan-300 tabular-nums">
                                     {sensor.modbus_address_temp}

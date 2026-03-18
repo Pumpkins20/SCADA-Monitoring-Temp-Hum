@@ -58,6 +58,24 @@ export function SensorCard({
                     </span>
                 </div>
             </div>
+
+            <div className="mt-1 flex min-h-5 items-center gap-1">
+                {sensor.alarms?.temp && (
+                    <span className="rounded border border-red-500/40 bg-red-500/15 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-red-300 uppercase">
+                        ALARM TEMP
+                    </span>
+                )}
+                {sensor.alarms?.hum && (
+                    <span className="rounded border border-blue-500/40 bg-blue-500/15 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-blue-300 uppercase">
+                        ALARM HUM
+                    </span>
+                )}
+                {sensor.alarms?.disconnect && (
+                    <span className="rounded border border-amber-500/40 bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-amber-300 uppercase">
+                        DISCONNECT
+                    </span>
+                )}
+            </div>
         </div>
     );
 }

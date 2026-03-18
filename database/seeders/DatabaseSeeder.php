@@ -61,6 +61,7 @@ class DatabaseSeeder extends Seeder
                     'modbus_address_hum' => 0,   // Input Register 0
                     'modbus_address_temp' => 1,   // Input Register 1
                     'unit_id' => $unitId,
+                    'modbus_register_function' => '04',
                 ]);
 
                 $status = $statusPool[$statusIndex++];

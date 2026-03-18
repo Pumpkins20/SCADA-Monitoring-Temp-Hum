@@ -63,8 +63,12 @@ class RoomController extends Controller
                     'id' => $sensor->id,
                     'name' => $sensor->name,
                     'unit_id' => $sensor->unit_id,
+                    'modbus_register_function' => $sensor->modbus_register_function,
                     'modbus_address_temp' => $sensor->modbus_address_temp,
                     'modbus_address_hum' => $sensor->modbus_address_hum,
+                    'modbus_coil_alarm_temp' => $sensor->modbus_coil_alarm_temp,
+                    'modbus_coil_alarm_hum' => $sensor->modbus_coil_alarm_hum,
+                    'modbus_coil_connection' => $sensor->modbus_coil_connection,
                 ]),
             ]),
         ]);

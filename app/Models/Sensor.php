@@ -19,7 +19,11 @@ class Sensor extends Model
         'name',
         'modbus_address_temp',
         'modbus_address_hum',
+        'modbus_coil_alarm_temp',
+        'modbus_coil_alarm_hum',
+        'modbus_coil_connection',
         'unit_id',
+        'modbus_register_function',
     ];
 
     protected function casts(): array
@@ -27,7 +31,11 @@ class Sensor extends Model
         return [
             'modbus_address_temp' => 'integer',
             'modbus_address_hum' => 'integer',
+            'modbus_coil_alarm_temp' => 'integer',
+            'modbus_coil_alarm_hum' => 'integer',
+            'modbus_coil_connection' => 'integer',
             'unit_id' => 'integer',
+            'modbus_register_function' => 'string',
         ];
     }
 

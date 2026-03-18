@@ -17,6 +17,9 @@ class SensorLatestData extends Model
         'temperature',
         'humidity',
         'status',
+        'alarm_temp',
+        'alarm_hum',
+        'alarm_disconnect',
         'last_read_at',
     ];
 
@@ -25,6 +28,9 @@ class SensorLatestData extends Model
         return [
             'temperature' => 'decimal:2',
             'humidity' => 'decimal:2',
+            'alarm_temp' => 'boolean',
+            'alarm_hum' => 'boolean',
+            'alarm_disconnect' => 'boolean',
             'last_read_at' => 'datetime',
         ];
     }

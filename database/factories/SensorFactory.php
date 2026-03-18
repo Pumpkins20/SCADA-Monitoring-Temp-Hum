@@ -21,6 +21,7 @@ class SensorFactory extends Factory
             'modbus_address_temp' => 1,
             'modbus_address_hum' => 0,
             'unit_id' => fake()->numberBetween(1, 5),
+            'modbus_register_function' => '04',
         ];
     }
 }

@@ -2,12 +2,19 @@
 
 export type SensorStatus = 'NORMAL' | 'WARNING' | 'CRITICAL' | 'OFFLINE';
 
+export interface SensorAlarms {
+    temp: boolean;
+    hum: boolean;
+    disconnect: boolean;
+}
+
 export interface SensorData {
     id: number;
     name: string;
     temperature: number | null;
     humidity: number | null;
     status: SensorStatus;
+    alarms?: SensorAlarms;
     last_read_at: string | null;
 }
 
