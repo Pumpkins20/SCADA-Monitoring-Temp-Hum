@@ -31,6 +31,8 @@ DB_CONFIG: dict = {
 MODBUS_TIMEOUT = 3   # seconds
 POLL_INTERVAL  = 5   # seconds per cycle
 
+# IMPORTANT: Keep SENSOR_MAP and COIL_MAP in sync with
+# resources/js/constants/sensor-map.ts. If mapping changes, update BOTH files.
 # Pola holding register 4X (FC03) — identik untuk semua HMI Haiwell D4.
 # Key = posisi sensor dalam HMI (1-based, sesuai urutan id ASC di DB per hmi_id).
 # Nilai temp/hum sudah dalam satuan aktual (°C / %RH) — tidak perlu scaling.
@@ -139,14 +141,16 @@ def load_hmis(cursor) -> list[dict]:
 
     Tidak load threshold dari rooms — threshold dibaca langsung dari register HMI.
     Tidak load modbus_address_temp/hum — alamat dari SENSOR_MAP konstan.
-    Hanya butuh: hmi_id, ip_address, port, sensor_id, name, unit_id.
+    Hanya butuh: hmi_id, ip_address, port, register_function, sensor_id, name,
+    unit_id.
     ORDER BY sensors.id ASC menjamin urutan posisi konsisten dengan Device_1..4 di HMI.
     """
     cursor.execute("""
         SELECT
             h.id         AS hmi_id,
             h.ip_address,
-            h.port
+            h.port,
+            h.register_function
         FROM hmis h
         WHERE h.is_active IS TRUE
     """)
@@ -156,10 +160,11 @@ def load_hmis(cursor) -> list[dict]:
 
     hmis: dict[int, dict] = {
         row[0]: {
-            "hmi_id":     row[0],
-            "ip_address": row[1],
-            "port":       row[2],
-            "sensors":    [],
+            "hmi_id":            row[0],
+            "ip_address":        row[1],
+            "port":              row[2],
+            "register_function": (row[3] or "03"),
+            "sensors":           [],
         }
         for row in rows
     }
@@ -235,21 +240,34 @@ def mark_hmi_offline(cursor, hmi_id: int, now) -> None:
 
 # ─── Modbus Helpers ───────────────────────────────────────────────────────────
 
-def read_holding_register(
-    client: ModbusTcpClient, address: int, unit_id: int
+def read_data_register(
+    client: ModbusTcpClient,
+    address: int,
+    unit_id: int,
+    func: str = "03",
 ) -> float:
     """
-    Baca 1 holding register dari HMI via FC03 read_holding_registers().
+    Baca 1 data register dari HMI.
+    func="03" -> FC03 read_holding_registers() (Holding Register)
+    func="04" -> FC04 read_input_registers()   (Input Register)
     Dipakai untuk: suhu, hum, over_temp, under_temp, over_hum, under_hum.
     Nilai sudah dalam satuan aktual — tidak perlu scaling.
     Raise ModbusException jika gagal (sensor → OFFLINE di poll_hmi).
     """
-    result = client.read_holding_registers(
-        address=address, count=1, device_id=unit_id
-    )
+    if func == "03":
+        result = client.read_holding_registers(
+            address=address, count=1, device_id=unit_id
+        )
+    elif func == "04":
+        result = client.read_input_registers(
+            address=address, count=1, device_id=unit_id
+        )
+    else:
+        raise ModbusException(f"Function code '{func}' tidak didukung")
+
     if result.isError():
         raise ModbusException(
-            f"Slave {unit_id} holding register {address} returned error"
+            f"Slave {unit_id} FC{func} register {address} returned error"
         )
     return float(result.registers[0])
 
@@ -292,6 +310,8 @@ def poll_hmi(hmi: dict, cursor, now) -> None:
                 f"Cannot connect to {hmi['ip_address']}:{hmi['port']}"
             )
 
+        func = hmi["register_function"]
+
         # Baca status global alarm sekali per HMI
         # Jika disabled, coil alarm tidak dibaca (None → fallback threshold)
         alarm_enabled      = read_coil(client, COIL_ALARM_STATUS,      1)
@@ -315,14 +335,14 @@ def poll_hmi(hmi: dict, cursor, now) -> None:
 
             try:
                 # ── Baca suhu & hum aktual dari holding register HMI ──
-                temp = read_holding_register(client, regs["temp"], unit_id)
-                hum  = read_holding_register(client, regs["hum"],  unit_id)
+                temp = read_data_register(client, regs["temp"], unit_id, func)
+                hum  = read_data_register(client, regs["hum"],  unit_id, func)
 
                 # ── Baca threshold dari holding register HMI ──
-                over_temp  = read_holding_register(client, regs["over_temp"],  unit_id)
-                under_temp = read_holding_register(client, regs["under_temp"], unit_id)
-                over_hum   = read_holding_register(client, regs["over_hum"],   unit_id)
-                under_hum  = read_holding_register(client, regs["under_hum"],  unit_id)
+                over_temp = read_data_register(client, regs["over_temp"], unit_id, func)
+                under_temp = read_data_register(client, regs["under_temp"], unit_id, func)
+                over_hum = read_data_register(client, regs["over_hum"], unit_id, func)
+                under_hum = read_data_register(client, regs["under_hum"], unit_id, func)
 
                 # ── Baca coil alarm (None jika global disabled atau coil gagal) ──
                 alarm_temp_coil = (

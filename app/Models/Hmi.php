@@ -18,13 +18,14 @@ class Hmi extends Model
         'name',
         'ip_address',
         'port',
+        'register_function',
         'is_active',
     ];
 
     protected function casts(): array
     {
         return [
-            'port'      => 'integer',
+            'port' => 'integer',
             'is_active' => 'boolean',
         ];
     }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreHmiRequest;
 use App\Http\Requests\UpdateHmiRequest;
 use App\Models\Hmi;
+use App\Models\Sensor;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -13,7 +14,17 @@ class HmiController extends Controller
 {
     public function store(StoreHmiRequest $request): RedirectResponse
     {
-        Hmi::create($request->validated());
+        $hmi = Hmi::create($request->validated());
+
+        // Auto-create 4 sensor sesuai posisi Device_1..4 di HMI Haiwell D4.
+        // Nama dan unit_id bisa diubah operator via form edit sensor.
+        foreach (range(1, 4) as $position) {
+            Sensor::create([
+                'hmi_id' => $hmi->id,
+                'name' => "Sensor {$position}",
+                'unit_id' => 1,
+            ]);
+        }
 
         return redirect()->route('rooms.devices', $request->validated('room_id'));
     }

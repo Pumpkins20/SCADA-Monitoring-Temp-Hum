@@ -5,6 +5,7 @@ import {
     ChevronRight,
     Circle,
     Cpu,
+    Lock,
     Loader2,
     Pencil,
     Plus,
@@ -37,6 +38,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { COIL_MAP, SENSOR_MAP } from '@/constants/sensor-map';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -52,12 +54,7 @@ interface SensorItem {
     id: number;
     name: string;
     unit_id: number;
-    modbus_register_function: '01' | '02' | '03' | '04';
-    modbus_address_temp: number;
-    modbus_address_hum: number;
-    modbus_coil_alarm_temp: number | null;
-    modbus_coil_alarm_hum: number | null;
-    modbus_coil_connection: number | null;
+    position: number;
 }
 
 interface HmiItem {
@@ -65,6 +62,7 @@ interface HmiItem {
     name: string;
     ip_address: string;
     port: number;
+    register_function: '03' | '04';
     is_active: boolean;
     sensors: SensorItem[];
 }
@@ -101,6 +99,7 @@ function HmiFormDialog({
         name: hmi?.name ?? '',
         ip_address: hmi?.ip_address ?? '',
         port: hmi?.port?.toString() ?? '502',
+        register_function: hmi?.register_function ?? '03',
         is_active: hmi?.is_active ?? true,
     });
 
@@ -304,6 +303,37 @@ function HmiFormDialog({
                         </div>
                     </div>
 
+                    <div className="flex flex-col gap-1.5">
+                        <Label className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
+                            Function Register
+                        </Label>
+                        <div className="grid grid-cols-2 gap-2">
+                            {(['03', '04'] as const).map((fc) => (
+                                <button
+                                    key={fc}
+                                    type="button"
+                                    onClick={() =>
+                                        setData('register_function', fc)
+                                    }
+                                    className={`flex h-10 items-center justify-center rounded-md border px-3 text-sm font-medium transition-colors ${
+                                        data.register_function === fc
+                                            ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300'
+                                            : 'border-slate-600 bg-slate-800/80 text-slate-400'
+                                    }`}
+                                >
+                                    {fc === '03'
+                                        ? '03: Holding Register'
+                                        : '04: Input Register'}
+                                </button>
+                            ))}
+                        </div>
+                        {errors.register_function && (
+                            <span className="text-xs text-red-400">
+                                {errors.register_function}
+                            </span>
+                        )}
+                    </div>
+
                     <DialogFooter className="mt-2">
                         <Button
                             type="button"
@@ -399,44 +429,88 @@ function DeleteHmiDialog({
 
 // ─── Sensor Form Dialog ───────────────────────────────────────────────────────
 
+function SensorConfigInfo({
+    position,
+    registerFunction,
+}: {
+    position: number;
+    registerFunction: '03' | '04';
+}) {
+    const regs = SENSOR_MAP[position as keyof typeof SENSOR_MAP];
+    const coils = COIL_MAP[position as keyof typeof COIL_MAP];
+
+    if (!regs || !coils) {
+        return null;
+    }
+
+    const fcLabel =
+        registerFunction === '03'
+            ? 'FC03 - Holding Register'
+            : 'FC04 - Input Register';
+
+    return (
+        <div className="rounded-lg border border-slate-700/60 bg-slate-900/60 p-3">
+            <p className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+                <Lock className="h-3 w-3" />
+                Konfigurasi Register Aktif
+            </p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                <span className="text-slate-500">Posisi di HMI</span>
+                <span className="font-mono text-slate-300">Device {position}</span>
+
+                <span className="text-slate-500">Function Code</span>
+                <span className="font-mono text-slate-300">{fcLabel}</span>
+
+                <span className="text-slate-500">Reg. Suhu</span>
+                <span className="font-mono text-cyan-400">{regs.temp}</span>
+
+                <span className="text-slate-500">Reg. Hum</span>
+                <span className="font-mono text-blue-400">{regs.hum}</span>
+
+                <span className="text-slate-500">Coil Alarm Suhu</span>
+                <span className="font-mono text-slate-300">
+                    {coils.alarm_temp} (FC01)
+                </span>
+
+                <span className="text-slate-500">Coil Alarm Hum</span>
+                <span className="font-mono text-slate-300">
+                    {coils.alarm_hum} (FC01)
+                </span>
+
+                <span className="text-slate-500">Coil Koneksi</span>
+                <span className="font-mono text-slate-300">
+                    {coils.connection} (FC01)
+                </span>
+            </div>
+        </div>
+    );
+}
+
 function SensorFormDialog({
     open,
     onOpenChange,
-    hmiId,
+    hmi,
     sensor,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    hmiId: number;
-    sensor?: SensorItem;
+    hmi: HmiItem;
+    sensor: SensorItem;
 }) {
-    const isEdit = !!sensor;
-
-    const { data, setData, post, put, processing, errors, reset } = useForm({
-        hmi_id: hmiId,
-        name: sensor?.name ?? '',
-        unit_id: sensor?.unit_id?.toString() ?? '1',
-        modbus_register_function: sensor?.modbus_register_function ?? '04',
-        modbus_address_temp: sensor?.modbus_address_temp?.toString() ?? '0',
-        modbus_address_hum: sensor?.modbus_address_hum?.toString() ?? '1',
-        modbus_coil_alarm_temp: sensor?.modbus_coil_alarm_temp?.toString() ?? '',
-        modbus_coil_alarm_hum: sensor?.modbus_coil_alarm_hum?.toString() ?? '',
-        modbus_coil_connection: sensor?.modbus_coil_connection?.toString() ?? '',
+    const { data, setData, put, processing, errors, reset } = useForm({
+        hmi_id: hmi.id,
+        name: sensor.name,
+        unit_id: sensor.unit_id.toString(),
     });
 
     function submit(e: React.FormEvent) {
         e.preventDefault();
-        const options = {
+        put(`/sensors/${sensor.id}`, {
             onSuccess: () => {
                 reset();
                 onOpenChange(false);
             },
-        };
-        if (isEdit) {
-            put(`/sensors/${sensor.id}`, options);
-        } else {
-            post('/sensors', options);
-        }
+        });
     }
 
     return (
@@ -450,12 +524,11 @@ function SensorFormDialog({
             <DialogContent className="border-slate-700 bg-[#1a2027] text-white sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle className="text-white">
-                        {isEdit ? 'Edit Sensor' : 'Tambah Sensor'}
+                        Edit Sensor
                     </DialogTitle>
                     <DialogDescription className="text-slate-400">
-                        {isEdit
-                            ? 'Ubah konfigurasi sensor.'
-                            : 'Isi detail sensor Modbus yang akan ditambahkan.'}
+                        Ubah nama sensor dan unit id. Konfigurasi register
+                        mengikuti posisi sensor di HMI.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -486,7 +559,7 @@ function SensorFormDialog({
                         <Input
                             type="number"
                             min={1}
-                            max={255}
+                            max={247}
                             value={data.unit_id}
                             onChange={(e) => setData('unit_id', e.target.value)}
                             className="border-slate-600 bg-slate-800/80 text-white placeholder:text-slate-500 focus-visible:border-cyan-500 focus-visible:ring-cyan-500/30"
@@ -498,221 +571,10 @@ function SensorFormDialog({
                         )}
                     </div>
 
-                    {/* Modbus registers */}
-                    <div className="flex flex-col gap-1.5">
-                        <Label className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
-                            Function Register
-                        </Label>
-                        <div className="grid grid-cols-2 gap-2">
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setData(
-                                        'modbus_register_function',
-                                        '01',
-                                    )
-                                }
-                                className={`flex h-10 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors ${
-                                    data.modbus_register_function === '01'
-                                        ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300'
-                                        : 'border-slate-600 bg-slate-800/80 text-slate-400'
-                                }`}
-                            >
-                                01: Coil Status
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setData(
-                                        'modbus_register_function',
-                                        '02',
-                                    )
-                                }
-                                className={`flex h-10 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors ${
-                                    data.modbus_register_function === '02'
-                                        ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300'
-                                        : 'border-slate-600 bg-slate-800/80 text-slate-400'
-                                }`}
-                            >
-                                02: Input Status
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setData(
-                                        'modbus_register_function',
-                                        '03',
-                                    )
-                                }
-                                className={`flex h-10 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors ${
-                                    data.modbus_register_function === '03'
-                                        ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300'
-                                        : 'border-slate-600 bg-slate-800/80 text-slate-400'
-                                }`}
-                            >
-                                03: Holding Register
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setData(
-                                        'modbus_register_function',
-                                        '04',
-                                    )
-                                }
-                                className={`flex h-10 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors ${
-                                    data.modbus_register_function === '04'
-                                        ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300'
-                                        : 'border-slate-600 bg-slate-800/80 text-slate-400'
-                                }`}
-                            >
-                                04: Input Register
-                            </button>
-                        </div>
-                        {errors.modbus_register_function && (
-                            <span className="text-xs text-red-400">
-                                {errors.modbus_register_function}
-                            </span>
-                        )}
-                    </div>
-
-                    {/* Modbus registers */}
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="flex flex-col gap-1.5">
-                            <Label className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
-                                <span className="flex items-center gap-1">
-                                    <Thermometer className="h-3 w-3 text-cyan-400" />
-                                    Reg. Suhu
-                                </span>
-                            </Label>
-                            <Input
-                                type="number"
-                                min={0}
-                                max={65535}
-                                value={data.modbus_address_temp}
-                                onChange={(e) =>
-                                    setData(
-                                        'modbus_address_temp',
-                                        e.target.value,
-                                    )
-                                }
-                                className="border-slate-600 bg-slate-800/80 text-white placeholder:text-slate-500 focus-visible:border-cyan-500 focus-visible:ring-cyan-500/30"
-                            />
-                            {errors.modbus_address_temp && (
-                                <span className="text-xs text-red-400">
-                                    {errors.modbus_address_temp}
-                                </span>
-                            )}
-                        </div>
-
-                        <div className="flex flex-col gap-1.5">
-                            <Label className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
-                                <span className="flex items-center gap-1">
-                                    Reg. Hum
-                                </span>
-                            </Label>
-                            <Input
-                                type="number"
-                                min={0}
-                                max={65535}
-                                value={data.modbus_address_hum}
-                                onChange={(e) =>
-                                    setData(
-                                        'modbus_address_hum',
-                                        e.target.value,
-                                    )
-                                }
-                                className="border-slate-600 bg-slate-800/80 text-white placeholder:text-slate-500 focus-visible:border-cyan-500 focus-visible:ring-cyan-500/30"
-                            />
-                            {errors.modbus_address_hum && (
-                                <span className="text-xs text-red-400">
-                                    {errors.modbus_address_hum}
-                                </span>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                        <Label className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
-                            Coil Alarm (FC01)
-                        </Label>
-                        <div className="grid grid-cols-3 gap-3">
-                            <div className="flex flex-col gap-1.5">
-                                <Label className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
-                                    Coil Temp
-                                </Label>
-                                <Input
-                                    type="number"
-                                    min={1}
-                                    max={65535}
-                                    placeholder="1"
-                                    value={data.modbus_coil_alarm_temp}
-                                    onChange={(e) =>
-                                        setData(
-                                            'modbus_coil_alarm_temp',
-                                            e.target.value,
-                                        )
-                                    }
-                                    className="border-slate-600 bg-slate-800/80 text-white placeholder:text-slate-500 focus-visible:border-cyan-500 focus-visible:ring-cyan-500/30"
-                                />
-                                {errors.modbus_coil_alarm_temp && (
-                                    <span className="text-xs text-red-400">
-                                        {errors.modbus_coil_alarm_temp}
-                                    </span>
-                                )}
-                            </div>
-
-                            <div className="flex flex-col gap-1.5">
-                                <Label className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
-                                    Coil Hum
-                                </Label>
-                                <Input
-                                    type="number"
-                                    min={1}
-                                    max={65535}
-                                    placeholder="2"
-                                    value={data.modbus_coil_alarm_hum}
-                                    onChange={(e) =>
-                                        setData(
-                                            'modbus_coil_alarm_hum',
-                                            e.target.value,
-                                        )
-                                    }
-                                    className="border-slate-600 bg-slate-800/80 text-white placeholder:text-slate-500 focus-visible:border-cyan-500 focus-visible:ring-cyan-500/30"
-                                />
-                                {errors.modbus_coil_alarm_hum && (
-                                    <span className="text-xs text-red-400">
-                                        {errors.modbus_coil_alarm_hum}
-                                    </span>
-                                )}
-                            </div>
-
-                            <div className="flex flex-col gap-1.5">
-                                <Label className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
-                                    Coil Conn
-                                </Label>
-                                <Input
-                                    type="number"
-                                    min={1}
-                                    max={65535}
-                                    placeholder="9"
-                                    value={data.modbus_coil_connection}
-                                    onChange={(e) =>
-                                        setData(
-                                            'modbus_coil_connection',
-                                            e.target.value,
-                                        )
-                                    }
-                                    className="border-slate-600 bg-slate-800/80 text-white placeholder:text-slate-500 focus-visible:border-cyan-500 focus-visible:ring-cyan-500/30"
-                                />
-                                {errors.modbus_coil_connection && (
-                                    <span className="text-xs text-red-400">
-                                        {errors.modbus_coil_connection}
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-                    </div>
+                    <SensorConfigInfo
+                        position={sensor.position}
+                        registerFunction={hmi.register_function}
+                    />
 
                     <DialogFooter className="mt-2">
                         <Button
@@ -728,11 +590,7 @@ function SensorFormDialog({
                             disabled={processing}
                             className="bg-cyan-600 text-white hover:bg-cyan-500"
                         >
-                            {processing
-                                ? 'Menyimpan...'
-                                : isEdit
-                                  ? 'Simpan Perubahan'
-                                  : 'Tambah Sensor'}
+                            {processing ? 'Menyimpan...' : 'Simpan Perubahan'}
                         </Button>
                     </DialogFooter>
                 </form>
@@ -806,7 +664,6 @@ function DeleteSensorDialog({
 function HmiCard({ hmi, roomId }: { hmi: HmiItem; roomId: number }) {
     const [showEditHmi, setShowEditHmi] = useState(false);
     const [showDeleteHmi, setShowDeleteHmi] = useState(false);
-    const [showAddSensor, setShowAddSensor] = useState(false);
     const [editSensor, setEditSensor] = useState<SensorItem | null>(null);
     const [deleteSensor, setDeleteSensor] = useState<SensorItem | null>(null);
 
@@ -820,6 +677,9 @@ function HmiCard({ hmi, roomId }: { hmi: HmiItem; roomId: number }) {
                         <div className="flex items-center gap-2">
                             <span className="text-sm font-semibold text-white">
                                 {hmi.name}
+                            </span>
+                            <span className="rounded-full border border-slate-600/80 px-2 py-0.5 text-[10px] font-semibold text-slate-300 uppercase">
+                                FC{hmi.register_function}
                             </span>
                             <span
                                 className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
@@ -842,15 +702,6 @@ function HmiCard({ hmi, roomId }: { hmi: HmiItem; roomId: number }) {
                     </div>
                 </div>
                 <div className="flex items-center gap-1">
-                    <Button
-                        type="button"
-                        size="sm"
-                        onClick={() => setShowAddSensor(true)}
-                        className="h-8 bg-cyan-600/80 text-white hover:bg-cyan-500"
-                    >
-                        <Plus className="h-3.5 w-3.5" />
-                        Tambah Sensor
-                    </Button>
                     <button
                         type="button"
                         title="Edit HMI"
@@ -881,9 +732,6 @@ function HmiCard({ hmi, roomId }: { hmi: HmiItem; roomId: number }) {
                             Slave ID
                         </TableHead>
                         <TableHead className="text-center text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
-                            Function
-                        </TableHead>
-                        <TableHead className="text-center text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
                             Reg. Suhu
                         </TableHead>
                         <TableHead className="text-center text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
@@ -898,65 +746,68 @@ function HmiCard({ hmi, roomId }: { hmi: HmiItem; roomId: number }) {
                     {hmi.sensors.length === 0 ? (
                         <TableRow className="border-slate-700/60 hover:bg-transparent">
                             <TableCell
-                                colSpan={6}
+                                colSpan={5}
                                 className="py-6 text-center text-xs text-slate-600"
                             >
-                                Belum ada sensor. Klik "Tambah Sensor" untuk
-                                menambahkan.
+                                Belum ada sensor pada HMI ini.
                             </TableCell>
                         </TableRow>
                     ) : (
-                        hmi.sensors.map((sensor) => (
-                            <TableRow
-                                key={sensor.id}
-                                className="border-slate-700/60 transition-colors hover:bg-slate-700/20"
-                            >
-                                <TableCell className="text-sm font-medium text-white">
-                                    <div className="flex items-center gap-1.5">
-                                        <Circle className="h-2 w-2 fill-cyan-400 text-cyan-400" />
-                                        {sensor.name}
-                                    </div>
-                                </TableCell>
-                                <TableCell className="text-center text-slate-300 tabular-nums">
-                                    {sensor.unit_id}
-                                </TableCell>
-                                <TableCell className="text-center text-slate-300">
-                                    <span className="rounded-full border border-slate-600/80 px-2 py-0.5 text-[10px] font-semibold text-slate-300 uppercase">
-                                        {sensor.modbus_register_function}
-                                    </span>
-                                </TableCell>
-                                <TableCell className="text-center text-cyan-300 tabular-nums">
-                                    {sensor.modbus_address_temp}
-                                </TableCell>
-                                <TableCell className="text-center text-blue-300 tabular-nums">
-                                    {sensor.modbus_address_hum}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                    <div className="flex items-center justify-end gap-1">
-                                        <button
-                                            type="button"
-                                            title="Edit"
-                                            onClick={() =>
-                                                setEditSensor(sensor)
-                                            }
-                                            className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-600/60 hover:text-cyan-400"
-                                        >
-                                            <Pencil className="h-3.5 w-3.5" />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            title="Hapus"
-                                            onClick={() =>
-                                                setDeleteSensor(sensor)
-                                            }
-                                            className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-red-500/20 hover:text-red-400"
-                                        >
-                                            <Trash2 className="h-3.5 w-3.5" />
-                                        </button>
-                                    </div>
-                                </TableCell>
-                            </TableRow>
-                        ))
+                        hmi.sensors.map((sensor, index) => {
+                            const position = index + 1;
+                            const regs =
+                                SENSOR_MAP[position as keyof typeof SENSOR_MAP];
+
+                            return (
+                                <TableRow
+                                    key={sensor.id}
+                                    className="border-slate-700/60 transition-colors hover:bg-slate-700/20"
+                                >
+                                    <TableCell className="text-sm font-medium text-white">
+                                        <div className="flex items-center gap-1.5">
+                                            <Circle className="h-2 w-2 fill-cyan-400 text-cyan-400" />
+                                            {sensor.name}
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="text-center text-slate-300 tabular-nums">
+                                        {sensor.unit_id}
+                                    </TableCell>
+                                    <TableCell className="text-center text-cyan-300 tabular-nums">
+                                        {regs?.temp ?? '-'}
+                                    </TableCell>
+                                    <TableCell className="text-center text-blue-300 tabular-nums">
+                                        {regs?.hum ?? '-'}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <div className="flex items-center justify-end gap-1">
+                                            <button
+                                                type="button"
+                                                title="Edit"
+                                                onClick={() =>
+                                                    setEditSensor({
+                                                        ...sensor,
+                                                        position,
+                                                    })
+                                                }
+                                                className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-600/60 hover:text-cyan-400"
+                                            >
+                                                <Pencil className="h-3.5 w-3.5" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                title="Hapus"
+                                                onClick={() =>
+                                                    setDeleteSensor(sensor)
+                                                }
+                                                className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-red-500/20 hover:text-red-400"
+                                            >
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            </button>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            );
+                        })
                     )}
                 </TableBody>
             </Table>
@@ -973,16 +824,11 @@ function HmiCard({ hmi, roomId }: { hmi: HmiItem; roomId: number }) {
                 onOpenChange={setShowDeleteHmi}
                 hmi={hmi}
             />
-            <SensorFormDialog
-                open={showAddSensor}
-                onOpenChange={setShowAddSensor}
-                hmiId={hmi.id}
-            />
             {editSensor && (
                 <SensorFormDialog
                     open={!!editSensor}
                     onOpenChange={(v) => !v && setEditSensor(null)}
-                    hmiId={hmi.id}
+                    hmi={hmi}
                     sensor={editSensor}
                 />
             )}

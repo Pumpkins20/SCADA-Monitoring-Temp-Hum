@@ -14,21 +14,13 @@ test('can create a new sensor', function () {
             'hmi_id' => $hmi->id,
             'name' => 'SENSOR-01',
             'unit_id' => 1,
-            'modbus_register_function' => '04',
-            'modbus_address_temp' => 0,
-            'modbus_address_hum' => 1,
-            'modbus_coil_alarm_temp' => 1,
-            'modbus_coil_alarm_hum' => 2,
-            'modbus_coil_connection' => 9,
         ])
         ->assertRedirect(route('rooms.devices', $hmi->room_id));
 
     $this->assertDatabaseHas('sensors', [
         'name' => 'SENSOR-01',
         'hmi_id' => $hmi->id,
-        'modbus_coil_alarm_temp' => 1,
-        'modbus_coil_alarm_hum' => 2,
-        'modbus_coil_connection' => 9,
+        'unit_id' => 1,
     ]);
 });
 
@@ -39,9 +31,6 @@ test('sensor store validation fails when hmi_id does not exist', function () {
             'hmi_id' => 99999,
             'name' => 'SENSOR-01',
             'unit_id' => 1,
-            'modbus_register_function' => '03',
-            'modbus_address_temp' => 0,
-            'modbus_address_hum' => 1,
         ])
         ->assertSessionHasErrors('hmi_id');
 });
@@ -54,44 +43,21 @@ test('sensor store validation fails when unit_id is out of range', function () {
             'hmi_id' => $hmi->id,
             'name' => 'SENSOR-01',
             'unit_id' => 300,
-            'modbus_register_function' => '04',
-            'modbus_address_temp' => 0,
-            'modbus_address_hum' => 1,
         ])
         ->assertSessionHasErrors('unit_id');
 });
 
-test('sensor store validation fails when modbus register function is invalid', function () {
+test('sensor store validation fails when name is empty', function () {
     $hmi = Hmi::factory()->create();
 
     $this->actingAs(User::factory()->create(['is_admin' => true]))
         ->withSession(['auth.password_confirmed_at' => time()])
         ->post(route('sensors.store'), [
             'hmi_id' => $hmi->id,
-            'name' => 'SENSOR-01',
+            'name' => '',
             'unit_id' => 1,
-            'modbus_register_function' => '99',
-            'modbus_address_temp' => 0,
-            'modbus_address_hum' => 1,
         ])
-        ->assertSessionHasErrors('modbus_register_function');
-});
-
-test('sensor store validation fails when alarm coil address is invalid', function () {
-    $hmi = Hmi::factory()->create();
-
-    $this->actingAs(User::factory()->create(['is_admin' => true]))
-        ->withSession(['auth.password_confirmed_at' => time()])
-        ->post(route('sensors.store'), [
-            'hmi_id' => $hmi->id,
-            'name' => 'SENSOR-01',
-            'unit_id' => 1,
-            'modbus_register_function' => '04',
-            'modbus_address_temp' => 0,
-            'modbus_address_hum' => 1,
-            'modbus_coil_alarm_temp' => 0,
-        ])
-        ->assertSessionHasErrors('modbus_coil_alarm_temp');
+        ->assertSessionHasErrors('name');
 });
 
 // ─── sensors.update ───────────────────────────────────────────────────────────
@@ -103,21 +69,13 @@ test('can update an existing sensor', function () {
         ->put(route('sensors.update', $sensor), [
             'name' => 'SENSOR-UPDATED',
             'unit_id' => 2,
-            'modbus_register_function' => '03',
-            'modbus_address_temp' => 10,
-            'modbus_address_hum' => 11,
-            'modbus_coil_alarm_temp' => 5,
-            'modbus_coil_alarm_hum' => 6,
-            'modbus_coil_connection' => 11,
         ])
         ->assertRedirect(route('rooms.devices', $sensor->hmi->room_id));
 
     $this->assertDatabaseHas('sensors', [
         'id' => $sensor->id,
         'name' => 'SENSOR-UPDATED',
-        'modbus_coil_alarm_temp' => 5,
-        'modbus_coil_alarm_hum' => 6,
-        'modbus_coil_connection' => 11,
+        'unit_id' => 2,
     ]);
 });
 
@@ -143,9 +101,6 @@ test('non-admin users are forbidden from sensor mutations', function () {
             'hmi_id' => $hmi->id,
             'name' => 'SENSOR-X',
             'unit_id' => 1,
-            'modbus_register_function' => '04',
-            'modbus_address_temp' => 0,
-            'modbus_address_hum' => 1,
         ])
         ->assertForbidden();
 
@@ -153,9 +108,6 @@ test('non-admin users are forbidden from sensor mutations', function () {
         ->put(route('sensors.update', $sensor), [
             'name' => 'SENSOR-Y',
             'unit_id' => 1,
-            'modbus_register_function' => '03',
-            'modbus_address_temp' => 0,
-            'modbus_address_hum' => 1,
         ])
         ->assertForbidden();
 

@@ -26,6 +26,7 @@ class StoreHmiRequest extends FormRequest
             'name' => ['required', 'string', 'max:100'],
             'ip_address' => ['required', 'ip'],
             'port' => ['required', 'integer', 'min:1', 'max:65535'],
+            'register_function' => ['required', 'in:03,04'],
             'is_active' => ['required', 'boolean'],
         ];
     }
@@ -46,6 +47,8 @@ class StoreHmiRequest extends FormRequest
             'port.integer' => 'Port harus berupa angka.',
             'port.min' => 'Port minimal 1.',
             'port.max' => 'Port maksimal 65535.',
+            'register_function.required' => 'Function register wajib dipilih.',
+            'register_function.in' => 'Function register harus FC03 (Holding) atau FC04 (Input).',
         ];
     }
 }

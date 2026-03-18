@@ -42,7 +42,7 @@ class RoomController extends Controller
     {
         $room->load([
             'hmis' => fn ($query) => $query->orderBy('name')
-                ->with(['sensors' => fn ($q) => $q->orderBy('name')]),
+                ->with(['sensors' => fn ($q) => $q->orderBy('id')]),
         ]);
 
         return Inertia::render('rooms/devices', [
@@ -58,17 +58,13 @@ class RoomController extends Controller
                 'name' => $hmi->name,
                 'ip_address' => $hmi->ip_address,
                 'port' => $hmi->port,
+                'register_function' => $hmi->register_function ?? '03',
                 'is_active' => $hmi->is_active,
-                'sensors' => $hmi->sensors->map(fn (Sensor $sensor) => [
+                'sensors' => $hmi->sensors->values()->map(fn (Sensor $sensor, int $index) => [
                     'id' => $sensor->id,
                     'name' => $sensor->name,
                     'unit_id' => $sensor->unit_id,
-                    'modbus_register_function' => $sensor->modbus_register_function,
-                    'modbus_address_temp' => $sensor->modbus_address_temp,
-                    'modbus_address_hum' => $sensor->modbus_address_hum,
-                    'modbus_coil_alarm_temp' => $sensor->modbus_coil_alarm_temp,
-                    'modbus_coil_alarm_hum' => $sensor->modbus_coil_alarm_hum,
-                    'modbus_coil_connection' => $sensor->modbus_coil_connection,
+                    'position' => $index + 1,
                 ]),
             ]),
         ]);

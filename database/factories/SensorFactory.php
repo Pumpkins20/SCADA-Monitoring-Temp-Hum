@@ -18,10 +18,7 @@ class SensorFactory extends Factory
         return [
             'hmi_id' => Hmi::factory(),
             'name' => 'T/H '.fake()->numberBetween(1, 99),
-            'modbus_address_temp' => 1,
-            'modbus_address_hum' => 0,
             'unit_id' => fake()->numberBetween(1, 5),
-            'modbus_register_function' => '04',
         ];
     }
 }

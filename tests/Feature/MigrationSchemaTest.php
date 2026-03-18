@@ -19,7 +19,7 @@ test('rooms table has correct columns', function () {
 test('hmis table has correct columns', function () {
     expect(Schema::hasTable('hmis'))->toBeTrue();
 
-    foreach (['id', 'room_id', 'name', 'ip_address', 'port', 'is_active', 'created_at', 'updated_at'] as $column) {
+    foreach (['id', 'room_id', 'name', 'ip_address', 'port', 'register_function', 'is_active', 'created_at', 'updated_at'] as $column) {
         expect(Schema::hasColumn('hmis', $column))
             ->toBeTrue("hmis.{$column} column is missing");
     }
@@ -36,11 +36,7 @@ test('sensors table has correct columns', function () {
         'name',
         'modbus_address_temp',
         'modbus_address_hum',
-        'modbus_coil_alarm_temp',
-        'modbus_coil_alarm_hum',
-        'modbus_coil_connection',
         'unit_id',
-        'modbus_register_function',
         'created_at',
         'updated_at',
     ] as $column) {

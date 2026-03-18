@@ -30,7 +30,7 @@ class DatabaseSeeder extends Seeder
 
         // ─── Real hardware configuration ──────────────────────────────────────
         // Test device: 1 HMI · IP: 192.168.1.113 · Port: 502 (Modbus TCP)
-        // Function: Input Register (FC4) · Humidity=0 · Temperature=1
+        // Function: Holding Register (FC03) · Humidity=0 · Temperature=1
         // Slave ID per sensor: 1-5 (unit_id)
         $rooms = [
             ['name' => 'RUANG TEST', 'location' => null, 'ip' => '192.168.1.252'],
@@ -52,6 +52,7 @@ class DatabaseSeeder extends Seeder
                 'name' => 'HMI-01',
                 'ip_address' => $roomData['ip'],
                 'port' => 502,
+                'register_function' => '03',
             ]);
 
             for ($unitId = 1; $unitId <= 5; $unitId++) {
@@ -61,7 +62,6 @@ class DatabaseSeeder extends Seeder
                     'modbus_address_hum' => 0,   // Input Register 0
                     'modbus_address_temp' => 1,   // Input Register 1
                     'unit_id' => $unitId,
-                    'modbus_register_function' => '04',
                 ]);
 
                 $status = $statusPool[$statusIndex++];

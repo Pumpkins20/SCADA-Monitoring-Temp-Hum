@@ -2,6 +2,7 @@
 
 use App\Models\Hmi;
 use App\Models\Room;
+use App\Models\Sensor;
 use App\Models\User;
 
 // ─── rooms.devices ────────────────────────────────────────────────────────────
@@ -52,11 +53,27 @@ test('can create a new hmi', function () {
             'name' => 'HMI-01',
             'ip_address' => '192.168.1.10',
             'port' => 502,
+            'register_function' => '03',
             'is_active' => true,
         ])
         ->assertRedirect(route('rooms.devices', $room));
 
-    $this->assertDatabaseHas('hmis', ['name' => 'HMI-01', 'room_id' => $room->id]);
+    $hmi = Hmi::query()->where('name', 'HMI-01')->firstOrFail();
+
+    $this->assertDatabaseHas('hmis', [
+        'id' => $hmi->id,
+        'name' => 'HMI-01',
+        'room_id' => $room->id,
+        'register_function' => '03',
+    ]);
+
+    expect(Sensor::query()->where('hmi_id', $hmi->id)->count())->toBe(4);
+
+    $this->assertDatabaseHas('sensors', [
+        'hmi_id' => $hmi->id,
+        'name' => 'Sensor 1',
+        'unit_id' => 1,
+    ]);
 });
 
 test('hmi store validation fails when ip_address is invalid', function () {
@@ -68,6 +85,7 @@ test('hmi store validation fails when ip_address is invalid', function () {
             'name' => 'HMI-01',
             'ip_address' => 'not-an-ip',
             'port' => 502,
+            'register_function' => '03',
             'is_active' => true,
         ])
         ->assertSessionHasErrors('ip_address');
@@ -81,9 +99,26 @@ test('hmi store validation fails when room_id does not exist', function () {
             'name' => 'HMI-01',
             'ip_address' => '192.168.1.10',
             'port' => 502,
+            'register_function' => '03',
             'is_active' => true,
         ])
         ->assertSessionHasErrors('room_id');
+});
+
+test('hmi store validation fails when register function is invalid', function () {
+    $room = Room::factory()->create();
+
+    $this->actingAs(User::factory()->create(['is_admin' => true]))
+        ->withSession(['auth.password_confirmed_at' => time()])
+        ->post(route('hmis.store'), [
+            'room_id' => $room->id,
+            'name' => 'HMI-01',
+            'ip_address' => '192.168.1.10',
+            'port' => 502,
+            'register_function' => '99',
+            'is_active' => true,
+        ])
+        ->assertSessionHasErrors('register_function');
 });
 
 // ─── hmis.update ──────────────────────────────────────────────────────────────
@@ -96,11 +131,17 @@ test('can update an existing hmi', function () {
             'name' => 'HMI-UPDATED',
             'ip_address' => '10.0.0.5',
             'port' => 502,
+            'register_function' => '04',
             'is_active' => false,
         ])
         ->assertRedirect(route('rooms.devices', $hmi->room_id));
 
-    $this->assertDatabaseHas('hmis', ['id' => $hmi->id, 'name' => 'HMI-UPDATED', 'is_active' => false]);
+    $this->assertDatabaseHas('hmis', [
+        'id' => $hmi->id,
+        'name' => 'HMI-UPDATED',
+        'register_function' => '04',
+        'is_active' => false,
+    ]);
 });
 
 // ─── hmis.destroy ─────────────────────────────────────────────────────────────
@@ -195,6 +236,7 @@ test('non-admin users are forbidden from hmi mutations', function () {
             'name' => 'HMI-X',
             'ip_address' => '192.168.1.11',
             'port' => 502,
+            'register_function' => '03',
             'is_active' => true,
         ])
         ->assertForbidden();
@@ -204,6 +246,7 @@ test('non-admin users are forbidden from hmi mutations', function () {
             'name' => 'HMI-Y',
             'ip_address' => '192.168.1.12',
             'port' => 502,
+            'register_function' => '04',
             'is_active' => true,
         ])
         ->assertForbidden();
