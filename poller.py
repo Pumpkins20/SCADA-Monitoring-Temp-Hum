@@ -23,9 +23,9 @@ load_dotenv()
 
 DB_CONFIG: dict = {
     "host":     os.environ.get("DB_HOST", "127.0.0.1"),
-    "port":     int(os.environ.get("DB_PORT", 3306)),
-    "user":     os.environ.get("DB_USERNAME", "root"),
-    "password": os.environ.get("DB_PASSWORD", ""),
+    "port":     int(os.environ.get("DB_PORT", 5432)),
+    "user":     os.environ.get("DB_USERNAME", "postgres"),
+    "password": os.environ.get("DB_PASSWORD", "edutic5758-"),
     "database": os.environ.get("DB_DATABASE", "scada_db"),
     # "charset":  "utf8mb4",
 }
@@ -103,6 +103,7 @@ def load_hmis(cursor) -> list[dict]:
             r.hum_max_limit
         FROM hmis h
         JOIN rooms r ON r.id = h.room_id
+        Updated upstream
         WHERE h.is_active IS TRUE
     """)
     rows = cursor.fetchall()
