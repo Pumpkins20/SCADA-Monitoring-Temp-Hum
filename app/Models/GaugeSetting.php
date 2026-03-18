@@ -4,9 +4,16 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class GaugeSetting extends Model
 {
+    public const DEFAULT_LOGO_LEFT = '/images/logo/injourney.png';
+
+    public const DEFAULT_LOGO_CENTER = '/images/logo/westindo.png';
+
+    public const FIXED_LOGO_RIGHT = '/images/logo/edutic.png';
+
     /** @use HasFactory<\Database\Factories\GaugeSettingFactory> */
     use HasFactory;
 
@@ -28,6 +35,8 @@ class GaugeSetting extends Model
         'hum_yellow_to',
         'hum_red_from',
         'hum_red_to',
+        'logo_left_path',
+        'logo_center_path',
     ];
 
     protected function casts(): array
@@ -50,5 +59,36 @@ class GaugeSetting extends Model
             'hum_red_from' => 'float',
             'hum_red_to' => 'float',
         ];
+    }
+
+    /**
+     * @return array{left: string, center: string, right: string}
+     */
+    public static function resolveHeaderLogos(?self $setting): array
+    {
+        return [
+            'left' => static::toLogoUrl(
+                $setting?->logo_left_path,
+                self::DEFAULT_LOGO_LEFT,
+            ),
+            'center' => static::toLogoUrl(
+                $setting?->logo_center_path,
+                self::DEFAULT_LOGO_CENTER,
+            ),
+            'right' => self::FIXED_LOGO_RIGHT,
+        ];
+    }
+
+    private static function toLogoUrl(?string $path, string $fallback): string
+    {
+        if (! $path) {
+            return $fallback;
+        }
+
+        if (! Storage::disk('public')->exists($path)) {
+            return $fallback;
+        }
+
+        return Storage::url($path);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\GaugeSetting;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -43,10 +44,12 @@ class HandleInertiaRequests extends Middleware
         $remainingSeconds = $expiresAtTimestamp !== null
             ? max($expiresAtTimestamp - now()->getTimestamp(), 0)
             : 0;
+        $gaugeSetting = GaugeSetting::query()->first();
 
         return [
             ...parent::share($request),
             'name' => config('app.name'),
+            'headerLogos' => GaugeSetting::resolveHeaderLogos($gaugeSetting),
             'auth' => [
                 'user' => $request->user(),
                 'can' => [

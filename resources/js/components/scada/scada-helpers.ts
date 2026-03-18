@@ -61,6 +61,18 @@ export interface GaugeSettings {
     humidity: GaugeMetricSettings;
 }
 
+export interface HeaderLogos {
+    left: string;
+    center: string;
+    right: string;
+}
+
+export const DEFAULT_HEADER_LOGOS: HeaderLogos = {
+    left: '/images/logo/injourney.png',
+    center: '/images/logo/westindo.png',
+    right: '/images/logo/edutic.png',
+};
+
 export function fmt(value: number | string | null, decimals = 1): string {
     if (value === null || value === undefined) return '--';
     return Number(value).toFixed(decimals);

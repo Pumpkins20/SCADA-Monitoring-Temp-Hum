@@ -1,7 +1,8 @@
 import { Head, Link } from '@inertiajs/react';
-import { ArrowLeft, SlidersHorizontal } from 'lucide-react';
+import { ArrowLeft, ImageUp, SlidersHorizontal } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
+import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
 
 export default function SettingsGeneralPage() {
     const [now, setNow] = useState(new Date());
@@ -31,23 +32,7 @@ export default function SettingsGeneralPage() {
 
             <div className="flex h-screen flex-col overflow-hidden bg-[#151b1f] font-sans text-white">
                 <header className="flex shrink-0 flex-col border-b border-slate-700/50 bg-[#0f1316]">
-                    <div className="flex items-center justify-between px-5 pt-2 pb-1">
-                        <img
-                            src="/images/logo/injourney.png"
-                            alt="InJourney Airports"
-                            className="h-8 object-contain"
-                        />
-                        <img
-                            src="/images/logo/westindo.png"
-                            alt="Westindo"
-                            className="h-8 object-contain"
-                        />
-                        <img
-                            src="/images/logo/edutic.png"
-                            alt="Edutic.id"
-                            className="h-8 object-contain"
-                        />
-                    </div>
+                    <ScadaHeaderLogos />
 
                     <div className="flex items-center px-5 pb-2">
                         <div className="flex w-48 shrink-0 items-center gap-2">
@@ -115,6 +100,27 @@ export default function SettingsGeneralPage() {
                                     <p className="mt-0.5 text-[11px] text-slate-400">
                                         Atur indikator warna gauge Temperature &
                                         Humidity
+                                    </p>
+                                </div>
+                                <span className="text-[10px] text-cyan-400 opacity-0 transition-opacity group-hover:opacity-100">
+                                    Buka →
+                                </span>
+                            </Link>
+
+                            <Link
+                                href="/logo-settings"
+                                className="group flex w-56 flex-col items-center gap-3 rounded-xl border border-slate-700/60 bg-slate-800/60 p-6 backdrop-blur-sm transition-all hover:border-cyan-500/50 hover:bg-slate-800/80 hover:shadow-[0_0_20px_#22d3ee20]"
+                            >
+                                <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-500/10 transition-colors group-hover:border-cyan-500/60 group-hover:bg-cyan-500/20">
+                                    <ImageUp className="h-7 w-7 text-cyan-400" />
+                                </div>
+                                <div className="text-center">
+                                    <p className="text-sm font-bold tracking-wider text-white uppercase">
+                                        Logo Header
+                                    </p>
+                                    <p className="mt-0.5 text-[11px] text-slate-400">
+                                        Ganti logo kiri dan tengah pada header
+                                        dashboard
                                     </p>
                                 </div>
                                 <span className="text-[10px] text-cyan-400 opacity-0 transition-opacity group-hover:opacity-100">

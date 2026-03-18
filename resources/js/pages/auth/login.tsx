@@ -1,6 +1,10 @@
-import { Form, Head } from '@inertiajs/react';
+import { Form, Head, usePage } from '@inertiajs/react';
 import { Droplets, Eye, EyeOff, Thermometer } from 'lucide-react';
 import { useState } from 'react';
+import {
+    DEFAULT_HEADER_LOGOS,
+    type HeaderLogos,
+} from '@/components/scada/scada-helpers';
 import InputError from '@/components/input-error';
 import TextLink from '@/components/text-link';
 import { Button } from '@/components/ui/button';
@@ -18,6 +22,9 @@ type Props = {
 
 export default function Login({ status, canResetPassword }: Props) {
     const [showPassword, setShowPassword] = useState(false);
+    const headerLogos =
+        usePage<{ headerLogos?: HeaderLogos }>().props.headerLogos ??
+        DEFAULT_HEADER_LOGOS;
 
     return (
         <div className="flex min-h-svh flex-col items-center justify-center bg-[#151b1f] p-4 font-sans sm:p-6 md:p-10">
@@ -31,19 +38,19 @@ export default function Login({ status, canResetPassword }: Props) {
                             {/* Logos di mobile (kolom kanan tersembunyi) */}
                             <div className="mb-6 flex items-center justify-center gap-4 md:hidden">
                                 <img
-                                    src="/images/logo/injourney.png"
+                                    src={headerLogos.left}
                                     alt="InJourney Airports"
                                     className="h-7 object-contain"
                                 />
                                 <div className="h-4 w-px bg-slate-700" />
                                 <img
-                                    src="/images/logo/westindo.png"
+                                    src={headerLogos.center}
                                     alt="Westindo"
                                     className="h-7 object-contain"
                                 />
                                 <div className="h-4 w-px bg-slate-700" />
                                 <img
-                                    src="/images/logo/edutic.png"
+                                    src={headerLogos.right}
                                     alt="Edutic.id"
                                     className="h-7 object-contain"
                                 />
@@ -248,19 +255,19 @@ export default function Login({ status, canResetPassword }: Props) {
 
                                 <div className="mt-10 flex items-center gap-4 opacity-40">
                                     <img
-                                        src="/images/logo/injourney.png"
+                                        src={headerLogos.left}
                                         alt="InJourney"
                                         className="h-6 object-contain"
                                     />
                                     <div className="h-4 w-px bg-slate-700" />
                                     <img
-                                        src="/images/logo/westindo.png"
+                                        src={headerLogos.center}
                                         alt="Westindo"
                                         className="h-6 object-contain"
                                     />
                                     <div className="h-4 w-px bg-slate-700" />
                                     <img
-                                        src="/images/logo/edutic.png"
+                                        src={headerLogos.right}
                                         alt="Edutic.id"
                                         className="h-6 object-contain"
                                     />

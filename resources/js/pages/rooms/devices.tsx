@@ -20,6 +20,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { PasswordSessionFloating } from '@/components/scada/password-session-floating';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
+import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
 import {
     Dialog,
     DialogContent,
@@ -456,7 +457,9 @@ function SensorConfigInfo({
             </p>
             <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                 <span className="text-slate-500">Posisi di HMI</span>
-                <span className="font-mono text-slate-300">Device {position}</span>
+                <span className="font-mono text-slate-300">
+                    Device {position}
+                </span>
 
                 <span className="text-slate-500">Function Code</span>
                 <span className="font-mono text-slate-300">{fcLabel}</span>
@@ -857,23 +860,7 @@ export default function RoomDevices({ room, hmis }: DevicesPageProps) {
 
                 {/* ── HEADER ──────────────────────────────────────── */}
                 <header className="flex shrink-0 flex-col border-b border-slate-700/50 bg-[#0f1316]">
-                    <div className="flex items-center justify-between px-5 pt-2 pb-1">
-                        <img
-                            src="/images/logo/injourney.png"
-                            alt="InJourney Airports"
-                            className="h-8 object-contain"
-                        />
-                        <img
-                            src="/images/logo/westindo.png"
-                            alt="Westindo"
-                            className="h-8 object-contain"
-                        />
-                        <img
-                            src="/images/logo/edutic.png"
-                            alt="Edutic.id"
-                            className="h-8 object-contain"
-                        />
-                    </div>
+                    <ScadaHeaderLogos />
 
                     <div className="flex items-center px-5 pb-2">
                         <div className="flex w-48 shrink-0 items-center gap-2">

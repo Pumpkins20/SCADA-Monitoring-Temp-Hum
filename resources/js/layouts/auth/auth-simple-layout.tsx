@@ -1,4 +1,8 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
+import {
+    DEFAULT_HEADER_LOGOS,
+    type HeaderLogos,
+} from '@/components/scada/scada-helpers';
 import { home } from '@/routes';
 import type { AuthLayoutProps } from '@/types';
 
@@ -7,25 +11,29 @@ export default function AuthSimpleLayout({
     title,
     description,
 }: AuthLayoutProps) {
+    const headerLogos =
+        usePage<{ headerLogos?: HeaderLogos }>().props.headerLogos ??
+        DEFAULT_HEADER_LOGOS;
+
     return (
         <div className="relative flex min-h-svh flex-col items-center justify-center overflow-hidden bg-[#10161b] p-6 md:p-10">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.14),_transparent_38%),radial-gradient(circle_at_bottom,_rgba(59,130,246,0.12),_transparent_40%)]" />
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.14),transparent_38%),radial-gradient(circle_at_bottom,rgba(59,130,246,0.12),transparent_40%)]" />
 
             <div className="relative w-full max-w-md rounded-2xl border border-slate-700/70 bg-[#151d23]/95 p-6 shadow-[0_0_45px_#0b12201f] backdrop-blur-sm md:p-8">
                 <div className="flex flex-col gap-7">
                     <div className="flex items-center justify-between gap-3">
                         <img
-                            src="/images/logo/injourney.png"
+                            src={headerLogos.left}
                             alt="InJourney Airports"
                             className="h-7 object-contain"
                         />
                         <img
-                            src="/images/logo/westindo.png"
+                            src={headerLogos.center}
                             alt="Westindo"
                             className="h-7 object-contain"
                         />
                         <img
-                            src="/images/logo/edutic.png"
+                            src={headerLogos.right}
                             alt="Edutic.id"
                             className="h-7 object-contain"
                         />
