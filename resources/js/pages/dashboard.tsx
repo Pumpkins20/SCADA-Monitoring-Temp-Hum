@@ -1,4 +1,4 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { BarChart2, Thermometer, Droplets } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
@@ -17,21 +17,12 @@ import type {
     GaugeSettings,
     GaugeMetricSettings,
 } from '@/components/scada/scada-helpers';
-import { Button } from '@/components/ui/button';
 import {
     ChartContainer,
     ChartTooltip,
     ChartTooltipContent,
 } from '@/components/ui/chart';
 import type { ChartConfig } from '@/components/ui/chart';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -227,12 +218,7 @@ export default function Dashboard({
     globalStats,
     gaugeSettings,
 }: DashboardProps) {
-    const canManageDevices =
-        usePage<{ auth?: { can?: { manage_devices?: boolean } } }>().props.auth
-            ?.can?.manage_devices ?? false;
-
     const [now, setNow] = useState(new Date());
-    const [showRoomAccessPrompt, setShowRoomAccessPrompt] = useState(false);
 
     const normalizedGaugeSettings: GaugeSettings = {
         temperature: normalizeMetricSetting(
@@ -293,11 +279,6 @@ export default function Dashboard({
               hour12: false,
           })
         : '--:--';
-
-    function openDeviceManagement() {
-        setShowRoomAccessPrompt(false);
-        router.visit('/rooms');
-    }
 
     return (
         <>
@@ -580,15 +561,6 @@ export default function Dashboard({
                 {/* ── FOOTER ──────────────────────────────────────── */}
                 <ScadaFooterNav
                     activeMenu="dashboard"
-                    onRoomsClick={() => {
-                        if (canManageDevices) {
-                            setShowRoomAccessPrompt(true);
-
-                            return;
-                        }
-
-                        router.visit('/rooms');
-                    }}
                     onSettingsClick={() => router.visit('/settings-general')}
                     rooms={rooms}
                     hasAlarms={hasAlarms}
@@ -596,42 +568,6 @@ export default function Dashboard({
                     lastUpdate={lastUpdate}
                     dateStr={dateStr}
                 />
-
-                <Dialog
-                    open={showRoomAccessPrompt}
-                    onOpenChange={setShowRoomAccessPrompt}
-                >
-                    <DialogContent className="border-slate-700 bg-[#1a2027] text-white sm:max-w-md">
-                        <DialogHeader>
-                            <DialogTitle className="text-white">
-                                Verifikasi Akses Device Management
-                            </DialogTitle>
-                            <DialogDescription className="text-slate-400">
-                                Sistem akan meminta konfirmasi password sebelum
-                                Anda dapat masuk ke menu Ruangan dan mengubah
-                                konfigurasi perangkat.
-                            </DialogDescription>
-                        </DialogHeader>
-
-                        <DialogFooter className="gap-2 sm:justify-end">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                className="border-slate-600 bg-transparent text-slate-200 hover:bg-slate-700"
-                                onClick={() => setShowRoomAccessPrompt(false)}
-                            >
-                                Batal
-                            </Button>
-                            <Button
-                                type="button"
-                                className="bg-cyan-600 text-white hover:bg-cyan-500"
-                                onClick={openDeviceManagement}
-                            >
-                                Lanjutkan
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
             </div>
         </>
     );

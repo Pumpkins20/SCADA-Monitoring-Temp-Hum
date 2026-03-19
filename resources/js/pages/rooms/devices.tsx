@@ -17,10 +17,10 @@ import {
     XCircle,
 } from 'lucide-react';
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { PasswordSessionFloating } from '@/components/scada/password-session-floating';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
 import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
+import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
@@ -990,7 +990,7 @@ export default function RoomDevices({ room, hmis }: DevicesPageProps) {
                 </main>
 
                 {/* ── FOOTER ──────────────────────────────────────── */}
-                <ScadaFooterNav activeMenu="rooms" />
+                <ScadaFooterNav activeMenu="settings" />
             </div>
 
             {/* Add HMI Dialog */}

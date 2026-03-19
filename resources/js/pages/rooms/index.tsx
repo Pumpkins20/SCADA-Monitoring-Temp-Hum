@@ -10,9 +10,9 @@ import {
     DoorOpen,
 } from 'lucide-react';
 import { useState } from 'react';
+import { PasswordSessionFloating } from '@/components/scada/password-session-floating';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
 import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
-import { PasswordSessionFloating } from '@/components/scada/password-session-floating';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -486,7 +486,7 @@ export default function RoomsIndex({ rooms }: RoomsIndexProps) {
                 </main>
 
                 {/* ── FOOTER ──────────────────────────────────────── */}
-                <ScadaFooterNav activeMenu="rooms" />
+                <ScadaFooterNav activeMenu="settings" />
             </div>
 
             {/* ── Dialogs ──────────────────────────────────────── */}

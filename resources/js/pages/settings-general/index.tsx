@@ -1,5 +1,5 @@
 import { Head, Link } from '@inertiajs/react';
-import { ArrowLeft, ImageUp, SlidersHorizontal } from 'lucide-react';
+import { ArrowLeft, DoorOpen, ImageUp, SlidersHorizontal } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
 import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
@@ -121,6 +121,27 @@ export default function SettingsGeneralPage() {
                                     <p className="mt-0.5 text-[11px] text-slate-400">
                                         Ganti logo kiri dan tengah pada header
                                         dashboard
+                                    </p>
+                                </div>
+                                <span className="text-[10px] text-cyan-400 opacity-0 transition-opacity group-hover:opacity-100">
+                                    Buka →
+                                </span>
+                            </Link>
+
+                            <Link
+                                href="/rooms"
+                                className="group flex w-56 flex-col items-center gap-3 rounded-xl border border-slate-700/60 bg-slate-800/60 p-6 backdrop-blur-sm transition-all hover:border-cyan-500/50 hover:bg-slate-800/80 hover:shadow-[0_0_20px_#22d3ee20]"
+                            >
+                                <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-500/10 transition-colors group-hover:border-cyan-500/60 group-hover:bg-cyan-500/20">
+                                    <DoorOpen className="h-7 w-7 text-cyan-400" />
+                                </div>
+                                <div className="text-center">
+                                    <p className="text-sm font-bold tracking-wider text-white uppercase">
+                                        Connecting Devices
+                                    </p>
+                                    <p className="mt-0.5 text-[11px] text-slate-400">
+                                        Kelola ruangan, HMI/RTU, dan sensor
+                                        untuk koneksi perangkat
                                     </p>
                                 </div>
                                 <span className="text-[10px] text-cyan-400 opacity-0 transition-opacity group-hover:opacity-100">

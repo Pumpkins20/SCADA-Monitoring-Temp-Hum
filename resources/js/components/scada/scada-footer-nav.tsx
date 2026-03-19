@@ -3,7 +3,6 @@ import {
     BarChart2,
     Bell,
     ClipboardList,
-    DoorOpen,
     Home,
     LogOut,
     SlidersHorizontal,
@@ -12,9 +11,8 @@ import { statusDotColor } from '@/components/scada/scada-helpers';
 import type { RoomData } from '@/components/scada/scada-helpers';
 
 interface ScadaFooterNavProps {
-    activeMenu: 'dashboard' | 'logs' | 'chart-logs' | 'rooms' | 'settings';
+    activeMenu: 'dashboard' | 'logs' | 'chart-logs' | 'settings';
     onDashboardClick?: () => void;
-    onRoomsClick?: () => void;
     onSettingsClick?: () => void;
     rooms?: RoomData[];
     hasAlarms?: boolean;
@@ -26,7 +24,6 @@ interface ScadaFooterNavProps {
 export function ScadaFooterNav({
     activeMenu,
     onDashboardClick,
-    onRoomsClick,
     onSettingsClick,
     rooms = [],
     hasAlarms = false,
@@ -37,7 +34,6 @@ export function ScadaFooterNav({
     const isDashboardActive = activeMenu === 'dashboard';
     const isLogsActive = activeMenu === 'logs';
     const isChartLogsActive = activeMenu === 'chart-logs';
-    const isRoomsActive = activeMenu === 'rooms';
     const isSettingsActive = activeMenu === 'settings';
 
     return (
@@ -113,35 +109,6 @@ export function ScadaFooterNav({
                     <BarChart2 className="h-4 w-4" />
                     <span className="text-[9px] leading-none">Chart</span>
                 </Link>
-
-                {onRoomsClick ? (
-                    <button
-                        type="button"
-                        title="Kelola Ruangan"
-                        onClick={onRoomsClick}
-                        className={`flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-lg transition-colors ${
-                            isRoomsActive
-                                ? 'bg-cyan-500 text-white shadow-[0_0_10px_#22d3ee80]'
-                                : 'bg-slate-700/60 text-slate-400 hover:bg-slate-600/60 hover:text-white'
-                        }`}
-                    >
-                        <DoorOpen className="h-4 w-4" />
-                        <span className="text-[9px] leading-none">Ruangan</span>
-                    </button>
-                ) : (
-                    <Link
-                        href="/rooms"
-                        title="Kelola Ruangan"
-                        className={`flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-lg transition-colors ${
-                            isRoomsActive
-                                ? 'bg-cyan-500 text-white shadow-[0_0_10px_#22d3ee80]'
-                                : 'bg-slate-700/60 text-slate-400 hover:bg-slate-600/60 hover:text-white'
-                        }`}
-                    >
-                        <DoorOpen className="h-4 w-4" />
-                        <span className="text-[9px] leading-none">Ruangan</span>
-                    </Link>
-                )}
 
                 {onSettingsClick ? (
                     <button
