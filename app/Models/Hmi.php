@@ -2,14 +2,16 @@
 
 namespace App\Models;
 
+use Database\Factories\HmiFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Hmi extends Model
 {
-    /** @use HasFactory<\Database\Factories\HmiFactory> */
+    /** @use HasFactory<HmiFactory> */
     use HasFactory;
 
     /** @var list<string> */
@@ -20,6 +22,7 @@ class Hmi extends Model
         'port',
         'register_function',
         'is_active',
+        'is_preview',
     ];
 
     protected function casts(): array
@@ -27,6 +30,7 @@ class Hmi extends Model
         return [
             'port' => 'integer',
             'is_active' => 'boolean',
+            'is_preview' => 'boolean',
         ];
     }
 
@@ -38,5 +42,10 @@ class Hmi extends Model
     public function sensors(): HasMany
     {
         return $this->hasMany(Sensor::class);
+    }
+
+    public function latestData(): HasOne
+    {
+        return $this->hasOne(HmiLatestData::class);
     }
 }

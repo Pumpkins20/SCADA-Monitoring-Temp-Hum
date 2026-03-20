@@ -165,6 +165,20 @@ export default function RoomShow({ room, chartLogs }: RoomShowProps) {
                                 color="#60a5fa"
                             />
                         </div>
+
+                        <div className="rounded-xl border border-slate-700/60 bg-slate-900/60 p-3">
+                            <p className="text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
+                                Cross-check Avg HMI
+                            </p>
+                            <div className="mt-1 text-xs font-mono">
+                                <p className="text-cyan-300">
+                                    Temp: {room.hmi_avg_temp ?? '-'} degC
+                                </p>
+                                <p className="text-blue-300">
+                                    Hum: {room.hmi_avg_hum ?? '-'} %RH
+                                </p>
+                            </div>
+                        </div>
                     </div>
 
                     {/* ── MIDDLE COLUMN: sensor cards 1-3 ── */}

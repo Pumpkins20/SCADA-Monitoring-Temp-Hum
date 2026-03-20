@@ -13,6 +13,8 @@ export interface SensorData {
     name: string;
     temperature: number | null;
     humidity: number | null;
+    calibrate_temp?: number | null;
+    calibrate_hum?: number | null;
     status: SensorStatus;
     alarms?: SensorAlarms;
     last_read_at: string | null;
@@ -26,6 +28,8 @@ export interface RoomData {
     hum_max_limit: number;
     room_avg_temp: number | null;
     room_avg_hum: number | null;
+    hmi_avg_temp?: number | null;
+    hmi_avg_hum?: number | null;
     status: SensorStatus;
     last_update: string | null;
     sensors: SensorData[];

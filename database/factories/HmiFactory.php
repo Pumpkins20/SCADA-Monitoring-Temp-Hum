@@ -2,11 +2,12 @@
 
 namespace Database\Factories;
 
+use App\Models\Hmi;
 use App\Models\Room;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Hmi>
+ * @extends Factory<Hmi>
  */
 class HmiFactory extends Factory
 {
@@ -22,6 +23,7 @@ class HmiFactory extends Factory
             'port' => 502,
             'register_function' => '03',
             'is_active' => true,
+            'is_preview' => false,
         ];
     }
 

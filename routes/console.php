@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Hmi;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -21,4 +22,14 @@ Schedule::command('aggregate:sensor-readings')
 // Purge data > 90 hari (setiap hari tengah malam)
 Schedule::command('purge:old-logs')
     ->daily()
+    ->withoutOverlapping();
+
+Schedule::call(function (): void {
+    Hmi::query()
+        ->where('is_preview', true)
+        ->where('updated_at', '<', now()->subMinutes(5))
+        ->delete();
+})
+    ->name('cleanup-preview-hmis')
+    ->everyFiveMinutes()
     ->withoutOverlapping();

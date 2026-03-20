@@ -51,6 +51,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('logo-settings', [HeaderLogoSettingController::class, 'update'])->name('logo-settings.update');
 
             Route::post('hmis', [HmiController::class, 'store'])->name('hmis.store');
+            Route::get('hmis/{hmi}/preview-data', [HmiController::class, 'previewData'])->name('hmis.preview-data');
+            Route::post('hmis/{hmi}/confirm', [HmiController::class, 'confirm'])->name('hmis.confirm');
+            Route::delete('hmis/{hmi}/cancel-preview', [HmiController::class, 'cancelPreview'])->name('hmis.cancel-preview');
             Route::put('hmis/{hmi}', [HmiController::class, 'update'])->name('hmis.update');
             Route::delete('hmis/{hmi}', [HmiController::class, 'destroy'])->name('hmis.destroy');
 

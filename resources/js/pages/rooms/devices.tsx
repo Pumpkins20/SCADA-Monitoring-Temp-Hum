@@ -1,22 +1,19 @@
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import {
     ArrowLeft,
-    CheckCircle2,
     ChevronRight,
     Circle,
     Cpu,
     Lock,
-    Loader2,
     Pencil,
     Plus,
     Radio,
     Thermometer,
     Trash2,
-    Wifi,
     WifiOff,
-    XCircle,
+    Wifi,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { PasswordSessionFloating } from '@/components/scada/password-session-floating';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
 import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
@@ -65,6 +62,7 @@ interface HmiItem {
     port: number;
     register_function: '03' | '04';
     is_active: boolean;
+    is_preview?: boolean;
     sensors: SensorItem[];
 }
 
@@ -73,9 +71,17 @@ interface DevicesPageProps {
     hmis: HmiItem[];
 }
 
-// ─── Test Connection State ────────────────────────────────────────────────────
+interface PreviewSensor {
+    id: number;
+    name: string;
+    temperature: number | null;
+    humidity: number | null;
+    status: 'NORMAL' | 'WARNING' | 'CRITICAL' | 'OFFLINE' | null;
+    alarm_temp: boolean | null;
+    alarm_hum: boolean | null;
+}
 
-type TestStatus = 'idle' | 'loading' | 'success' | 'failed';
+type DialogPhase = 'form' | 'waiting' | 'preview';
 
 // ─── HMI Form Dialog ─────────────────────────────────────────────────────────
 
@@ -91,11 +97,20 @@ function HmiFormDialog({
     hmi?: HmiItem;
 }) {
     const isEdit = !!hmi;
-    const [testStatus, setTestStatus] = useState<TestStatus>('idle');
-    const [testMessage, setTestMessage] = useState('');
-    const [hasTestedConnection, setHasTestedConnection] = useState(false);
+    const [phase, setPhase] = useState<DialogPhase>('form');
+    const [hmiId, setHmiId] = useState<number | null>(null);
+    const [previewData, setPreviewData] = useState<PreviewSensor[]>([]);
+    const [sensorNames, setSensorNames] = useState<Record<number, string>>({});
+    const [waitElapsed, setWaitElapsed] = useState(0);
+    const [phaseError, setPhaseError] = useState('');
+    const [createProcessing, setCreateProcessing] = useState(false);
+    const [createErrors, setCreateErrors] = useState<
+        Partial<Record<'name' | 'ip_address' | 'port' | 'register_function', string>>
+    >({});
+    const pollingRef = useRef<number | null>(null);
+    const PREVIEW_TIMEOUT = 15;
 
-    const { data, setData, post, put, processing, errors, reset } = useForm({
+    const { data, setData, put, processing, errors, reset } = useForm({
         room_id: roomId,
         name: hmi?.name ?? '',
         ip_address: hmi?.ip_address ?? '',
@@ -104,60 +119,228 @@ function HmiFormDialog({
         is_active: hmi?.is_active ?? true,
     });
 
-    function submit(e: React.FormEvent) {
-        e.preventDefault();
-        const options = {
-            onSuccess: () => {
-                reset();
-                setTestStatus('idle');
-                setHasTestedConnection(false);
-                onOpenChange(false);
-            },
-        };
-        if (isEdit) {
-            put(`/hmis/${hmi.id}`, options);
-        } else {
-            post('/hmis', options);
+    function clearPolling() {
+        if (pollingRef.current !== null) {
+            window.clearInterval(pollingRef.current);
+            pollingRef.current = null;
         }
     }
 
-    async function handleTestConnection() {
-        setTestStatus('loading');
-        setTestMessage('');
+    function resetDialogState() {
+        clearPolling();
+        setPhase('form');
+        setHmiId(null);
+        setPreviewData([]);
+        setSensorNames({});
+        setWaitElapsed(0);
+        setPhaseError('');
+        setCreateProcessing(false);
+        setCreateErrors({});
+    }
 
-        const xsrfToken = decodeURIComponent(
+    useEffect(() => {
+        return () => clearPolling();
+    }, []);
+
+    function getXsrfToken(): string {
+        return decodeURIComponent(
             document.cookie
                 .split('; ')
                 .find((c) => c.startsWith('XSRF-TOKEN='))
                 ?.split('=')[1] ?? '',
         );
+    }
+
+    async function cancelPreviewRequest(previewHmiId: number): Promise<void> {
+        await fetch(`/hmis/${previewHmiId}/cancel-preview`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-XSRF-TOKEN': getXsrfToken(),
+                Accept: 'application/json',
+            },
+        });
+    }
+
+    async function startPollingPreview(newHmiId: number): Promise<void> {
+        setPhase('waiting');
+        setWaitElapsed(0);
+        setPhaseError('');
+
+        const startedAt = Date.now();
+
+        pollingRef.current = window.setInterval(async () => {
+            const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+            setWaitElapsed(Math.min(elapsed, PREVIEW_TIMEOUT));
+
+            if (elapsed >= PREVIEW_TIMEOUT) {
+                clearPolling();
+                await cancelPreviewRequest(newHmiId);
+                setPhase('form');
+                setHmiId(null);
+                setPhaseError(
+                    'Timeout: data preview belum tersedia. Periksa koneksi HMI atau status poller.',
+                );
+                return;
+            }
+
+            try {
+                const res = await fetch(`/hmis/${newHmiId}/preview-data`, {
+                    method: 'GET',
+                    headers: {
+                        Accept: 'application/json',
+                    },
+                });
+
+                if (!res.ok) {
+                    return;
+                }
+
+                const json = (await res.json()) as {
+                    ready: boolean;
+                    sensors: PreviewSensor[];
+                };
+
+                if (json.ready) {
+                    clearPolling();
+                    setPreviewData(json.sensors);
+
+                    const names: Record<number, string> = {};
+                    json.sensors.forEach((sensor) => {
+                        names[sensor.id] = sensor.name;
+                    });
+
+                    setSensorNames(names);
+                    setPhase('preview');
+                }
+            } catch {
+                // Ignore transient polling errors and wait next tick.
+            }
+        }, 2000);
+    }
+
+    async function submitCreateAndPreview(): Promise<void> {
+        setCreateProcessing(true);
+        setCreateErrors({});
+        setPhaseError('');
 
         try {
-            const res = await fetch('/hmis/test-connection', {
+            const res = await fetch('/hmis', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-XSRF-TOKEN': xsrfToken,
+                    'X-XSRF-TOKEN': getXsrfToken(),
                     Accept: 'application/json',
                 },
                 body: JSON.stringify({
+                    room_id: data.room_id,
+                    name: data.name,
                     ip_address: data.ip_address,
-                    port: parseInt(data.port),
-                    ...(isEdit ? { hmi_id: hmi.id } : {}),
+                    port: parseInt(data.port, 10),
+                    register_function: data.register_function,
                 }),
             });
-            const json = await res.json();
-            const success = json.success as boolean;
-            setTestStatus(success ? 'success' : 'failed');
-            setTestMessage(json.message ?? '');
-            setData('is_active', success);
-            setHasTestedConnection(true);
+
+            if (res.status === 422) {
+                const json = (await res.json()) as {
+                    errors?: Record<string, string[]>;
+                };
+
+                const nextErrors: Partial<
+                    Record<'name' | 'ip_address' | 'port' | 'register_function', string>
+                > = {};
+
+                Object.entries(json.errors ?? {}).forEach(([key, messages]) => {
+                    if (
+                        key === 'name' ||
+                        key === 'ip_address' ||
+                        key === 'port' ||
+                        key === 'register_function'
+                    ) {
+                        nextErrors[key] = messages[0] ?? 'Input tidak valid.';
+                    }
+                });
+
+                setCreateErrors(nextErrors);
+                return;
+            }
+
+            if (!res.ok) {
+                setPhaseError('Gagal menyimpan HMI preview. Coba lagi.');
+                return;
+            }
+
+            const json = (await res.json()) as { hmi_id: number; message: string };
+            setHmiId(json.hmi_id);
+            await startPollingPreview(json.hmi_id);
         } catch {
-            setTestStatus('failed');
-            setTestMessage('Gagal menghubungi server.');
-            setData('is_active', false);
-            setHasTestedConnection(true);
+            setPhaseError('Gagal menghubungi server saat menyimpan HMI preview.');
+        } finally {
+            setCreateProcessing(false);
         }
+    }
+
+    async function handleConfirm(previewHmiId: number): Promise<void> {
+        setCreateProcessing(true);
+        setPhaseError('');
+
+        try {
+            const res = await fetch(`/hmis/${previewHmiId}/confirm`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-XSRF-TOKEN': getXsrfToken(),
+                    Accept: 'application/json',
+                },
+                body: JSON.stringify({ sensor_names: sensorNames }),
+            });
+
+            if (!res.ok) {
+                setPhaseError('Gagal mengaktifkan HMI. Coba lagi.');
+                return;
+            }
+
+            reset();
+            resetDialogState();
+            onOpenChange(false);
+            router.reload({ only: ['hmis'] });
+        } catch {
+            setPhaseError('Gagal menghubungi server saat aktivasi HMI.');
+        } finally {
+            setCreateProcessing(false);
+        }
+    }
+
+    async function handleCancel(previewHmiId: number | null): Promise<void> {
+        clearPolling();
+
+        if (previewHmiId) {
+            await cancelPreviewRequest(previewHmiId);
+        }
+
+        reset();
+        resetDialogState();
+        onOpenChange(false);
+        router.reload({ only: ['hmis'] });
+    }
+
+    async function submitCreateFlow(e: React.FormEvent): Promise<void> {
+        e.preventDefault();
+
+        if (isEdit) {
+            const options = {
+                onSuccess: () => {
+                    reset();
+                    resetDialogState();
+                    onOpenChange(false);
+                },
+            };
+
+            put(`/hmis/${hmi.id}`, options);
+            return;
+        }
+
+        await submitCreateAndPreview();
     }
 
     return (
@@ -166,203 +349,279 @@ function HmiFormDialog({
             onOpenChange={(v) => {
                 if (!v) {
                     reset();
-                    setTestStatus('idle');
-                    setHasTestedConnection(false);
+                    resetDialogState();
                 }
                 onOpenChange(v);
             }}
         >
-            <DialogContent className="border-slate-700 bg-[#1a2027] text-white sm:max-w-md">
+            <DialogContent className="border-slate-700 bg-[#1a2027] text-white sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle className="text-white">
-                        {isEdit ? 'Edit HMI / RTU' : 'Tambah HMI / RTU'}
+                        {isEdit ? 'Edit HMI / RTU' : 'Connect HMI Preview'}
                     </DialogTitle>
                     <DialogDescription className="text-slate-400">
                         {isEdit
                             ? 'Ubah konfigurasi HMI yang sudah ada.'
-                            : 'Isi detail HMI / RTU Modbus TCP yang akan ditambahkan.'}
+                            : 'Isi konfigurasi HMI, tunggu preview data, lalu konfirmasi aktivasi.'}
                     </DialogDescription>
                 </DialogHeader>
 
-                <form onSubmit={submit} className="flex flex-col gap-4">
-                    {/* Name */}
-                    <div className="flex flex-col gap-1.5">
-                        <Label className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
-                            Nama HMI
-                        </Label>
-                        <Input
-                            value={data.name}
-                            onChange={(e) => setData('name', e.target.value)}
-                            placeholder="HMI-01"
-                            className="border-slate-600 bg-slate-800/80 text-white placeholder:text-slate-500 focus-visible:border-cyan-500 focus-visible:ring-cyan-500/30"
-                        />
-                        {errors.name && (
-                            <span className="text-xs text-red-400">
-                                {errors.name}
-                            </span>
-                        )}
-                    </div>
+                <form onSubmit={submitCreateFlow} className="flex flex-col gap-4">
+                    {phaseError && (
+                        <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                            {phaseError}
+                        </div>
+                    )}
 
-                    {/* IP + Test Connection */}
-                    <div className="flex flex-col gap-1.5">
-                        <Label className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
-                            Alamat IP
-                        </Label>
-                        <div className="flex gap-2">
-                            <Input
-                                value={data.ip_address}
-                                onChange={(e) => {
-                                    setData('ip_address', e.target.value);
-                                    setTestStatus('idle');
-                                }}
-                                placeholder="192.168.1.10"
-                                className="border-slate-600 bg-slate-800/80 text-white placeholder:text-slate-500 focus-visible:border-cyan-500 focus-visible:ring-cyan-500/30"
-                            />
+                    {phase === 'form' && (
+                        <>
+                            <div className="flex flex-col gap-1.5">
+                                <Label className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
+                                    Nama HMI
+                                </Label>
+                                <Input
+                                    value={data.name}
+                                    onChange={(e) => setData('name', e.target.value)}
+                                    placeholder="HMI-01"
+                                    className="border-slate-600 bg-slate-800/80 text-white placeholder:text-slate-500 focus-visible:border-cyan-500 focus-visible:ring-cyan-500/30"
+                                />
+                                {(createErrors.name ?? errors.name) && (
+                                    <span className="text-xs text-red-400">
+                                        {createErrors.name ?? errors.name}
+                                    </span>
+                                )}
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="flex flex-col gap-1.5">
+                                    <Label className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
+                                        Alamat IP
+                                    </Label>
+                                    <Input
+                                        value={data.ip_address}
+                                        onChange={(e) =>
+                                            setData('ip_address', e.target.value)
+                                        }
+                                        placeholder="192.168.1.10"
+                                        className="border-slate-600 bg-slate-800/80 text-white placeholder:text-slate-500 focus-visible:border-cyan-500 focus-visible:ring-cyan-500/30"
+                                    />
+                                    {(createErrors.ip_address ?? errors.ip_address) && (
+                                        <span className="text-xs text-red-400">
+                                            {createErrors.ip_address ?? errors.ip_address}
+                                        </span>
+                                    )}
+                                </div>
+
+                                <div className="flex flex-col gap-1.5">
+                                    <Label className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
+                                        Port
+                                    </Label>
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        max={65535}
+                                        value={data.port}
+                                        onChange={(e) => setData('port', e.target.value)}
+                                        className="border-slate-600 bg-slate-800/80 text-white placeholder:text-slate-500 focus-visible:border-cyan-500 focus-visible:ring-cyan-500/30"
+                                    />
+                                    {(createErrors.port ?? errors.port) && (
+                                        <span className="text-xs text-red-400">
+                                            {createErrors.port ?? errors.port}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="flex flex-col gap-1.5">
+                                    <Label className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
+                                        Function Register
+                                    </Label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {(['03', '04'] as const).map((fc) => (
+                                            <button
+                                                key={fc}
+                                                type="button"
+                                                onClick={() => setData('register_function', fc)}
+                                                className={`flex h-10 items-center justify-center rounded-md border px-3 text-sm font-medium transition-colors ${
+                                                    data.register_function === fc
+                                                        ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300'
+                                                        : 'border-slate-600 bg-slate-800/80 text-slate-400'
+                                                }`}
+                                            >
+                                                {fc === '03'
+                                                    ? '03: Holding Register'
+                                                    : '04: Input Register'}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    {(createErrors.register_function ?? errors.register_function) && (
+                                        <span className="text-xs text-red-400">
+                                            {createErrors.register_function ??
+                                                errors.register_function}
+                                        </span>
+                                    )}
+                                </div>
+
+                                {isEdit && (
+                                    <div className="flex flex-col gap-1.5">
+                                        <Label className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
+                                            Status
+                                        </Label>
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setData('is_active', !data.is_active)
+                                            }
+                                            className={`flex h-10 items-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors ${
+                                                data.is_active
+                                                    ? 'border-green-500/40 bg-green-500/10 text-green-400'
+                                                    : 'border-slate-600 bg-slate-800/80 text-slate-400'
+                                            }`}
+                                        >
+                                            {data.is_active ? (
+                                                <Wifi className="h-4 w-4" />
+                                            ) : (
+                                                <WifiOff className="h-4 w-4" />
+                                            )}
+                                            {data.is_active ? 'Aktif' : 'Non-aktif'}
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            <DialogFooter className="mt-2">
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    onClick={() => onOpenChange(false)}
+                                    className="text-slate-400 hover:bg-slate-700/60 hover:text-white"
+                                >
+                                    Batal
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    disabled={processing || createProcessing}
+                                    className="bg-cyan-600 text-white hover:bg-cyan-500"
+                                >
+                                    {processing || createProcessing
+                                        ? 'Memproses...'
+                                        : isEdit
+                                          ? 'Simpan Perubahan'
+                                          : 'Connect & Preview'}
+                                </Button>
+                            </DialogFooter>
+                        </>
+                    )}
+
+                    {phase === 'waiting' && (
+                        <div className="flex flex-col items-center gap-4 py-8">
+                            <div className="h-10 w-10 animate-spin rounded-full border-2 border-slate-600 border-t-cyan-400" />
+                            <div className="text-center">
+                                <p className="text-sm font-medium text-white">
+                                    Menunggu data dari HMI...
+                                </p>
+                                <p className="text-xs text-slate-400">
+                                    Poller sedang membaca register. Maksimal {PREVIEW_TIMEOUT} detik.
+                                </p>
+                            </div>
+                            <div className="h-1 w-full overflow-hidden rounded-full bg-slate-700">
+                                <div
+                                    className="h-full bg-cyan-500 transition-all duration-1000"
+                                    style={{
+                                        width: `${(waitElapsed / PREVIEW_TIMEOUT) * 100}%`,
+                                    }}
+                                />
+                            </div>
                             <Button
                                 type="button"
-                                size="sm"
-                                variant="outline"
-                                onClick={handleTestConnection}
-                                disabled={
-                                    testStatus === 'loading' ||
-                                    !data.ip_address ||
-                                    !data.port
-                                }
-                                className="shrink-0 border-slate-600 bg-slate-800/80 text-slate-300 hover:bg-slate-700/60 hover:text-white"
+                                variant="ghost"
+                                onClick={() => handleCancel(hmiId)}
+                                className="text-slate-400"
                             >
-                                {testStatus === 'loading' ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : testStatus === 'success' ? (
-                                    <CheckCircle2 className="h-3.5 w-3.5 text-green-400" />
-                                ) : testStatus === 'failed' ? (
-                                    <XCircle className="h-3.5 w-3.5 text-red-400" />
-                                ) : (
-                                    <Wifi className="h-3.5 w-3.5" />
-                                )}
-                                <span className="ml-1 text-xs">Test</span>
+                                Batalkan
                             </Button>
                         </div>
-                        {testStatus !== 'idle' && testMessage && (
-                            <span
-                                className={`text-xs ${testStatus === 'success' ? 'text-green-400' : 'text-red-400'}`}
-                            >
-                                {testMessage}
-                            </span>
-                        )}
-                        {errors.ip_address && (
-                            <span className="text-xs text-red-400">
-                                {errors.ip_address}
-                            </span>
-                        )}
-                    </div>
+                    )}
 
-                    {/* Port + Active */}
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="flex flex-col gap-1.5">
-                            <Label className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
-                                Port
-                            </Label>
-                            <Input
-                                type="number"
-                                min={1}
-                                max={65535}
-                                value={data.port}
-                                onChange={(e) =>
-                                    setData('port', e.target.value)
-                                }
-                                className="border-slate-600 bg-slate-800/80 text-white placeholder:text-slate-500 focus-visible:border-cyan-500 focus-visible:ring-cyan-500/30"
-                            />
-                            {errors.port && (
-                                <span className="text-xs text-red-400">
-                                    {errors.port}
+                    {phase === 'preview' && (
+                        <div className="flex flex-col gap-4">
+                            <div className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 px-3 py-2">
+                                <span className="text-xs text-green-400">
+                                    Data berhasil dibaca dari HMI
                                 </span>
-                            )}
-                        </div>
+                            </div>
 
-                        <div className="flex flex-col gap-1.5">
-                            <Label className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
-                                Status
-                            </Label>
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setData('is_active', !data.is_active)
-                                }
-                                className={`flex h-10 items-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors ${
-                                    data.is_active
-                                        ? 'border-green-500/40 bg-green-500/10 text-green-400'
-                                        : 'border-slate-600 bg-slate-800/80 text-slate-400'
-                                }`}
-                            >
-                                {data.is_active ? (
-                                    <Wifi className="h-4 w-4" />
-                                ) : (
-                                    <WifiOff className="h-4 w-4" />
-                                )}
-                                {data.is_active ? 'Aktif' : 'Non-aktif'}
-                            </button>
-                        </div>
-                    </div>
+                            <div className="grid grid-cols-2 gap-2">
+                                {previewData.map((sensor) => (
+                                    <div
+                                        key={sensor.id}
+                                        className="rounded-lg border border-slate-700/60 bg-slate-900/60 p-3"
+                                    >
+                                        <Input
+                                            value={sensorNames[sensor.id] ?? sensor.name}
+                                            onChange={(e) =>
+                                                setSensorNames((prev) => ({
+                                                    ...prev,
+                                                    [sensor.id]: e.target.value,
+                                                }))
+                                            }
+                                            className="mb-2 h-7 border-slate-600 bg-slate-800 text-xs text-white"
+                                        />
+                                        <div className="flex justify-between text-xs">
+                                            <span className="text-slate-400">Suhu</span>
+                                            <span className="font-mono text-cyan-300">
+                                                {sensor.temperature ?? '-'} degC
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between text-xs">
+                                            <span className="text-slate-400">Hum</span>
+                                            <span className="font-mono text-blue-300">
+                                                {sensor.humidity ?? '-'} %RH
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between text-xs">
+                                            <span className="text-slate-400">Status</span>
+                                            <span
+                                                className={`font-mono text-xs font-semibold ${
+                                                    sensor.status === 'NORMAL'
+                                                        ? 'text-green-400'
+                                                        : sensor.status === 'WARNING'
+                                                          ? 'text-amber-400'
+                                                          : sensor.status === 'CRITICAL'
+                                                            ? 'text-red-400'
+                                                            : 'text-slate-500'
+                                                }`}
+                                            >
+                                                {sensor.status ?? 'OFFLINE'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
 
-                    <div className="flex flex-col gap-1.5">
-                        <Label className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
-                            Function Register
-                        </Label>
-                        <div className="grid grid-cols-2 gap-2">
-                            {(['03', '04'] as const).map((fc) => (
-                                <button
-                                    key={fc}
+                            <DialogFooter>
+                                <Button
                                     type="button"
-                                    onClick={() =>
-                                        setData('register_function', fc)
-                                    }
-                                    className={`flex h-10 items-center justify-center rounded-md border px-3 text-sm font-medium transition-colors ${
-                                        data.register_function === fc
-                                            ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300'
-                                            : 'border-slate-600 bg-slate-800/80 text-slate-400'
-                                    }`}
+                                    variant="ghost"
+                                    onClick={() => handleCancel(hmiId)}
+                                    className="text-slate-400"
                                 >
-                                    {fc === '03'
-                                        ? '03: Holding Register'
-                                        : '04: Input Register'}
-                                </button>
-                            ))}
+                                    Batalkan
+                                </Button>
+                                <Button
+                                    type="button"
+                                    onClick={() => hmiId && handleConfirm(hmiId)}
+                                    disabled={createProcessing || !hmiId}
+                                    className="bg-cyan-600 text-white hover:bg-cyan-500"
+                                >
+                                    {createProcessing
+                                        ? 'Mengaktifkan...'
+                                        : 'Aktifkan HMI'}
+                                </Button>
+                            </DialogFooter>
                         </div>
-                        {errors.register_function && (
-                            <span className="text-xs text-red-400">
-                                {errors.register_function}
-                            </span>
-                        )}
-                    </div>
-
-                    <DialogFooter className="mt-2">
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            onClick={() => onOpenChange(false)}
-                            className="text-slate-400 hover:bg-slate-700/60 hover:text-white"
-                        >
-                            Batal
-                        </Button>
-                        <Button
-                            type="submit"
-                            disabled={
-                                processing || (!isEdit && !hasTestedConnection)
-                            }
-                            className="bg-cyan-600 text-white hover:bg-cyan-500 disabled:opacity-40"
-                            title={
-                                !isEdit && !hasTestedConnection
-                                    ? 'Lakukan Test Koneksi terlebih dahulu'
-                                    : undefined
-                            }
-                        >
-                            {processing
-                                ? 'Menyimpan...'
-                                : isEdit
-                                  ? 'Simpan Perubahan'
-                                  : 'Tambah HMI'}
-                        </Button>
-                    </DialogFooter>
+                    )}
                 </form>
             </DialogContent>
         </Dialog>
@@ -849,11 +1108,33 @@ function HmiCard({ hmi, roomId }: { hmi: HmiItem; roomId: number }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function RoomDevices({ room, hmis }: DevicesPageProps) {
-    const [showAddHmi, setShowAddHmi] = useState(false);
+    const [showAddHmi, setShowAddHmi] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+
+        return params.get('openAddHmi') === '1';
+    });
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const shouldOpen = params.get('openAddHmi') === '1';
+
+        if (!shouldOpen) {
+            return;
+        }
+
+        params.delete('openAddHmi');
+
+        const nextQuery = params.toString();
+        const nextUrl = nextQuery
+            ? `${window.location.pathname}?${nextQuery}`
+            : window.location.pathname;
+
+        window.history.replaceState({}, '', nextUrl);
+    }, []);
 
     return (
         <>
-            <Head title={`Kelola Perangkat — ${room.name}`} />
+            <Head title={`Connecting Devices — ${room.name}`} />
 
             <div className="flex h-screen flex-col overflow-hidden bg-[#151b1f] font-sans text-white">
                 <PasswordSessionFloating className="top-[92px]" />
@@ -876,7 +1157,7 @@ export default function RoomDevices({ room, hmis }: DevicesPageProps) {
                                     {room.name}
                                 </p>
                                 <p className="text-[10px] text-slate-400">
-                                    {room.location ?? 'Kelola Perangkat'}
+                                    {room.location ?? 'Connecting Devices'}
                                 </p>
                             </div>
                         </div>
@@ -904,7 +1185,7 @@ export default function RoomDevices({ room, hmis }: DevicesPageProps) {
                                 href="/rooms"
                                 className="transition-colors hover:text-cyan-400"
                             >
-                                Kelola Ruangan
+                                Connecting Devices
                             </Link>
                             <ChevronRight className="h-3.5 w-3.5" />
                             <span className="font-semibold text-white">
@@ -916,7 +1197,7 @@ export default function RoomDevices({ room, hmis }: DevicesPageProps) {
                             className="bg-cyan-600 text-white shadow-[0_0_12px_#22d3ee40] hover:bg-cyan-500"
                         >
                             <Plus className="h-4 w-4" />
-                            Tambah HMI / RTU
+                            Tambah Koneksi HMI
                         </Button>
                     </div>
 
@@ -971,8 +1252,8 @@ export default function RoomDevices({ room, hmis }: DevicesPageProps) {
                             <div className="text-center">
                                 <Cpu className="mx-auto mb-2 h-10 w-10 opacity-30" />
                                 <p className="text-sm">
-                                    Belum ada HMI. Klik "Tambah HMI / RTU" untuk
-                                    memulai.
+                                    Belum ada koneksi HMI. Klik "Tambah Koneksi
+                                    HMI" untuk memulai.
                                 </p>
                             </div>
                         </div>

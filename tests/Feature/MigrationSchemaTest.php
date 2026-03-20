@@ -19,7 +19,7 @@ test('rooms table has correct columns', function () {
 test('hmis table has correct columns', function () {
     expect(Schema::hasTable('hmis'))->toBeTrue();
 
-    foreach (['id', 'room_id', 'name', 'ip_address', 'port', 'register_function', 'is_active', 'created_at', 'updated_at'] as $column) {
+    foreach (['id', 'room_id', 'name', 'ip_address', 'port', 'register_function', 'is_active', 'is_preview', 'created_at', 'updated_at'] as $column) {
         expect(Schema::hasColumn('hmis', $column))
             ->toBeTrue("hmis.{$column} column is missing");
     }
@@ -59,12 +59,33 @@ test('sensor_latest_data table has correct columns', function () {
         'alarm_temp',
         'alarm_hum',
         'alarm_disconnect',
+        'calibrate_temp',
+        'calibrate_hum',
         'last_read_at',
         'created_at',
         'updated_at',
     ] as $column) {
         expect(Schema::hasColumn('sensor_latest_data', $column))
             ->toBeTrue("sensor_latest_data.{$column} column is missing");
+    }
+});
+
+// ─── hmi_latest_data ─────────────────────────────────────────────────────────
+
+test('hmi_latest_data table has correct columns', function () {
+    expect(Schema::hasTable('hmi_latest_data'))->toBeTrue();
+
+    foreach ([
+        'id',
+        'hmi_id',
+        'avg_temp',
+        'avg_hum',
+        'last_read_at',
+        'created_at',
+        'updated_at',
+    ] as $column) {
+        expect(Schema::hasColumn('hmi_latest_data', $column))
+            ->toBeTrue("hmi_latest_data.{$column} column is missing");
     }
 });
 

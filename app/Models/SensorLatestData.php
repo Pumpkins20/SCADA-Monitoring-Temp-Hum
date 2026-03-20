@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use Database\Factories\SensorLatestDataFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SensorLatestData extends Model
 {
-    /** @use HasFactory<\Database\Factories\SensorLatestDataFactory> */
+    /** @use HasFactory<SensorLatestDataFactory> */
     use HasFactory;
 
     /** @var list<string> */
@@ -20,6 +21,8 @@ class SensorLatestData extends Model
         'alarm_temp',
         'alarm_hum',
         'alarm_disconnect',
+        'calibrate_temp',
+        'calibrate_hum',
         'last_read_at',
     ];
 
@@ -31,6 +34,8 @@ class SensorLatestData extends Model
             'alarm_temp' => 'boolean',
             'alarm_hum' => 'boolean',
             'alarm_disconnect' => 'boolean',
+            'calibrate_temp' => 'decimal:2',
+            'calibrate_hum' => 'decimal:2',
             'last_read_at' => 'datetime',
         ];
     }

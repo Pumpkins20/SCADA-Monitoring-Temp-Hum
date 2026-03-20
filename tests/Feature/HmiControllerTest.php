@@ -3,25 +3,30 @@
 use App\Models\Hmi;
 use App\Models\Room;
 use App\Models\Sensor;
+use App\Models\SensorLatestData;
 use App\Models\User;
 
 // ─── rooms.devices ────────────────────────────────────────────────────────────
 
 test('guests are redirected to login from rooms.devices', function () {
     $room = Room::factory()->create();
+
     $this->get(route('rooms.devices', $room))->assertRedirect(route('login'));
 });
 
 test('authenticated users can visit rooms.devices', function () {
     $room = Room::factory()->create();
+
     $this->actingAs(User::factory()->create(['is_admin' => true]))
         ->withSession(['auth.password_confirmed_at' => time()])
         ->get(route('rooms.devices', $room))
         ->assertOk()
         ->assertInertia(
-            fn ($page) => $page->component('rooms/devices')
-                ->has('room')
-                ->has('hmis')
+            function ($page) {
+                return $page->component('rooms/devices')
+                    ->has('room')
+                    ->has('hmis');
+            }
         );
 });
 
@@ -42,35 +47,40 @@ test('rooms.devices requires password confirmation for admins', function () {
         ->assertRedirect(route('password.confirm'));
 });
 
-// ─── hmis.store ───────────────────────────────────────────────────────────────
+// ─── hmis.store (preview mode) ───────────────────────────────────────────────
 
-test('can create a new hmi', function () {
-    $room = Room::factory()->create();
-    $this->actingAs(User::factory()->create(['is_admin' => true]))
+test('can create a preview hmi and auto-create 4 sensors', function () {
+    $response = $this->actingAs(User::factory()->create(['is_admin' => true]))
         ->withSession(['auth.password_confirmed_at' => time()])
-        ->post(route('hmis.store'), [
-            'room_id' => $room->id,
-            'name' => 'HMI-01',
+        ->postJson(route('hmis.store'), [
             'ip_address' => '192.168.1.10',
             'port' => 502,
-            'register_function' => '03',
-            'is_active' => true,
         ])
-        ->assertRedirect(route('rooms.devices', $room));
+        ->assertCreated()
+        ->assertJsonStructure(['hmi_id', 'message']);
 
-    $hmi = Hmi::query()->where('name', 'HMI-01')->firstOrFail();
+    $hmiId = $response->json('hmi_id');
+    $hmi = Hmi::query()->findOrFail($hmiId);
+    $room = Room::query()->findOrFail($hmi->room_id);
 
     $this->assertDatabaseHas('hmis', [
-        'id' => $hmi->id,
-        'name' => 'HMI-01',
+        'id' => $hmiId,
+        'name' => 'HMI 192.168.1.10',
         'room_id' => $room->id,
         'register_function' => '03',
+        'is_active' => false,
+        'is_preview' => true,
     ]);
 
-    expect(Sensor::query()->where('hmi_id', $hmi->id)->count())->toBe(4);
+    $this->assertDatabaseHas('rooms', [
+        'id' => $room->id,
+        'name' => 'ROOM 192.168.1.10',
+    ]);
+
+    expect(Sensor::query()->where('hmi_id', $hmiId)->count())->toBe(4);
 
     $this->assertDatabaseHas('sensors', [
-        'hmi_id' => $hmi->id,
+        'hmi_id' => $hmiId,
         'name' => 'Sensor 1',
         'unit_id' => 1,
         'modbus_address_temp' => 9,
@@ -79,54 +89,137 @@ test('can create a new hmi', function () {
 });
 
 test('hmi store validation fails when ip_address is invalid', function () {
-    $room = Room::factory()->create();
     $this->actingAs(User::factory()->create(['is_admin' => true]))
         ->withSession(['auth.password_confirmed_at' => time()])
-        ->post(route('hmis.store'), [
-            'room_id' => $room->id,
-            'name' => 'HMI-01',
+        ->postJson(route('hmis.store'), [
             'ip_address' => 'not-an-ip',
             'port' => 502,
-            'register_function' => '03',
-            'is_active' => true,
         ])
-        ->assertSessionHasErrors('ip_address');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('ip_address');
 });
 
-test('hmi store validation fails when room_id does not exist', function () {
+test('hmi store validation fails when port is out of range', function () {
     $this->actingAs(User::factory()->create(['is_admin' => true]))
         ->withSession(['auth.password_confirmed_at' => time()])
-        ->post(route('hmis.store'), [
-            'room_id' => 99999,
-            'name' => 'HMI-01',
+        ->postJson(route('hmis.store'), [
             'ip_address' => '192.168.1.10',
-            'port' => 502,
-            'register_function' => '03',
-            'is_active' => true,
+            'port' => 70000,
         ])
-        ->assertSessionHasErrors('room_id');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('port');
 });
 
-test('hmi store validation fails when register function is invalid', function () {
-    $room = Room::factory()->create();
+// ─── hmis.preview-data ────────────────────────────────────────────────────────
+
+test('preview-data returns ready false when no latest data exists', function () {
+    $hmi = Hmi::factory()->create([
+        'is_active' => false,
+        'is_preview' => true,
+    ]);
+
+    Sensor::factory()->count(4)->create([
+        'hmi_id' => $hmi->id,
+    ]);
 
     $this->actingAs(User::factory()->create(['is_admin' => true]))
         ->withSession(['auth.password_confirmed_at' => time()])
-        ->post(route('hmis.store'), [
-            'room_id' => $room->id,
-            'name' => 'HMI-01',
-            'ip_address' => '192.168.1.10',
-            'port' => 502,
-            'register_function' => '99',
-            'is_active' => true,
-        ])
-        ->assertSessionHasErrors('register_function');
+        ->getJson(route('hmis.preview-data', $hmi))
+        ->assertOk()
+        ->assertJson([
+            'ready' => false,
+        ]);
 });
 
-// ─── hmis.update ──────────────────────────────────────────────────────────────
+test('preview-data returns ready true when all sensors have latest data', function () {
+    $hmi = Hmi::factory()->create([
+        'is_active' => false,
+        'is_preview' => true,
+    ]);
+
+    $sensors = Sensor::factory()->count(4)->create([
+        'hmi_id' => $hmi->id,
+    ]);
+
+    foreach ($sensors as $sensor) {
+        SensorLatestData::factory()->normal()->create([
+            'sensor_id' => $sensor->id,
+        ]);
+    }
+
+    $this->actingAs(User::factory()->create(['is_admin' => true]))
+        ->withSession(['auth.password_confirmed_at' => time()])
+        ->getJson(route('hmis.preview-data', $hmi))
+        ->assertOk()
+        ->assertJson([
+            'ready' => true,
+        ])
+        ->assertJsonCount(4, 'sensors');
+});
+
+// ─── hmis.confirm / hmis.cancel-preview ──────────────────────────────────────
+
+test('confirm activates preview hmi and updates sensor names', function () {
+    $hmi = Hmi::factory()->create([
+        'is_active' => false,
+        'is_preview' => true,
+    ]);
+
+    $sensors = Sensor::factory()->count(2)->create([
+        'hmi_id' => $hmi->id,
+    ]);
+
+    $this->actingAs(User::factory()->create(['is_admin' => true]))
+        ->withSession(['auth.password_confirmed_at' => time()])
+        ->postJson(route('hmis.confirm', $hmi), [
+            'sensor_names' => [
+                $sensors[0]->id => 'Sensor Utara',
+                $sensors[1]->id => 'Sensor Selatan',
+            ],
+        ])
+        ->assertOk()
+        ->assertJson(['success' => true]);
+
+    $this->assertDatabaseHas('hmis', [
+        'id' => $hmi->id,
+        'is_active' => true,
+        'is_preview' => false,
+    ]);
+
+    $this->assertDatabaseHas('sensors', [
+        'id' => $sensors[0]->id,
+        'name' => 'Sensor Utara',
+    ]);
+
+    $this->assertDatabaseHas('sensors', [
+        'id' => $sensors[1]->id,
+        'name' => 'Sensor Selatan',
+    ]);
+});
+
+test('cancel-preview deletes preview hmi', function () {
+    $hmi = Hmi::factory()->create([
+        'is_active' => false,
+        'is_preview' => true,
+    ]);
+
+    $this->actingAs(User::factory()->create(['is_admin' => true]))
+        ->withSession(['auth.password_confirmed_at' => time()])
+        ->deleteJson(route('hmis.cancel-preview', $hmi))
+        ->assertOk()
+        ->assertJson([
+            'success' => true,
+            'room_id' => $hmi->room_id,
+        ]);
+
+    $this->assertDatabaseMissing('hmis', ['id' => $hmi->id]);
+});
+
+// ─── hmis.update / hmis.destroy ──────────────────────────────────────────────
 
 test('can update an existing hmi', function () {
     $hmi = Hmi::factory()->create(['name' => 'OLD-HMI']);
+
     $this->actingAs(User::factory()->create(['is_admin' => true]))
         ->withSession(['auth.password_confirmed_at' => time()])
         ->put(route('hmis.update', $hmi), [
@@ -146,10 +239,9 @@ test('can update an existing hmi', function () {
     ]);
 });
 
-// ─── hmis.destroy ─────────────────────────────────────────────────────────────
-
 test('can delete an hmi', function () {
     $hmi = Hmi::factory()->create();
+
     $this->actingAs(User::factory()->create(['is_admin' => true]))
         ->withSession(['auth.password_confirmed_at' => time()])
         ->delete(route('hmis.destroy', $hmi))
@@ -180,67 +272,31 @@ test('test-connection validates ip_address format', function () {
         ->assertJsonValidationErrors('ip_address');
 });
 
-test('test-connection without hmi_id does not update any hmi record', function () {
-    $hmi = Hmi::factory()->create(['is_active' => true]);
-
-    $this->actingAs(User::factory()->create(['is_admin' => true]))
-        ->postJson(route('hmis.test-connection'), [
-            'ip_address' => '127.0.0.1',
-            'port' => 9999,
-        ])
-        ->assertOk();
-
-    $this->assertDatabaseHas('hmis', ['id' => $hmi->id, 'is_active' => true]);
-});
-
-test('test-connection with valid hmi_id updates is_active to false on failure', function () {
-    $hmi = Hmi::factory()->create(['is_active' => true]);
-
-    $this->actingAs(User::factory()->create(['is_admin' => true]))
-        ->postJson(route('hmis.test-connection'), [
-            'ip_address' => '127.0.0.1',
-            'port' => 9999,
-            'hmi_id' => $hmi->id,
-        ])
-        ->assertOk()
-        ->assertJson(['success' => false]);
-
-    $this->assertDatabaseHas('hmis', ['id' => $hmi->id, 'is_active' => false]);
-});
-
-test('test-connection validates hmi_id must exist in hmis table', function () {
-    $this->actingAs(User::factory()->create(['is_admin' => true]))
-        ->postJson(route('hmis.test-connection'), [
-            'ip_address' => '127.0.0.1',
-            'port' => 502,
-            'hmi_id' => 99999,
-        ])
-        ->assertUnprocessable()
-        ->assertJsonValidationErrors('hmi_id');
-});
-
-test('non-admin users are forbidden from hmis test-connection endpoint', function () {
-    $this->actingAs(User::factory()->create(['is_admin' => false]))
-        ->postJson(route('hmis.test-connection'), [
-            'ip_address' => '127.0.0.1',
-            'port' => 502,
-        ])
-        ->assertForbidden();
-});
+// ─── authorization ────────────────────────────────────────────────────────────
 
 test('non-admin users are forbidden from hmi mutations', function () {
     $room = Room::factory()->create();
     $hmi = Hmi::factory()->create(['room_id' => $room->id]);
 
     $this->actingAs(User::factory()->create(['is_admin' => false]))
-        ->post(route('hmis.store'), [
-            'room_id' => $room->id,
-            'name' => 'HMI-X',
+        ->postJson(route('hmis.store'), [
             'ip_address' => '192.168.1.11',
             'port' => 502,
-            'register_function' => '03',
-            'is_active' => true,
         ])
+        ->assertForbidden();
+
+    $this->actingAs(User::factory()->create(['is_admin' => false]))
+        ->getJson(route('hmis.preview-data', $hmi))
+        ->assertForbidden();
+
+    $this->actingAs(User::factory()->create(['is_admin' => false]))
+        ->postJson(route('hmis.confirm', $hmi), [
+            'sensor_names' => [],
+        ])
+        ->assertForbidden();
+
+    $this->actingAs(User::factory()->create(['is_admin' => false]))
+        ->deleteJson(route('hmis.cancel-preview', $hmi))
         ->assertForbidden();
 
     $this->actingAs(User::factory()->create(['is_admin' => false]))

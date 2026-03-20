@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreHmiRequest;
 use App\Http\Requests\UpdateHmiRequest;
 use App\Models\Hmi;
+use App\Models\Room;
 use App\Models\Sensor;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -13,7 +14,7 @@ use Illuminate\Support\Facades\DB;
 
 class HmiController extends Controller
 {
-    public function store(StoreHmiRequest $request): RedirectResponse
+    public function store(StoreHmiRequest $request): JsonResponse
     {
         $validated = $request->validated();
 
@@ -24,8 +25,20 @@ class HmiController extends Controller
             4 => ['temp' => 81, 'hum' => 83],
         ];
 
-        DB::transaction(function () use ($validated, $sensorMap): void {
-            $hmi = Hmi::create($validated);
+        $hmi = DB::transaction(function () use ($validated, $sensorMap): Hmi {
+            $room = Room::create([
+                'name' => 'ROOM '.$validated['ip_address'],
+                'location' => null,
+            ]);
+
+            $hmi = Hmi::create([
+                'room_id' => $room->id,
+                'name' => 'HMI '.$validated['ip_address'],
+                'ip_address' => $validated['ip_address'],
+                'port' => $validated['port'],
+                'is_active' => false,
+                'is_preview' => true,
+            ]);
 
             // Auto-create 4 sensor sesuai posisi Device_1..4 di HMI Haiwell D4.
             // Register address disimpan sebagai referensi UI/reporting.
@@ -38,14 +51,134 @@ class HmiController extends Controller
                     'modbus_address_hum' => $sensorMap[$position]['hum'],
                 ]);
             }
+
+            return $hmi;
         });
 
-        return redirect()->route('rooms.devices', $request->validated('room_id'));
+        return response()->json([
+            'hmi_id' => $hmi->id,
+            'message' => 'HMI disimpan, menunggu data dari poller...',
+        ], 201);
+    }
+
+    public function previewData(Hmi $hmi): JsonResponse
+    {
+        $hmi->loadMissing(['room', 'latestData']);
+
+        if (! $hmi->is_preview) {
+            return response()->json([
+                'ready' => false,
+                'room_name' => $hmi->room?->name,
+                'room_detail' => $hmi->room?->location,
+                'hmi_avg' => [
+                    'temp' => $hmi->latestData?->avg_temp !== null
+                        ? (float) $hmi->latestData->avg_temp
+                        : null,
+                    'hum' => $hmi->latestData?->avg_hum !== null
+                        ? (float) $hmi->latestData->avg_hum
+                        : null,
+                ],
+                'sensors' => [],
+            ]);
+        }
+
+        $sensors = $hmi->sensors()
+            ->with('latestData')
+            ->orderBy('id')
+            ->get();
+
+        $hasData = $sensors->isNotEmpty() && $sensors->every(
+            fn (Sensor $sensor) => $sensor->latestData !== null
+        );
+
+        return response()->json([
+            'ready' => $hasData,
+            'room_name' => $hmi->room?->name,
+            'room_detail' => $hmi->room?->location,
+            'hmi_avg' => [
+                'temp' => $hmi->latestData?->avg_temp !== null
+                    ? (float) $hmi->latestData->avg_temp
+                    : null,
+                'hum' => $hmi->latestData?->avg_hum !== null
+                    ? (float) $hmi->latestData->avg_hum
+                    : null,
+            ],
+            'sensors' => $sensors->map(fn (Sensor $sensor) => [
+                'id' => $sensor->id,
+                'name' => $sensor->name,
+                'temperature' => $sensor->latestData?->temperature,
+                'humidity' => $sensor->latestData?->humidity,
+                'calibrate_temp' => $sensor->latestData?->calibrate_temp,
+                'calibrate_hum' => $sensor->latestData?->calibrate_hum,
+                'status' => $sensor->latestData?->status,
+                'alarm_temp' => $sensor->latestData?->alarm_temp,
+                'alarm_hum' => $sensor->latestData?->alarm_hum,
+            ])->values(),
+        ]);
+    }
+
+    public function confirm(Request $request, Hmi $hmi): JsonResponse
+    {
+        if (! $hmi->is_preview) {
+            return response()->json([
+                'success' => false,
+                'message' => 'HMI ini bukan dalam mode preview.',
+            ], 409);
+        }
+
+        $validated = $request->validate([
+            'sensor_names' => ['sometimes', 'array'],
+            'sensor_names.*' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        foreach ($validated['sensor_names'] ?? [] as $sensorId => $name) {
+            $normalizedName = trim((string) $name);
+            if ($normalizedName === '') {
+                continue;
+            }
+
+            $hmi->sensors()
+                ->whereKey((int) $sensorId)
+                ->update(['name' => $normalizedName]);
+        }
+
+        $hmi->update([
+            'is_active' => true,
+            'is_preview' => false,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'HMI berhasil diaktifkan.',
+        ]);
+    }
+
+    public function cancelPreview(Hmi $hmi): JsonResponse
+    {
+        if (! $hmi->is_preview) {
+            return response()->json([
+                'success' => false,
+                'message' => 'HMI ini bukan dalam mode preview.',
+            ], 403);
+        }
+
+        $roomId = $hmi->room_id;
+        $hmi->delete();
+
+        return response()->json([
+            'success' => true,
+            'room_id' => $roomId,
+        ]);
     }
 
     public function update(UpdateHmiRequest $request, Hmi $hmi): RedirectResponse
     {
-        $hmi->update($request->validated());
+        $payload = $request->validated();
+        if (($payload['is_active'] ?? false) === true) {
+            $payload['is_preview'] = false;
+        }
+
+        $hmi->update($payload);
 
         return redirect()->route('rooms.devices', $hmi->room_id);
     }
