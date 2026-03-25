@@ -86,6 +86,30 @@ test('can create a preview hmi and auto-create 4 sensors', function () {
         'modbus_address_temp' => 9,
         'modbus_address_hum' => 11,
     ]);
+
+    $this->assertDatabaseHas('sensors', [
+        'hmi_id' => $hmiId,
+        'name' => 'Sensor 2',
+        'unit_id' => 2,
+        'modbus_address_temp' => 33,
+        'modbus_address_hum' => 35,
+    ]);
+
+    $this->assertDatabaseHas('sensors', [
+        'hmi_id' => $hmiId,
+        'name' => 'Sensor 3',
+        'unit_id' => 3,
+        'modbus_address_temp' => 57,
+        'modbus_address_hum' => 59,
+    ]);
+
+    $this->assertDatabaseHas('sensors', [
+        'hmi_id' => $hmiId,
+        'name' => 'Sensor 4',
+        'unit_id' => 4,
+        'modbus_address_temp' => 81,
+        'modbus_address_hum' => 83,
+    ]);
 });
 
 test('hmi store validation fails when ip_address is invalid', function () {
@@ -108,6 +132,35 @@ test('hmi store validation fails when port is out of range', function () {
         ])
         ->assertUnprocessable()
         ->assertJsonValidationErrors('port');
+});
+
+test('can create a preview hmi with explicit register_function', function () {
+    $response = $this->actingAs(User::factory()->create(['is_admin' => true]))
+        ->withSession(['auth.password_confirmed_at' => time()])
+        ->postJson(route('hmis.store'), [
+            'ip_address' => '192.168.1.20',
+            'port' => 502,
+            'register_function' => '04',
+        ])
+        ->assertCreated()
+        ->assertJsonStructure(['hmi_id', 'message']);
+
+    $this->assertDatabaseHas('hmis', [
+        'id' => $response->json('hmi_id'),
+        'register_function' => '04',
+    ]);
+});
+
+test('hmi store validation fails when register_function is invalid', function () {
+    $this->actingAs(User::factory()->create(['is_admin' => true]))
+        ->withSession(['auth.password_confirmed_at' => time()])
+        ->postJson(route('hmis.store'), [
+            'ip_address' => '192.168.1.10',
+            'port' => 502,
+            'register_function' => '05',
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('register_function');
 });
 
 // ─── hmis.preview-data ────────────────────────────────────────────────────────
@@ -154,7 +207,10 @@ test('preview-data returns ready true when all sensors have latest data', functi
         ->assertJson([
             'ready' => true,
         ])
-        ->assertJsonCount(4, 'sensors');
+        ->assertJsonCount(4, 'sensors')
+        ->assertJsonPath('sensors.0.readable.has_latest_data', true)
+        ->assertJsonPath('sensors.0.readable.temperature', true)
+        ->assertJsonPath('sensors.0.readable.humidity', true);
 });
 
 // ─── hmis.confirm / hmis.cancel-preview ──────────────────────────────────────

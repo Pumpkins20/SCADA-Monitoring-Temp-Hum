@@ -36,6 +36,7 @@ class HmiController extends Controller
                 'name' => 'HMI '.$validated['ip_address'],
                 'ip_address' => $validated['ip_address'],
                 'port' => $validated['port'],
+                'register_function' => $validated['register_function'] ?? '03',
                 'is_active' => false,
                 'is_preview' => true,
             ]);
@@ -46,7 +47,7 @@ class HmiController extends Controller
                 Sensor::create([
                     'hmi_id' => $hmi->id,
                     'name' => "Sensor {$position}",
-                    'unit_id' => 1,
+                    'unit_id' => $position,
                     'modbus_address_temp' => $sensorMap[$position]['temp'],
                     'modbus_address_hum' => $sensorMap[$position]['hum'],
                 ]);
@@ -106,6 +107,9 @@ class HmiController extends Controller
             'sensors' => $sensors->map(fn (Sensor $sensor) => [
                 'id' => $sensor->id,
                 'name' => $sensor->name,
+                'unit_id' => $sensor->unit_id,
+                'modbus_address_temp' => $sensor->modbus_address_temp,
+                'modbus_address_hum' => $sensor->modbus_address_hum,
                 'temperature' => $sensor->latestData?->temperature,
                 'humidity' => $sensor->latestData?->humidity,
                 'calibrate_temp' => $sensor->latestData?->calibrate_temp,
@@ -113,6 +117,13 @@ class HmiController extends Controller
                 'status' => $sensor->latestData?->status,
                 'alarm_temp' => $sensor->latestData?->alarm_temp,
                 'alarm_hum' => $sensor->latestData?->alarm_hum,
+                'readable' => [
+                    'has_latest_data' => $sensor->latestData !== null,
+                    'temperature' => $sensor->latestData?->temperature !== null,
+                    'humidity' => $sensor->latestData?->humidity !== null,
+                    'calibrate_temp' => $sensor->latestData?->calibrate_temp !== null,
+                    'calibrate_hum' => $sensor->latestData?->calibrate_hum !== null,
+                ],
             ])->values(),
         ]);
     }

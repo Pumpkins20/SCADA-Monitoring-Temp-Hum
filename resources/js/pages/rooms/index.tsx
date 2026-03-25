@@ -5,6 +5,7 @@ import {
     Plus,
     Thermometer,
     Droplets,
+    Trash2,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { PasswordSessionFloating } from '@/components/scada/password-session-floating';
@@ -50,11 +51,21 @@ interface RoomsIndexProps {
 interface PreviewSensor {
     id: number;
     name: string;
+    unit_id: number | null;
+    modbus_address_temp: number | null;
+    modbus_address_hum: number | null;
     temperature: number | null;
     humidity: number | null;
     calibrate_temp: number | null;
     calibrate_hum: number | null;
     status: 'NORMAL' | 'WARNING' | 'CRITICAL' | 'OFFLINE' | null;
+    readable: {
+        has_latest_data: boolean;
+        temperature: boolean;
+        humidity: boolean;
+        calibrate_temp: boolean;
+        calibrate_hum: boolean;
+    };
 }
 
 type DialogPhase = 'form' | 'waiting' | 'preview';
@@ -630,6 +641,18 @@ function ConnectHmiPreviewDialog({
                                             {sensor.status ?? 'OFFLINE'}
                                         </span>
                                     </div>
+                                    <div className="mt-2 rounded border border-slate-700/60 bg-slate-800/70 px-2 py-1 text-[10px]">
+                                        <p className="mb-1 text-slate-500 uppercase">Debug Poller</p>
+                                        <p className="font-mono text-slate-300">
+                                            Unit: {sensor.unit_id ?? '-'} | T-Addr: {sensor.modbus_address_temp ?? '-'} | H-Addr:{' '}
+                                            {sensor.modbus_address_hum ?? '-'}
+                                        </p>
+                                        <p className="mt-0.5 text-slate-400">
+                                            Data: {sensor.readable.has_latest_data ? 'ADA' : 'BELUM'} | T:{' '}
+                                            {sensor.readable.temperature ? 'OK' : 'NO'} | H:{' '}
+                                            {sensor.readable.humidity ? 'OK' : 'NO'}
+                                        </p>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -649,10 +672,74 @@ function ConnectHmiPreviewDialog({
     );
 }
 
+function DeleteRoomDialog({
+    open,
+    onOpenChange,
+    room,
+}: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    room: RoomItem | null;
+}) {
+    const [deleting, setDeleting] = useState(false);
+
+    function handleDelete(): void {
+        if (!room) {
+            return;
+        }
+
+        setDeleting(true);
+        router.delete(`/rooms/${room.id}`, {
+            onSuccess: () => {
+                setDeleting(false);
+                onOpenChange(false);
+            },
+            onError: () => {
+                setDeleting(false);
+            },
+        });
+    }
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="border-slate-700 bg-[#1a2027] text-white sm:max-w-sm">
+                <DialogHeader>
+                    <DialogTitle className="text-white">Hapus Ruangan</DialogTitle>
+                    <DialogDescription className="text-slate-400">
+                        Apakah Anda yakin ingin menghapus{' '}
+                        <strong className="text-white">{room?.name ?? 'ruangan ini'}</strong>?
+                        Semua koneksi dan data terkait ruangan ini bisa ikut terhapus.
+                    </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => onOpenChange(false)}
+                        className="text-slate-400 hover:bg-slate-700/60 hover:text-white"
+                    >
+                        Batal
+                    </Button>
+                    <Button
+                        type="button"
+                        variant="destructive"
+                        disabled={deleting || !room}
+                        onClick={handleDelete}
+                    >
+                        {deleting ? 'Menghapus...' : 'Hapus Ruangan'}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function RoomsIndex({ rooms }: RoomsIndexProps) {
     const [showAddConnection, setShowAddConnection] = useState(false);
+    const [showDeleteRoomDialog, setShowDeleteRoomDialog] = useState(false);
+    const [roomToDelete, setRoomToDelete] = useState<RoomItem | null>(null);
 
     const connectedRooms = rooms.filter((room) => room.hmis_count > 0);
 
@@ -713,7 +800,6 @@ export default function RoomsIndex({ rooms }: RoomsIndexProps) {
                         <Button
                             type="button"
                             onClick={() => setShowAddConnection(true)}
-                            disabled={rooms.length === 0}
                             className="bg-cyan-600 text-white shadow-[0_0_12px_#22d3ee40] hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                             <Plus className="h-4 w-4" />
@@ -811,6 +897,19 @@ export default function RoomsIndex({ rooms }: RoomsIndexProps) {
                                                             Kelola Device HMI
                                                         </Link>
                                                     </Button>
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="destructive"
+                                                        className="h-7 px-2.5 text-[10px] tracking-wider uppercase"
+                                                        onClick={() => {
+                                                            setRoomToDelete(room);
+                                                            setShowDeleteRoomDialog(true);
+                                                        }}
+                                                    >
+                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                        Hapus Room
+                                                    </Button>
                                                 </div>
                                             </TableCell>
                                         </TableRow>
@@ -828,6 +927,17 @@ export default function RoomsIndex({ rooms }: RoomsIndexProps) {
             <ConnectHmiPreviewDialog
                 open={showAddConnection}
                 onOpenChange={setShowAddConnection}
+            />
+
+            <DeleteRoomDialog
+                open={showDeleteRoomDialog}
+                onOpenChange={(open) => {
+                    setShowDeleteRoomDialog(open);
+                    if (!open) {
+                        setRoomToDelete(null);
+                    }
+                }}
+                room={roomToDelete}
             />
         </>
     );

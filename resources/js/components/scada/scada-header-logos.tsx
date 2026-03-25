@@ -1,8 +1,9 @@
 import { usePage } from '@inertiajs/react';
 import {
-    DEFAULT_HEADER_LOGOS,
-    type HeaderLogos,
+    DEFAULT_HEADER_LOGOS
+    
 } from '@/components/scada/scada-helpers';
+import type {HeaderLogos} from '@/components/scada/scada-helpers';
 
 interface ScadaHeaderLogosProps {
     logos?: HeaderLogos;

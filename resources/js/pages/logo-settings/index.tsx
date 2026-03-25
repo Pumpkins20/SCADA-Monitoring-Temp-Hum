@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
 import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
 import {
-    DEFAULT_HEADER_LOGOS,
-    type HeaderLogos,
+    DEFAULT_HEADER_LOGOS
+    
 } from '@/components/scada/scada-helpers';
+import type {HeaderLogos} from '@/components/scada/scada-helpers';
 import { Button } from '@/components/ui/button';
 
 interface LogoSettingsFormData {

@@ -1,11 +1,12 @@
 import { Form, Head, usePage } from '@inertiajs/react';
 import { Droplets, Eye, EyeOff, Thermometer } from 'lucide-react';
 import { useState } from 'react';
-import {
-    DEFAULT_HEADER_LOGOS,
-    type HeaderLogos,
-} from '@/components/scada/scada-helpers';
 import InputError from '@/components/input-error';
+import {
+    DEFAULT_HEADER_LOGOS
+    
+} from '@/components/scada/scada-helpers';
+import type {HeaderLogos} from '@/components/scada/scada-helpers';
 import TextLink from '@/components/text-link';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';

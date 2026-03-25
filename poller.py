@@ -14,6 +14,7 @@ Jika register map berubah, update KEDUA file sekaligus.
 """
 
 import logging
+import math
 import os
 import sys
 import time
@@ -38,6 +39,18 @@ DB_CONFIG: dict = {
 
 MODBUS_TIMEOUT = 3   # seconds
 POLL_INTERVAL  = 5   # seconds per cycle
+DECIMAL_MIN    = -999.99
+DECIMAL_MAX    = 999.99
+STRING_BYTE_ORDER = os.environ.get("STRING_BYTE_ORDER", "auto").lower()
+DEBUG_RAW_REGISTERS = os.environ.get("DEBUG_RAW_REGISTERS", "false").lower() in {
+    "1", "true", "yes", "on"
+}
+DIAGNOSTIC_SCAN = os.environ.get("DIAGNOSTIC_SCAN", "false").lower() in {
+    "1", "true", "yes", "on"
+}
+ALLOW_FC_FALLBACK = os.environ.get("ALLOW_FC_FALLBACK", "false").lower() in {
+    "1", "true", "yes", "on"
+}
 
 # String register: 16 karakter max = 8 register (big-endian ASCII, 2 char/register)
 STRING_REGISTER_COUNT = 8
@@ -122,6 +135,128 @@ logging.basicConfig(
     stream=sys.stdout,
 )
 log = logging.getLogger(__name__)
+
+
+def normalize_decimal_5_2(value: float, field_name: str, context: str) -> float:
+    """
+    Pastikan nilai aman untuk kolom DECIMAL(5,2) PostgreSQL.
+    Raise ValueError agar caller menandai sensor/HMI gagal baca untuk siklus ini.
+    """
+    if not math.isfinite(value):
+        raise ValueError(f"{context}: {field_name} is not a finite number")
+
+    rounded = round(value, 2)
+    if rounded < DECIMAL_MIN or rounded > DECIMAL_MAX:
+        raise ValueError(
+            f"{context}: {field_name} out of DECIMAL(5,2) range ({rounded})"
+        )
+
+    return rounded
+
+
+def signed_to_raw_word(value: float) -> int:
+    """Convert signed 16-bit interpreted value back to raw register word (0..65535)."""
+    as_int = int(value)
+    if as_int < 0:
+        return as_int + 0x10000
+    return as_int
+
+
+def get_func_candidates(primary_func: str) -> list[str]:
+    """Return candidate function codes for a read attempt, with optional fallback."""
+    if primary_func not in {"03", "04"}:
+        return [primary_func]
+
+    if not ALLOW_FC_FALLBACK:
+        return [primary_func]
+
+    fallback = "04" if primary_func == "03" else "03"
+    return [primary_func, fallback]
+
+
+def _decode_text_by_order(registers: list[int], order: str) -> str:
+    chars = []
+    for reg in registers:
+        high = (reg >> 8) & 0xFF
+        low = reg & 0xFF
+
+        pair = (low, high) if order == "low-high" else (high, low)
+        for byte in pair:
+            if byte == 0x00:
+                return "".join(chars).strip()
+            chars.append(chr(byte))
+
+    return "".join(chars).strip()
+
+
+def _text_readability_score(text: str) -> int:
+    if not text:
+        return 0
+
+    readable = sum(ch.isalnum() or ch in " -_./" for ch in text)
+    return readable * 10 - abs(len(text) - len(text.strip()))
+
+
+def decode_string_registers(registers: list[int]) -> str | None:
+    """
+    Decode string register dengan byte-order yang bisa dikonfigurasi:
+    - auto: pilih decoding paling readable antara low-high vs high-low
+    - low-high / high-low: pakai urutan eksplisit
+    """
+    if not registers:
+        return None
+
+    if STRING_BYTE_ORDER in {"low-high", "high-low"}:
+        text = _decode_text_by_order(registers, STRING_BYTE_ORDER)
+        return text if text else None
+
+    low_high = _decode_text_by_order(registers, "low-high")
+    high_low = _decode_text_by_order(registers, "high-low")
+
+    picked = low_high if _text_readability_score(low_high) >= _text_readability_score(high_low) else high_low
+    return picked if picked else None
+
+
+def log_sensor_register_snapshot(
+    client: ModbusTcpClient,
+    regs: dict,
+    unit_id: int,
+    func: str,
+    context: str,
+) -> None:
+    """Log nilai register mentah (unsigned/signed) untuk bantu diagnosis data outlier."""
+    for key in [
+        "temp",
+        "hum",
+        "calibrate_temp",
+        "calibrate_hum",
+        "over_temp",
+        "under_temp",
+        "over_hum",
+        "under_hum",
+    ]:
+        address = regs.get(key)
+        if address is None:
+            continue
+
+        try:
+            raw_unsigned = read_data_register(client, address, unit_id, func, signed=False)
+            raw_signed = read_data_register(client, address, unit_id, func, signed=True)
+            log.warning(
+                "RAW REG SNAPSHOT %s field=%s addr=%d unsigned=%.0f signed=%.0f",
+                context,
+                key,
+                address,
+                raw_unsigned,
+                raw_signed,
+            )
+        except (ModbusException, OSError):
+            log.warning(
+                "RAW REG SNAPSHOT %s field=%s addr=%d read-failed",
+                context,
+                key,
+                address,
+            )
 
 
 # ─── Alarm Computation ────────────────────────────────────────────────────────
@@ -288,7 +423,7 @@ def upsert_hmi_average(
             last_read_at = EXCLUDED.last_read_at,
             updated_at   = EXCLUDED.updated_at
         """,
-        (hmi_id, round(avg_temp, 2), round(avg_hum, 2), now, now),
+        (hmi_id, avg_temp, avg_hum, now, now),
     )
 
 
@@ -358,6 +493,7 @@ def read_data_register(
     address: int,
     unit_id: int,
     func: str = "03",
+    signed: bool = False,
 ) -> float:
     """
     Baca 1 data register dari HMI.
@@ -366,22 +502,46 @@ def read_data_register(
     Nilai sudah dalam satuan aktual — tidak perlu scaling.
     Raise ModbusException jika gagal → sensor OFFLINE di poll_hmi().
     """
-    if func == "03":
-        result = client.read_holding_registers(
-            address=address, count=1, device_id=unit_id
-        )
-    elif func == "04":
-        result = client.read_input_registers(
-            address=address, count=1, device_id=unit_id
-        )
-    else:
-        raise ModbusException(f"Function code '{func}' tidak didukung")
+    last_error: Exception | None = None
 
-    if result.isError():
-        raise ModbusException(
-            f"Slave {unit_id} FC{func} register {address} returned error"
-        )
-    return float(result.registers[0])
+    for candidate in get_func_candidates(func):
+        try:
+            if candidate == "03":
+                result = client.read_holding_registers(
+                    address=address, count=1, device_id=unit_id
+                )
+            elif candidate == "04":
+                result = client.read_input_registers(
+                    address=address, count=1, device_id=unit_id
+                )
+            else:
+                raise ModbusException(f"Function code '{candidate}' tidak didukung")
+
+            if result.isError():
+                raise ModbusException(
+                    f"Slave {unit_id} FC{candidate} register {address} returned error"
+                )
+
+            if candidate != func and DEBUG_RAW_REGISTERS:
+                log.warning(
+                    "FC fallback dipakai untuk unit_id=%d addr=%d: primary=%s -> used=%s",
+                    unit_id,
+                    address,
+                    func,
+                    candidate,
+                )
+
+            raw = int(result.registers[0])
+            if signed and raw >= 0x8000:
+                raw -= 0x10000
+
+            return float(raw)
+        except (ModbusException, OSError) as exc:
+            last_error = exc
+
+    raise ModbusException(
+        f"Slave {unit_id} register {address} gagal dibaca dengan FC candidates {get_func_candidates(func)}"
+    ) from last_error
 
 
 def read_string_register(
@@ -394,43 +554,44 @@ def read_string_register(
     """
     Baca string dari holding register Haiwell D4.
 
-    Format: big-endian ASCII, 2 karakter per register (16-bit).
-    Contoh: register 0x5341 = 'SA', register 0x4E31 = 'N1'
+    Format: ASCII 2 karakter per register (16-bit).
+    Pada perangkat Haiwell di lapangan ini, urutan byte efektif
+    terbaca low-byte lalu high-byte per register.
     String diakhiri null byte (0x00) atau habis register.
     Max karakter = count * 2 (default: 8 register = 16 karakter).
 
     Return string yang sudah di-strip, atau None jika gagal/kosong.
     """
     try:
-        if func == "03":
-            result = client.read_holding_registers(
-                address=address, count=count, device_id=unit_id
-            )
-        elif func == "04":
-            result = client.read_input_registers(
-                address=address, count=count, device_id=unit_id
-            )
-        else:
-            return None
+        for candidate in get_func_candidates(func):
+            if candidate == "03":
+                result = client.read_holding_registers(
+                    address=address, count=count, device_id=unit_id
+                )
+            elif candidate == "04":
+                result = client.read_input_registers(
+                    address=address, count=count, device_id=unit_id
+                )
+            else:
+                continue
 
-        if result.isError():
-            return None
+            if result.isError():
+                continue
 
-        chars = []
-        for reg in result.registers:
-            high = (reg >> 8) & 0xFF  # byte tinggi (big-endian)
-            low  =  reg       & 0xFF  # byte rendah
+            if candidate != func and DEBUG_RAW_REGISTERS:
+                log.warning(
+                    "FC fallback string dipakai untuk unit_id=%d addr=%d: primary=%s -> used=%s",
+                    unit_id,
+                    address,
+                    func,
+                    candidate,
+                )
 
-            if high == 0x00:          # null byte → akhir string
-                break
-            chars.append(chr(high))
+            text = decode_string_registers(result.registers)
+            if text:
+                return text
 
-            if low == 0x00:           # null byte → akhir string
-                break
-            chars.append(chr(low))
-
-        text = ''.join(chars).strip()
-        return text if text else None
+        return None
 
     except (ModbusException, OSError):
         return None
@@ -456,6 +617,62 @@ def read_coil(
     except (ModbusException, OSError):
         return None
 
+
+
+
+def scan_registers(
+    client: ModbusTcpClient,
+    start: int,
+    count: int,
+    unit_id: int,
+    func: str,
+    label: str,
+) -> None:
+    """
+    Scan dan print nilai mentah register dalam range tertentu.
+    Dipakai untuk diagnosa alamat register yang tidak diketahui.
+    Aktif hanya jika DIAGNOSTIC_SCAN=true di .env.
+    """
+    try:
+        if func == "03":
+            result = client.read_holding_registers(
+                address=start, count=count, device_id=unit_id
+            )
+        else:
+            result = client.read_input_registers(
+                address=start, count=count, device_id=unit_id
+            )
+        if result.isError():
+            log.warning("SCAN %s unit_id=%d addr=%d-%d ERROR", label, unit_id, start, start+count-1)
+            return
+
+        import struct
+        log.warning("=== SCAN %s unit_id=%d addr=%d-%d ===", label, unit_id, start, start+count-1)
+        for i, raw in enumerate(result.registers):
+            addr = start + i
+            signed = raw - 0x10000 if raw >= 0x8000 else raw
+            # Coba decode sebagai 2 char ASCII
+            hi = (raw >> 8) & 0xFF
+            lo = raw & 0xFF
+            ch_be = f"{chr(hi) if 32<=hi<127 else '.'}{chr(lo) if 32<=lo<127 else '.'}"
+            ch_le = f"{chr(lo) if 32<=lo<127 else '.'}{chr(hi) if 32<=hi<127 else '.'}"
+            # Coba decode sebagai float32 dengan register berikutnya
+            float_val = None
+            if i + 1 < len(result.registers):
+                try:
+                    packed = struct.pack('>HH', raw, result.registers[i+1])
+                    float_val = struct.unpack('>f', packed)[0]
+                    if not (-999 < float_val < 9999):
+                        float_val = None
+                except:
+                    pass
+            float_str = f" | float32={float_val:.2f}" if float_val is not None else ""
+            log.warning(
+                "  addr=%d raw=%d signed=%d hex=0x%04X be='%s' le='%s'%s",
+                addr, raw, signed, raw, ch_be, ch_le, float_str,
+            )
+    except (ModbusException, OSError) as exc:
+        log.warning("SCAN %s FAILED — %s", label, exc)
 
 # ─── Modbus Polling ───────────────────────────────────────────────────────────
 
@@ -487,12 +704,30 @@ def poll_hmi(hmi: dict, cursor, now) -> None:
 
         # ── Data HMI-level ─────────────────────────────────────────────────
 
+        # Diagnostic scan — aktif jika DIAGNOSTIC_SCAN=true di .env
+        # Scan register 1-120 per unit_id untuk temukan lokasi nilai suhu aktual
+        if DIAGNOSTIC_SCAN:
+            for scan_uid in range(1, 5):
+                scan_registers(client, 1, 120, scan_uid, func,
+                               f"unit_id={scan_uid}")
+
         # Average suhu/hum dari HMI (cross-check terhadap kalkulasi Laravel)
         try:
-            avg_temp = read_data_register(client, HMI_REGISTERS["avg_temp"], 1, func)
-            avg_hum  = read_data_register(client, HMI_REGISTERS["avg_hum"],  1, func)
+            avg_temp = read_data_register(
+                client, HMI_REGISTERS["avg_temp"], 1, func, signed=True
+            )
+            avg_hum = read_data_register(
+                client, HMI_REGISTERS["avg_hum"], 1, func, signed=True
+            )
+
+            avg_temp = normalize_decimal_5_2(
+                avg_temp, "avg_temp", f"hmi_id={hmi['hmi_id']}"
+            )
+            avg_hum = normalize_decimal_5_2(
+                avg_hum, "avg_hum", f"hmi_id={hmi['hmi_id']}"
+            )
             upsert_hmi_average(cursor, hmi["hmi_id"], avg_temp, avg_hum, now)
-        except (ModbusException, OSError) as exc:
+        except (ModbusException, OSError, ValueError) as exc:
             log.warning(
                 "HMI %d (%s) gagal baca average — %s",
                 hmi["hmi_id"], hmi["ip_address"], exc,
@@ -506,6 +741,13 @@ def poll_hmi(hmi: dict, cursor, now) -> None:
             log.debug(
                 "HMI %d room sync — name='%s' detail='%s'",
                 hmi["hmi_id"], room_name, room_detail,
+            )
+        elif DEBUG_RAW_REGISTERS:
+            log.warning(
+                "HMI %d room register kosong/tidak terbaca (addr_name=%d addr_detail=%d)",
+                hmi["hmi_id"],
+                HMI_REGISTERS["room_name"],
+                HMI_REGISTERS["room_detail"],
             )
 
         # ── Status global alarm ─────────────────────────────────────────────
@@ -544,18 +786,64 @@ def poll_hmi(hmi: dict, cursor, now) -> None:
                     sensor["name"] = sensor_name_hmi  # update local cache
 
                 # ── Suhu & hum aktual ──
-                temp = read_data_register(client, regs["temp"], unit_id, func)
-                hum  = read_data_register(client, regs["hum"],  unit_id, func)
+                temp = read_data_register(
+                    client, regs["temp"], unit_id, func, signed=True
+                )
+                hum = read_data_register(
+                    client, regs["hum"], unit_id, func, signed=True
+                )
 
                 # ── Kalibrasi ──
-                calibrate_temp = read_data_register(client, regs["calibrate_temp"], unit_id, func)
-                calibrate_hum  = read_data_register(client, regs["calibrate_hum"],  unit_id, func)
+                calibrate_temp = read_data_register(
+                    client, regs["calibrate_temp"], unit_id, func, signed=True
+                )
+                calibrate_hum = read_data_register(
+                    client, regs["calibrate_hum"], unit_id, func, signed=True
+                )
 
                 # ── Threshold ──
-                over_temp  = read_data_register(client, regs["over_temp"],  unit_id, func)
-                under_temp = read_data_register(client, regs["under_temp"], unit_id, func)
-                over_hum   = read_data_register(client, regs["over_hum"],   unit_id, func)
-                under_hum  = read_data_register(client, regs["under_hum"],  unit_id, func)
+                over_temp = read_data_register(
+                    client, regs["over_temp"], unit_id, func, signed=True
+                )
+                under_temp = read_data_register(
+                    client, regs["under_temp"], unit_id, func, signed=True
+                )
+                over_hum = read_data_register(
+                    client, regs["over_hum"], unit_id, func, signed=True
+                )
+                under_hum = read_data_register(
+                    client, regs["under_hum"], unit_id, func, signed=True
+                )
+
+                context = (
+                    f"hmi_id={hmi['hmi_id']} sensor_id={sensor['sensor_id']} "
+                    f"pos={position} unit_id={unit_id}"
+                )
+
+                if DEBUG_RAW_REGISTERS:
+                    log.warning(
+                        "RAW SENSOR %s temp_raw=%d temp_signed=%.0f "
+                        "hum_raw=%d hum_signed=%.0f cal_t_raw=%d cal_t_signed=%.0f "
+                        "cal_h_raw=%d cal_h_signed=%.0f",
+                        context,
+                        signed_to_raw_word(temp),
+                        temp,
+                        signed_to_raw_word(hum),
+                        hum,
+                        signed_to_raw_word(calibrate_temp),
+                        calibrate_temp,
+                        signed_to_raw_word(calibrate_hum),
+                        calibrate_hum,
+                    )
+
+                temp = normalize_decimal_5_2(temp, "temperature", context)
+                hum = normalize_decimal_5_2(hum, "humidity", context)
+                calibrate_temp = normalize_decimal_5_2(
+                    calibrate_temp, "calibrate_temp", context
+                )
+                calibrate_hum = normalize_decimal_5_2(
+                    calibrate_hum, "calibrate_hum", context
+                )
 
                 # ── Coil alarm ──
                 alarm_temp_coil = (
@@ -585,14 +873,14 @@ def poll_hmi(hmi: dict, cursor, now) -> None:
 
                 ok_rows.append((
                     sensor["sensor_id"],
-                    round(temp, 2),
-                    round(hum, 2),
+                    temp,
+                    hum,
                     alarms["status"],
                     alarms["alarm_temp"],
                     alarms["alarm_hum"],
                     alarms["alarm_disconnect"],
-                    round(calibrate_temp, 2),
-                    round(calibrate_hum,  2),
+                    calibrate_temp,
+                    calibrate_hum,
                     now,
                     now,
                 ))
@@ -609,30 +897,40 @@ def poll_hmi(hmi: dict, cursor, now) -> None:
                     alarms["alarm_disconnect"], alarms["status"],
                 )
 
-            except (ModbusException, OSError) as exc:
+            except (ModbusException, OSError, ValueError) as exc:
                 log.warning(
                     "HMI %d sensor '%s' (pos=%d unit_id=%d) OFFLINE — %s",
                     hmi["hmi_id"], sensor["name"], position, unit_id, exc,
                 )
+                if DEBUG_RAW_REGISTERS and isinstance(exc, ValueError):
+                    context = (
+                        f"hmi_id={hmi['hmi_id']} sensor_id={sensor['sensor_id']} "
+                        f"pos={position} unit_id={unit_id}"
+                    )
+                    log_sensor_register_snapshot(client, regs, unit_id, func, context)
                 offline_ids.append(sensor["sensor_id"])
 
         if ok_rows:
             upsert_sensor_data(cursor, ok_rows)
 
         if offline_ids:
-            cursor.execute(
-                f"""
-                UPDATE sensor_latest_data
-                SET    status           = 'OFFLINE',
-                       alarm_disconnect = TRUE,
-                       alarm_temp       = FALSE,
-                       alarm_hum        = FALSE,
-                       updated_at       = %s
-                WHERE  sensor_id IN ({','.join(['%s'] * len(offline_ids))})
-                  AND  status != 'OFFLINE'
-                """,
-                (now, *offline_ids),
-            )
+            offline_rows = [
+                (
+                    sensor_id,
+                    None,
+                    None,
+                    'OFFLINE',
+                    False,
+                    False,
+                    True,
+                    None,
+                    None,
+                    now,
+                    now,
+                )
+                for sensor_id in offline_ids
+            ]
+            upsert_sensor_data(cursor, offline_rows)
 
         preview_label = " [PREVIEW]" if hmi.get("is_preview") else ""
         log.info(
@@ -685,6 +983,9 @@ def main() -> None:
                     db = get_connection()
                 except Exception as e:
                     log.error("Gagal menyambung ulang ke PostgreSQL: %s", e)
+            except psycopg2.Error as exc:
+                db.rollback()
+                log.error("PostgreSQL query error, transaction rolled back — %s", exc)
 
             time.sleep(POLL_INTERVAL)
 

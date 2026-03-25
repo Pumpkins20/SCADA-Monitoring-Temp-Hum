@@ -3,11 +3,11 @@ import { ArrowLeft, SlidersHorizontal } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
 import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
-import { Button } from '@/components/ui/button';
 import type {
     GaugeMetricSettings,
     GaugeSettings,
 } from '@/components/scada/scada-helpers';
+import { Button } from '@/components/ui/button';
 
 interface GaugeSettingsFormData {
     temp_min: number;
