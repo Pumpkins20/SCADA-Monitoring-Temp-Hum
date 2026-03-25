@@ -21,7 +21,7 @@ class HmiFactory extends Factory
             'name' => 'HMI-'.fake()->unique()->numberBetween(1, 99),
             'ip_address' => fake()->localIpv4(),
             'port' => 502,
-            'register_function' => '03',
+            'register_function' => '04',
             'is_active' => true,
             'is_preview' => false,
         ];

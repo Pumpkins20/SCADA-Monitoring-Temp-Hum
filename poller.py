@@ -349,7 +349,7 @@ def load_hmis(cursor) -> list[dict]:
             "hmi_id":            row[0],
             "ip_address":        row[1],
             "port":              row[2],
-            "register_function": row[3] or "03",
+            "register_function": row[3] or "04",
             "is_preview":        row[4],
             "room_id":           row[5],
             "sensors":           [],
@@ -492,13 +492,13 @@ def read_data_register(
     client: ModbusTcpClient,
     address: int,
     unit_id: int,
-    func: str = "03",
+    func: str = "04",
     signed: bool = False,
 ) -> float:
     """
     Baca 1 data register dari HMI.
-    func='03' → FC03 Holding Register (default Haiwell D4)
-    func='04' → FC04 Input Register
+    func='04' → FC04 Input Register (default Haiwell D4)
+    func='03' → FC03 Holding Register
     Nilai sudah dalam satuan aktual — tidak perlu scaling.
     Raise ModbusException jika gagal → sensor OFFLINE di poll_hmi().
     """
@@ -548,7 +548,7 @@ def read_string_register(
     client: ModbusTcpClient,
     address: int,
     unit_id: int,
-    func: str = "03",
+    func: str = "04",
     count: int = STRING_REGISTER_COUNT,
 ) -> str | None:
     """
@@ -634,11 +634,16 @@ def scan_registers(
     Aktif hanya jika DIAGNOSTIC_SCAN=true di .env.
     """
     try:
-        if func == "03":
+        if func == "04":
+            result = client.read_input_registers(
+                address=start, count=count, device_id=unit_id
+            )
+        elif func == "03":
             result = client.read_holding_registers(
                 address=start, count=count, device_id=unit_id
             )
         else:
+            # Fallback to input registers if func is neither "03" nor "04"
             result = client.read_input_registers(
                 address=start, count=count, device_id=unit_id
             )
@@ -760,7 +765,10 @@ def poll_hmi(hmi: dict, cursor, now) -> None:
         offline_ids = []
 
         for sensor in hmi["sensors"]:
-            unit_id  = sensor["unit_id"]
+            # Semua Device_1..4 register ada di SATU slave HMI Haiwell D4.
+            # unit_id di DB dipakai untuk identifikasi sensor, bukan Modbus slave.
+            # Slave ID selalu 1 karena HMI mengekspos semua sensor di satu slave.
+            unit_id  = 1
             position = sensor["position"]
             regs     = SENSOR_MAP.get(position)
             coils    = COIL_MAP.get(position)

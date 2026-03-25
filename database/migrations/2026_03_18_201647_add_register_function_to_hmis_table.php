@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::table('hmis', function (Blueprint $table) {
             $table->string('register_function', 2)
-                ->default('03')
+                ->default('04')
                 ->after('port')
                 ->comment('Modbus FC untuk baca data register: 03=Holding, 04=Input');
         });
