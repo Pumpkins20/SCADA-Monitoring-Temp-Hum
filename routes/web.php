@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ChartLogController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\FloorPlanSettingController;
 use App\Http\Controllers\GaugeSettingController;
 use App\Http\Controllers\HeaderLogoSettingController;
 use App\Http\Controllers\HmiController;
@@ -49,6 +50,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::put('gauge-settings', [GaugeSettingController::class, 'update'])->name('gauge-settings.update');
             Route::get('logo-settings', [HeaderLogoSettingController::class, 'edit'])->name('logo-settings.edit');
             Route::post('logo-settings', [HeaderLogoSettingController::class, 'update'])->name('logo-settings.update');
+            Route::get('floor-plan-settings', [FloorPlanSettingController::class, 'index'])->name('floor-plan-settings.index');
+            Route::patch('floor-plan-settings/sensors/{sensor}', [FloorPlanSettingController::class, 'updatePosition'])->name('floor-plan-settings.update-position');
+            Route::post('floor-plan-settings/{room}/image', [FloorPlanSettingController::class, 'uploadImage'])->name('floor-plan-settings.upload-image');
+            Route::delete('floor-plan-settings/{room}/image', [FloorPlanSettingController::class, 'removeImage'])->name('floor-plan-settings.remove-image');
+            Route::patch('floor-plan-settings/{room}/dimensions', [FloorPlanSettingController::class, 'updateDimensions'])->name('floor-plan-settings.update-dimensions');
 
             Route::post('hmis', [HmiController::class, 'store'])->name('hmis.store');
             Route::get('hmis/{hmi}/preview-data', [HmiController::class, 'previewData'])->name('hmis.preview-data');

@@ -18,6 +18,8 @@ export interface SensorData {
     status: SensorStatus;
     alarms?: SensorAlarms;
     last_read_at: string | null;
+    pos_x: number | null;
+    pos_y: number | null;
 }
 
 export interface RoomData {

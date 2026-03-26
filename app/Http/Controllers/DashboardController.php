@@ -22,7 +22,7 @@ class DashboardController extends Controller
                 ->where('is_preview', false)
                 ->with([
                     'latestData',
-                    'sensors' => fn ($sq) => $sq->select(['id', 'hmi_id', 'name']),
+                    'sensors' => fn ($sq) => $sq->select(['id', 'hmi_id', 'name', 'pos_x', 'pos_y']),
                     'sensors.latestData' => fn ($sq) => $sq->select([
                         'id',
                         'sensor_id',
@@ -106,6 +106,8 @@ class DashboardController extends Controller
                         'disconnect' => $s->latestData?->alarm_disconnect ?? true,
                     ],
                     'last_read_at' => $s->latestData?->last_read_at?->format('Y-m-d H:i:s'),
+                    'pos_x' => $s->pos_x,
+                    'pos_y' => $s->pos_y,
                 ])->values()->all(),
             ];
         });
@@ -166,7 +168,7 @@ class DashboardController extends Controller
                 ->where('is_preview', false)
                 ->with([
                     'latestData',
-                    'sensors' => fn ($sq) => $sq->select(['id', 'hmi_id', 'name']),
+                    'sensors' => fn ($sq) => $sq->select(['id', 'hmi_id', 'name', 'pos_x', 'pos_y']),
                     'sensors.latestData' => fn ($sq) => $sq->select([
                         'id',
                         'sensor_id',
@@ -249,6 +251,8 @@ class DashboardController extends Controller
                     'disconnect' => $s->latestData?->alarm_disconnect ?? true,
                 ],
                 'last_read_at' => $s->latestData?->last_read_at?->format('Y-m-d H:i:s'),
+                'pos_x' => $s->pos_x,
+                'pos_y' => $s->pos_y,
             ])->values()->all(),
         ];
 

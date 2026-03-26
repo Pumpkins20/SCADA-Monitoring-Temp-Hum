@@ -17,6 +17,9 @@ class Room extends Model
         'location',
         'temp_max_limit',
         'hum_max_limit',
+        'floor_plan_image',
+        'floor_plan_width',
+        'floor_plan_height',
     ];
 
     protected function casts(): array
@@ -24,6 +27,8 @@ class Room extends Model
         return [
             'temp_max_limit' => 'decimal:2',
             'hum_max_limit' => 'decimal:2',
+            'floor_plan_width' => 'integer',
+            'floor_plan_height' => 'integer',
         ];
     }
 

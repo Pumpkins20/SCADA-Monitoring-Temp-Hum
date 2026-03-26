@@ -1,8 +1,9 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { BarChart2, ArrowLeft, Thermometer, Droplets } from 'lucide-react';
+import { BarChart2, ArrowLeft, Thermometer, Droplets, Map } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
 import { ArcGauge } from '@/components/scada/arc-gauge';
+import { FloorPlanMap } from '@/components/scada/floor-plan-map';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
 import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
 import type { RoomData, ChartPoint } from '@/components/scada/scada-helpers';
@@ -41,6 +42,9 @@ const humChartConfig = {
 
 export default function RoomShow({ room, chartLogs }: RoomShowProps) {
     const [now, setNow] = useState(new Date());
+    const [activePanel, setActivePanel] = useState<'chart' | 'floorplan'>(
+        'chart',
+    );
 
     useEffect(() => {
         const timer = setInterval(() => setNow(new Date()), 60_000);
@@ -170,7 +174,7 @@ export default function RoomShow({ room, chartLogs }: RoomShowProps) {
                             <p className="text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
                                 Cross-check Avg HMI
                             </p>
-                            <div className="mt-1 text-xs font-mono">
+                            <div className="mt-1 font-mono text-xs">
                                 <p className="text-cyan-300">
                                     Temp: {room.hmi_avg_temp ?? '-'} degC
                                 </p>
@@ -212,163 +216,205 @@ export default function RoomShow({ room, chartLogs }: RoomShowProps) {
                         )}
 
                         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
-                            <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-slate-700/60 bg-slate-800/50 px-3 pt-2 pb-1">
-                                <div className="mb-0.5 flex items-center gap-1.5">
-                                    <BarChart2 className="h-3.5 w-3.5 text-cyan-400" />
-                                    <span className="text-[11px] font-semibold tracking-wider text-slate-300 uppercase">
-                                        Avg Temp
-                                    </span>
-                                </div>
-                                <div className="min-h-0 flex-1">
-                                    {chartLogs.length > 0 ? (
-                                        <ChartContainer
-                                            config={tempChartConfig}
-                                            className="h-full w-full"
-                                        >
-                                            <LineChart
-                                                data={chartLogs}
-                                                margin={{
-                                                    top: 4,
-                                                    right: 8,
-                                                    bottom: 0,
-                                                    left: -12,
-                                                }}
-                                            >
-                                                <CartesianGrid
-                                                    stroke="#1e3a5f"
-                                                    strokeDasharray="3 3"
-                                                />
-                                                <XAxis
-                                                    dataKey="time"
-                                                    tick={{
-                                                        fontSize: 9,
-                                                        fill: '#475569',
-                                                    }}
-                                                    tickLine={false}
-                                                    axisLine={{
-                                                        stroke: '#1e3a5f',
-                                                    }}
-                                                />
-                                                <YAxis
-                                                    tick={{
-                                                        fontSize: 9,
-                                                        fill: '#475569',
-                                                    }}
-                                                    tickLine={false}
-                                                    axisLine={{
-                                                        stroke: '#1e3a5f',
-                                                    }}
-                                                />
-                                                <ChartTooltip
-                                                    cursor={{
-                                                        stroke: '#334155',
-                                                    }}
-                                                    content={
-                                                        <ChartTooltipContent indicator="line" />
-                                                    }
-                                                />
-                                                <Line
-                                                    dataKey="avg_temperature"
-                                                    type="linear"
-                                                    stroke="var(--color-avg_temperature)"
-                                                    strokeWidth={2}
-                                                    dot={{
-                                                        r: 2,
-                                                        fill: '#22d3ee',
-                                                    }}
-                                                    activeDot={{
-                                                        r: 4,
-                                                        fill: '#22d3ee',
-                                                    }}
-                                                />
-                                            </LineChart>
-                                        </ChartContainer>
-                                    ) : (
-                                        <div className="flex h-full items-center justify-center text-xs text-slate-600">
-                                            Belum ada data grafik
-                                        </div>
-                                    )}
-                                </div>
+                            {/* ── Panel toggle ── */}
+                            <div className="flex shrink-0 items-center gap-1.5 self-end">
+                                <button
+                                    type="button"
+                                    onClick={() => setActivePanel('chart')}
+                                    className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-semibold tracking-wider uppercase transition-colors ${
+                                        activePanel === 'chart'
+                                            ? 'border border-cyan-500/40 bg-cyan-500/20 text-cyan-400'
+                                            : 'border border-slate-700/40 bg-slate-700/40 text-slate-500 hover:text-slate-300'
+                                    }`}
+                                >
+                                    <BarChart2 className="h-3 w-3" />
+                                    Chart
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActivePanel('floorplan')}
+                                    className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-semibold tracking-wider uppercase transition-colors ${
+                                        activePanel === 'floorplan'
+                                            ? 'border border-cyan-500/40 bg-cyan-500/20 text-cyan-400'
+                                            : 'border border-slate-700/40 bg-slate-700/40 text-slate-500 hover:text-slate-300'
+                                    }`}
+                                >
+                                    <Map className="h-3 w-3" />
+                                    Denah
+                                </button>
                             </div>
 
-                            <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-slate-700/60 bg-slate-800/50 px-3 pt-2 pb-1">
-                                <div className="mb-0.5 flex items-center gap-1.5">
-                                    <BarChart2 className="h-3.5 w-3.5 text-blue-400" />
-                                    <span className="text-[11px] font-semibold tracking-wider text-slate-300 uppercase">
-                                        Avg Hum
-                                    </span>
+                            {/* ── Floor plan panel ── */}
+                            {activePanel === 'floorplan' && (
+                                <div className="min-h-0 flex-1 overflow-hidden">
+                                    <FloorPlanMap
+                                        sensors={room.sensors}
+                                        roomName={room.name}
+                                    />
                                 </div>
-                                <div className="min-h-0 flex-1">
-                                    {chartLogs.length > 0 ? (
-                                        <ChartContainer
-                                            config={humChartConfig}
-                                            className="h-full w-full"
-                                        >
-                                            <LineChart
-                                                data={chartLogs}
-                                                margin={{
-                                                    top: 4,
-                                                    right: 8,
-                                                    bottom: 0,
-                                                    left: -12,
-                                                }}
+                            )}
+
+                            {/* ── Chart panels ── */}
+                            {activePanel === 'chart' && (
+                                <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-slate-700/60 bg-slate-800/50 px-3 pt-2 pb-1">
+                                    <div className="mb-0.5 flex items-center gap-1.5">
+                                        <BarChart2 className="h-3.5 w-3.5 text-cyan-400" />
+                                        <span className="text-[11px] font-semibold tracking-wider text-slate-300 uppercase">
+                                            Avg Temp
+                                        </span>
+                                    </div>
+                                    <div className="min-h-0 flex-1">
+                                        {chartLogs.length > 0 ? (
+                                            <ChartContainer
+                                                config={tempChartConfig}
+                                                className="h-full w-full"
                                             >
-                                                <CartesianGrid
-                                                    stroke="#1e3a5f"
-                                                    strokeDasharray="3 3"
-                                                />
-                                                <XAxis
-                                                    dataKey="time"
-                                                    tick={{
-                                                        fontSize: 9,
-                                                        fill: '#475569',
+                                                <LineChart
+                                                    data={chartLogs}
+                                                    margin={{
+                                                        top: 4,
+                                                        right: 8,
+                                                        bottom: 0,
+                                                        left: -12,
                                                     }}
-                                                    tickLine={false}
-                                                    axisLine={{
-                                                        stroke: '#1e3a5f',
-                                                    }}
-                                                />
-                                                <YAxis
-                                                    tick={{
-                                                        fontSize: 9,
-                                                        fill: '#475569',
-                                                    }}
-                                                    tickLine={false}
-                                                    axisLine={{
-                                                        stroke: '#1e3a5f',
-                                                    }}
-                                                />
-                                                <ChartTooltip
-                                                    cursor={{
-                                                        stroke: '#334155',
-                                                    }}
-                                                    content={
-                                                        <ChartTooltipContent indicator="line" />
-                                                    }
-                                                />
-                                                <Line
-                                                    dataKey="avg_humidity"
-                                                    type="linear"
-                                                    stroke="var(--color-avg_humidity)"
-                                                    strokeWidth={2}
-                                                    dot={{
-                                                        r: 2,
-                                                        fill: '#60a5fa',
-                                                    }}
-                                                    activeDot={{
-                                                        r: 4,
-                                                        fill: '#60a5fa',
-                                                    }}
-                                                />
-                                            </LineChart>
-                                        </ChartContainer>
-                                    ) : (
-                                        <div className="flex h-full items-center justify-center text-xs text-slate-600">
-                                            Belum ada data grafik
-                                        </div>
-                                    )}
+                                                >
+                                                    <CartesianGrid
+                                                        stroke="#1e3a5f"
+                                                        strokeDasharray="3 3"
+                                                    />
+                                                    <XAxis
+                                                        dataKey="time"
+                                                        tick={{
+                                                            fontSize: 9,
+                                                            fill: '#475569',
+                                                        }}
+                                                        tickLine={false}
+                                                        axisLine={{
+                                                            stroke: '#1e3a5f',
+                                                        }}
+                                                    />
+                                                    <YAxis
+                                                        tick={{
+                                                            fontSize: 9,
+                                                            fill: '#475569',
+                                                        }}
+                                                        tickLine={false}
+                                                        axisLine={{
+                                                            stroke: '#1e3a5f',
+                                                        }}
+                                                    />
+                                                    <ChartTooltip
+                                                        cursor={{
+                                                            stroke: '#334155',
+                                                        }}
+                                                        content={
+                                                            <ChartTooltipContent indicator="line" />
+                                                        }
+                                                    />
+                                                    <Line
+                                                        dataKey="avg_temperature"
+                                                        type="linear"
+                                                        stroke="var(--color-avg_temperature)"
+                                                        strokeWidth={2}
+                                                        dot={{
+                                                            r: 2,
+                                                            fill: '#22d3ee',
+                                                        }}
+                                                        activeDot={{
+                                                            r: 4,
+                                                            fill: '#22d3ee',
+                                                        }}
+                                                    />
+                                                </LineChart>
+                                            </ChartContainer>
+                                        ) : (
+                                            <div className="flex h-full items-center justify-center text-xs text-slate-600">
+                                                Belum ada data grafik
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
+                            {activePanel === 'chart' && (
+                                <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-slate-700/60 bg-slate-800/50 px-3 pt-2 pb-1">
+                                    <div className="mb-0.5 flex items-center gap-1.5">
+                                        <BarChart2 className="h-3.5 w-3.5 text-blue-400" />
+                                        <span className="text-[11px] font-semibold tracking-wider text-slate-300 uppercase">
+                                            Avg Hum
+                                        </span>
+                                    </div>
+                                    <div className="min-h-0 flex-1">
+                                        {chartLogs.length > 0 ? (
+                                            <ChartContainer
+                                                config={humChartConfig}
+                                                className="h-full w-full"
+                                            >
+                                                <LineChart
+                                                    data={chartLogs}
+                                                    margin={{
+                                                        top: 4,
+                                                        right: 8,
+                                                        bottom: 0,
+                                                        left: -12,
+                                                    }}
+                                                >
+                                                    <CartesianGrid
+                                                        stroke="#1e3a5f"
+                                                        strokeDasharray="3 3"
+                                                    />
+                                                    <XAxis
+                                                        dataKey="time"
+                                                        tick={{
+                                                            fontSize: 9,
+                                                            fill: '#475569',
+                                                        }}
+                                                        tickLine={false}
+                                                        axisLine={{
+                                                            stroke: '#1e3a5f',
+                                                        }}
+                                                    />
+                                                    <YAxis
+                                                        tick={{
+                                                            fontSize: 9,
+                                                            fill: '#475569',
+                                                        }}
+                                                        tickLine={false}
+                                                        axisLine={{
+                                                            stroke: '#1e3a5f',
+                                                        }}
+                                                    />
+                                                    <ChartTooltip
+                                                        cursor={{
+                                                            stroke: '#334155',
+                                                        }}
+                                                        content={
+                                                            <ChartTooltipContent indicator="line" />
+                                                        }
+                                                    />
+                                                    <Line
+                                                        dataKey="avg_humidity"
+                                                        type="linear"
+                                                        stroke="var(--color-avg_humidity)"
+                                                        strokeWidth={2}
+                                                        dot={{
+                                                            r: 2,
+                                                            fill: '#60a5fa',
+                                                        }}
+                                                        activeDot={{
+                                                            r: 4,
+                                                            fill: '#60a5fa',
+                                                        }}
+                                                    />
+                                                </LineChart>
+                                            </ChartContainer>
+                                        ) : (
+                                            <div className="flex h-full items-center justify-center text-xs text-slate-600">
+                                                Belum ada data grafik
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </main>
