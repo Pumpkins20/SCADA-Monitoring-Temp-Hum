@@ -16,6 +16,7 @@ Jika register map berubah, update KEDUA file sekaligus.
 import logging
 import math
 import os
+import struct
 import sys
 import time
 from datetime import datetime, timedelta, timezone
@@ -51,6 +52,33 @@ DIAGNOSTIC_SCAN = os.environ.get("DIAGNOSTIC_SCAN", "false").lower() in {
 ALLOW_FC_FALLBACK = os.environ.get("ALLOW_FC_FALLBACK", "false").lower() in {
     "1", "true", "yes", "on"
 }
+NUMERIC_REGISTER_FORMAT = os.environ.get("NUMERIC_REGISTER_FORMAT", "float32").lower()
+NUMERIC_FLOAT_WORD_ORDER = os.environ.get("NUMERIC_FLOAT_WORD_ORDER", "ba").lower()
+
+_numeric_offset_tokens = [
+    token.strip()
+    for token in os.environ.get("NUMERIC_ADDRESS_OFFSETS", "0").split(",")
+]
+NUMERIC_ADDRESS_OFFSETS: list[int] = []
+for token in _numeric_offset_tokens:
+    if not token:
+        continue
+    try:
+        parsed_offset = int(token)
+    except ValueError:
+        continue
+    if parsed_offset not in NUMERIC_ADDRESS_OFFSETS:
+        NUMERIC_ADDRESS_OFFSETS.append(parsed_offset)
+
+if not NUMERIC_ADDRESS_OFFSETS:
+    NUMERIC_ADDRESS_OFFSETS = [0]
+
+if 0 in NUMERIC_ADDRESS_OFFSETS:
+    NUMERIC_ADDRESS_OFFSETS = [0] + [
+        offset for offset in NUMERIC_ADDRESS_OFFSETS if offset != 0
+    ]
+else:
+    NUMERIC_ADDRESS_OFFSETS = [0] + NUMERIC_ADDRESS_OFFSETS
 
 # String register: 16 karakter max = 8 register (big-endian ASCII, 2 char/register)
 STRING_REGISTER_COUNT = 8
@@ -172,6 +200,104 @@ def get_func_candidates(primary_func: str) -> list[str]:
 
     fallback = "04" if primary_func == "03" else "03"
     return [primary_func, fallback]
+
+
+def get_numeric_func_candidates(primary_func: str) -> list[str]:
+    """
+    Untuk data numerik, CSV mendefinisikan 4X (holding register),
+    jadi FC03 diprioritaskan. FC04 dipakai sebagai fallback opsional.
+    """
+    candidates = ["03"]
+
+    if primary_func in {"03", "04"} and primary_func not in candidates:
+        candidates.append(primary_func)
+
+    if ALLOW_FC_FALLBACK and "04" not in candidates:
+        candidates.append("04")
+
+    return candidates
+
+
+def get_numeric_address_candidates(address: int) -> list[int]:
+    """Bangun kandidat alamat baca numerik berdasarkan offset dari env."""
+    candidates: list[int] = []
+
+    for offset in NUMERIC_ADDRESS_OFFSETS:
+        candidate = address + offset
+        if candidate < 0:
+            continue
+        if candidate not in candidates:
+            candidates.append(candidate)
+
+    if address not in candidates:
+        candidates.append(address)
+
+    return candidates
+
+
+def read_register_block(
+    client: ModbusTcpClient,
+    address: int,
+    count: int,
+    unit_id: int,
+    func: str,
+) -> list[int]:
+    """Read register block for FC03/FC04 and return raw register words."""
+    if func == "03":
+        result = client.read_holding_registers(
+            address=address, count=count, device_id=unit_id
+        )
+    elif func == "04":
+        result = client.read_input_registers(
+            address=address, count=count, device_id=unit_id
+        )
+    else:
+        raise ModbusException(f"Function code '{func}' tidak didukung")
+
+    if result.isError():
+        raise ModbusException(
+            f"Slave {unit_id} FC{func} register {address} returned error"
+        )
+
+    return [int(register) for register in result.registers]
+
+
+def decode_float32_value(register_a: int, register_b: int, word_order: str) -> float:
+    """Decode float32 dari dua register 16-bit."""
+    first, second = (register_a, register_b) if word_order == "ab" else (register_b, register_a)
+    packed = struct.pack(">HH", first, second)
+    return struct.unpack(">f", packed)[0]
+
+
+def pick_float32_value(register_a: int, register_b: int) -> float | None:
+    """Pilih nilai float32 valid sesuai word order yang dikonfigurasi."""
+    if NUMERIC_FLOAT_WORD_ORDER == "ab":
+        orders = ["ab"]
+    elif NUMERIC_FLOAT_WORD_ORDER == "ba":
+        orders = ["ba"]
+    else:
+        orders = ["ab", "ba"]
+
+    candidates: list[tuple[float, int]] = []
+    for index, order in enumerate(orders):
+        value = decode_float32_value(register_a, register_b, order)
+        if math.isfinite(value) and DECIMAL_MIN <= value <= DECIMAL_MAX:
+            # Prioritaskan nilai yang bukan near-zero jika ada kandidat lain.
+            is_near_zero = abs(value) < 0.001
+            score = 0 if is_near_zero else 10
+            score += max(0, 5 - index)
+            candidates.append((value, score))
+
+    if candidates:
+        candidates.sort(key=lambda item: item[1], reverse=True)
+        return candidates[0][0]
+
+    for order in orders:
+        value = decode_float32_value(register_a, register_b, order)
+        if math.isfinite(value):
+            return value
+
+    return None
 
 
 def _decode_text_by_order(registers: list[int], order: str) -> str:
@@ -503,44 +629,84 @@ def read_data_register(
     Raise ModbusException jika gagal → sensor OFFLINE di poll_hmi().
     """
     last_error: Exception | None = None
+    format_mode = NUMERIC_REGISTER_FORMAT if NUMERIC_REGISTER_FORMAT in {
+        "auto", "int16", "float32"
+    } else "auto"
 
-    for candidate in get_func_candidates(func):
-        try:
-            if candidate == "03":
-                result = client.read_holding_registers(
-                    address=address, count=1, device_id=unit_id
-                )
-            elif candidate == "04":
-                result = client.read_input_registers(
-                    address=address, count=1, device_id=unit_id
-                )
-            else:
-                raise ModbusException(f"Function code '{candidate}' tidak didukung")
+    for candidate_func in get_numeric_func_candidates(func):
+        for candidate_address in get_numeric_address_candidates(address):
+            if format_mode in {"auto", "float32"}:
+                try:
+                    registers = read_register_block(
+                        client,
+                        candidate_address,
+                        2,
+                        unit_id,
+                        candidate_func,
+                    )
 
-            if result.isError():
-                raise ModbusException(
-                    f"Slave {unit_id} FC{candidate} register {address} returned error"
-                )
+                    float_value = pick_float32_value(registers[0], registers[1])
+                    if float_value is None:
+                        last_error = ValueError(
+                            f"Float32 decode gagal untuk addr {candidate_address}"
+                        )
+                        continue
 
-            if candidate != func and DEBUG_RAW_REGISTERS:
-                log.warning(
-                    "FC fallback dipakai untuk unit_id=%d addr=%d: primary=%s -> used=%s",
-                    unit_id,
-                    address,
-                    func,
-                    candidate,
-                )
+                    if DEBUG_RAW_REGISTERS and (
+                        candidate_func != func or candidate_address != address
+                    ):
+                        log.warning(
+                            "NUMERIC fallback dipakai unit_id=%d addr=%d->%d fc=%s->%s mode=float32",
+                            unit_id,
+                            address,
+                            candidate_address,
+                            func,
+                            candidate_func,
+                        )
 
-            raw = int(result.registers[0])
-            if signed and raw >= 0x8000:
-                raw -= 0x10000
+                    return float(float_value)
+                except (ModbusException, OSError, struct.error, ValueError) as exc:
+                    last_error = exc
 
-            return float(raw)
-        except (ModbusException, OSError) as exc:
-            last_error = exc
+            try:
+                if format_mode in {"auto", "int16"}:
+                    registers = read_register_block(
+                        client,
+                        candidate_address,
+                        1,
+                        unit_id,
+                        candidate_func,
+                    )
+                    raw = registers[0]
+                    if signed and raw >= 0x8000:
+                        raw -= 0x10000
+
+                    int16_value = float(raw)
+
+                    # Untuk mode auto: pakai int16 hanya jika nilainya masuk range DECIMAL.
+                    if format_mode == "int16" or not signed or (
+                        DECIMAL_MIN <= int16_value <= DECIMAL_MAX
+                    ):
+                        if DEBUG_RAW_REGISTERS and (
+                            candidate_func != func or candidate_address != address
+                        ):
+                            log.warning(
+                                "NUMERIC fallback dipakai unit_id=%d addr=%d->%d fc=%s->%s mode=int16",
+                                unit_id,
+                                address,
+                                candidate_address,
+                                func,
+                                candidate_func,
+                            )
+                        return int16_value
+            except (ModbusException, OSError) as exc:
+                last_error = exc
 
     raise ModbusException(
-        f"Slave {unit_id} register {address} gagal dibaca dengan FC candidates {get_func_candidates(func)}"
+        "Slave "
+        f"{unit_id} register {address} gagal dibaca numerik "
+        f"(func candidates={get_numeric_func_candidates(func)} "
+        f"offsets={NUMERIC_ADDRESS_OFFSETS} format={format_mode})"
     ) from last_error
 
 
