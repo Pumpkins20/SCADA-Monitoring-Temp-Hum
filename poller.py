@@ -785,7 +785,7 @@ def poll_hmi(hmi: dict, cursor, now) -> None:
                 sensor_name_hmi = read_string_register(
                     client, regs["name"], unit_id, func
                 )
-                if sensor_name_hmi and sensor_name_hmi != sensor["name"]:
+                if sensor_name_hmi and sensor_name_hmi.strip() and sensor_name_hmi != sensor["name"]:
                     sync_sensor_name(cursor, sensor["sensor_id"], sensor_name_hmi)
                     log.info(
                         "HMI %d sensor pos=%d nama diperbarui: '%s' → '%s'",
@@ -983,7 +983,15 @@ def main() -> None:
 
                         for hmi in hmis:
                             poll_hmi(hmi, cursor, now)
-                        db.commit()
+
+                        try:
+                            db.commit()
+                            log.info("Cycle committed — %d HMI(s)", len(hmis))
+                        except psycopg2.Error as exc:
+                            db.rollback()
+                            log.error(
+                                "Commit FAILED, rolled back — %s", exc
+                            )
 
             except psycopg2.OperationalError as exc:
                 log.error("PostgreSQL connection lost, reconnecting — %s", exc)

@@ -36,7 +36,7 @@ class HmiController extends Controller
                 'name' => 'HMI '.$validated['ip_address'],
                 'ip_address' => $validated['ip_address'],
                 'port' => $validated['port'],
-                'register_function' => $validated['register_function'] ?? '03',
+                'register_function' => $validated['register_function'] ?? '04',
                 'is_active' => false,
                 'is_preview' => true,
             ]);
@@ -176,9 +176,14 @@ class HmiController extends Controller
         $roomId = $hmi->room_id;
         $hmi->delete();
 
+        // Clean up orphaned room (no other HMIs use it)
+        $remainingHmis = Hmi::where('room_id', $roomId)->count();
+        if ($remainingHmis === 0) {
+            Room::destroy($roomId);
+        }
+
         return response()->json([
             'success' => true,
-            'room_id' => $roomId,
         ]);
     }
 
