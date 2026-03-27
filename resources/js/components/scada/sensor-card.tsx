@@ -1,6 +1,6 @@
 import { Cpu } from 'lucide-react';
-import { fmt  } from '@/components/scada/scada-helpers';
-import type {SensorData} from '@/components/scada/scada-helpers';
+import { fmt } from '@/components/scada/scada-helpers';
+import type { SensorData } from '@/components/scada/scada-helpers';
 
 // ─── Sensor Card (SCADA Industrial Style) ────────────────────────────────────
 
@@ -15,7 +15,7 @@ export function SensorCard({
 
     return (
         <div
-            className={`flex flex-col justify-center gap-1 rounded-xl border border-slate-700/60 bg-slate-800/60 p-3 backdrop-blur-sm ${className}`}
+            className={`flex min-w-0 flex-col justify-center gap-1 rounded-xl border border-slate-700/60 bg-slate-800/60 p-3 backdrop-blur-sm ${className}`}
         >
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
@@ -27,15 +27,17 @@ export function SensorCard({
                 <span className="text-xs text-cyan-400 opacity-80">((·))</span>
             </div>
 
-            <div className="mt-1 flex items-end gap-0">
+            <div className="mt-1 flex min-w-0 items-end gap-0">
                 <div className="flex flex-1 flex-col items-center">
-                    <div className="flex items-end gap-0.5">
+                    <div className="flex min-w-0 items-end justify-center gap-0.5">
                         <span
-                            className={`text-4xl leading-none font-bold ${isOnline ? 'text-white' : 'text-slate-600'}`}
+                            className={`max-w-full truncate text-3xl leading-none font-bold tabular-nums xl:text-4xl ${isOnline ? 'text-white' : 'text-slate-600'}`}
                         >
                             {fmt(sensor.temperature)}
                         </span>
-                        <span className="mb-1 text-xs text-slate-400">°C</span>
+                        <span className="mb-1 shrink-0 text-[10px] text-slate-400 xl:text-xs">
+                            °C
+                        </span>
                     </div>
                     <span className="mt-0.5 text-[10px] font-medium tracking-widest text-slate-500 uppercase">
                         TEMP
@@ -45,13 +47,15 @@ export function SensorCard({
                 <div className="mx-1 h-10 w-px bg-slate-600/80" />
 
                 <div className="flex flex-1 flex-col items-center">
-                    <div className="flex items-end gap-0.5">
+                    <div className="flex min-w-0 items-end justify-center gap-0.5">
                         <span
-                            className={`text-4xl leading-none font-bold ${isOnline ? 'text-white' : 'text-slate-600'}`}
+                            className={`max-w-full truncate text-3xl leading-none font-bold tabular-nums xl:text-4xl ${isOnline ? 'text-white' : 'text-slate-600'}`}
                         >
                             {fmt(sensor.humidity)}
                         </span>
-                        <span className="mb-1 text-xs text-slate-400">%</span>
+                        <span className="mb-1 shrink-0 text-[10px] text-slate-400 xl:text-xs">
+                            %
+                        </span>
                     </div>
                     <span className="mt-0.5 text-[10px] font-medium tracking-widest text-slate-500 uppercase">
                         RH
@@ -82,7 +86,8 @@ export function SensorCard({
                     Kalibrasi HMI
                 </p>
                 <p className="font-mono text-[10px] text-slate-300">
-                    Temp: {fmt(sensor.calibrate_temp ?? null, 2)} | Hum: {fmt(sensor.calibrate_hum ?? null, 2)}
+                    Temp: {fmt(sensor.calibrate_temp ?? null, 2)} | Hum:{' '}
+                    {fmt(sensor.calibrate_hum ?? null, 2)}
                 </p>
             </div>
         </div>

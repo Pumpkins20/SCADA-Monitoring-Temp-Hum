@@ -125,7 +125,7 @@ function RoomCard({
     return (
         <Link
             href={`/rooms/${room.id}`}
-            className={`group flex flex-col justify-center gap-1 rounded-xl border border-slate-700/60 bg-slate-800/60 p-3 backdrop-blur-sm transition-all hover:border-cyan-500/40 hover:bg-slate-800/80 ${className}`}
+            className={`group flex min-w-0 flex-col justify-center gap-1 rounded-xl border border-slate-700/60 bg-slate-800/60 p-3 backdrop-blur-sm transition-all hover:border-cyan-500/40 hover:bg-slate-800/80 ${className}`}
         >
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
@@ -160,15 +160,17 @@ function RoomCard({
                 </span>
             )}
 
-            <div className="mt-1 flex items-end gap-0">
+            <div className="mt-1 flex min-w-0 items-end gap-0">
                 <div className="flex flex-1 flex-col items-center">
-                    <div className="flex items-end gap-0.5">
+                    <div className="flex min-w-0 items-end justify-center gap-0.5">
                         <span
-                            className={`text-4xl leading-none font-bold ${isOnline ? 'text-white' : 'text-slate-600'}`}
+                            className={`max-w-full truncate text-3xl leading-none font-bold tabular-nums xl:text-4xl ${isOnline ? 'text-white' : 'text-slate-600'}`}
                         >
                             {fmt(room.room_avg_temp)}
                         </span>
-                        <span className="mb-1 text-xs text-slate-400">°C</span>
+                        <span className="mb-1 shrink-0 text-[10px] text-slate-400 xl:text-xs">
+                            °C
+                        </span>
                     </div>
                     <span className="mt-0.5 text-[10px] font-medium tracking-widest text-slate-500 uppercase">
                         AVG TEMP
@@ -178,13 +180,15 @@ function RoomCard({
                 <div className="mx-1 h-10 w-px bg-slate-600/80" />
 
                 <div className="flex flex-1 flex-col items-center">
-                    <div className="flex items-end gap-0.5">
+                    <div className="flex min-w-0 items-end justify-center gap-0.5">
                         <span
-                            className={`text-4xl leading-none font-bold ${isOnline ? 'text-white' : 'text-slate-600'}`}
+                            className={`max-w-full truncate text-3xl leading-none font-bold tabular-nums xl:text-4xl ${isOnline ? 'text-white' : 'text-slate-600'}`}
                         >
                             {fmt(room.room_avg_hum)}
                         </span>
-                        <span className="mb-1 text-xs text-slate-400">%</span>
+                        <span className="mb-1 shrink-0 text-[10px] text-slate-400 xl:text-xs">
+                            %
+                        </span>
                     </div>
                     <span className="mt-0.5 text-[10px] font-medium tracking-widest text-slate-500 uppercase">
                         AVG RH
@@ -289,8 +293,8 @@ export default function Dashboard({
                 <header className="flex shrink-0 flex-col border-b border-slate-700/50 bg-[#0f1316]">
                     <ScadaHeaderLogos />
 
-                    <div className="flex items-center px-5 pb-2">
-                        <div className="flex w-48 shrink-0 items-center gap-2">
+                    <div className="flex items-center gap-2 px-3 pb-2 xl:px-5">
+                        <div className="flex w-36 shrink-0 items-center gap-2 xl:w-48">
                             <Thermometer className="h-5 w-5 text-cyan-400" />
                             <div>
                                 <p className="text-sm font-bold tracking-wider text-white uppercase">
@@ -302,17 +306,17 @@ export default function Dashboard({
                             </div>
                         </div>
 
-                        <div className="flex flex-1 flex-col items-center">
-                            <p className="text-base font-bold tracking-widest text-white uppercase">
+                        <div className="flex min-w-0 flex-1 flex-col items-center">
+                            <p className="truncate text-center text-sm font-bold tracking-widest text-white uppercase xl:text-base">
                                 SCADA MONITORING AC PRESISI RUANG SERVER CCTV &
                                 FIDS
                             </p>
-                            <p className="text-[11px] tracking-wider text-slate-400 uppercase">
+                            <p className="truncate text-[10px] tracking-wider text-slate-400 uppercase xl:text-[11px]">
                                 BANDARA SOEKARNO - HATTA
                             </p>
                         </div>
 
-                        <div className="flex w-48 shrink-0 items-center justify-end gap-3">
+                        <div className="flex w-36 shrink-0 items-center justify-end gap-3 xl:w-48">
                             <div className="text-right">
                                 <p className="text-xl font-bold text-white tabular-nums">
                                     {timeStr}
@@ -326,9 +330,9 @@ export default function Dashboard({
                 </header>
 
                 {/* ── MAIN CONTENT ─────────────────────────────────── */}
-                <main className="flex flex-1 gap-3 overflow-hidden bg-[#151b1f] p-3">
+                <main className="flex min-w-0 flex-1 gap-2 overflow-hidden bg-[#151b1f] p-2 xl:gap-3 xl:p-3">
                     {/* ── LEFT COLUMN: gauges ── */}
-                    <div className="flex w-52 shrink-0 flex-col gap-3">
+                    <div className="flex w-44 shrink-0 flex-col gap-2 xl:w-52 xl:gap-3">
                         <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-slate-700/60 bg-slate-800/50 p-3 backdrop-blur-sm">
                             <div className="flex items-center gap-1.5 self-start">
                                 <Thermometer className="h-4 w-4 text-cyan-400" />
@@ -367,7 +371,7 @@ export default function Dashboard({
                     </div>
 
                     {/* ── MIDDLE COLUMN: room cards 1-3 ── */}
-                    <div className="flex h-full w-56 shrink-0 flex-col gap-3">
+                    <div className="flex h-full w-48 shrink-0 flex-col gap-2 xl:w-56 xl:gap-3">
                         {colMiddleRooms.length > 0
                             ? colMiddleRooms.map((room) => (
                                   <RoomCard
@@ -385,11 +389,11 @@ export default function Dashboard({
                     </div>
 
                     {/* ── RIGHT AREA ── */}
-                    <div className="flex flex-1 flex-col gap-3 overflow-hidden">
+                    <div className="flex min-w-0 flex-1 flex-col gap-2 overflow-hidden xl:gap-3">
                         {colRightRooms.length > 0 && (
-                            <div className="flex shrink-0 gap-3">
+                            <div className="grid shrink-0 grid-cols-1 gap-2 xl:grid-cols-2 xl:gap-3">
                                 {colRightRooms.map((room) => (
-                                    <div key={room.id} className="flex-1">
+                                    <div key={room.id} className="min-w-0">
                                         <RoomCard room={room} />
                                     </div>
                                 ))}

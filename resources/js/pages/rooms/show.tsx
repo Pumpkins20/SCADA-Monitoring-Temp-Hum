@@ -92,8 +92,8 @@ export default function RoomShow({ room, chartLogs }: RoomShowProps) {
                 <header className="flex shrink-0 flex-col border-b border-slate-700/50 bg-[#0f1316]">
                     <ScadaHeaderLogos />
 
-                    <div className="flex items-center px-5 pb-2">
-                        <div className="flex w-48 shrink-0 items-center gap-2">
+                    <div className="flex items-center gap-2 px-3 pb-2 xl:px-5">
+                        <div className="flex w-36 shrink-0 items-center gap-2 xl:w-48">
                             <Link
                                 href="/dashboard"
                                 className="flex items-center gap-1.5 rounded-lg p-1 transition-colors hover:bg-slate-700/60"
@@ -111,17 +111,17 @@ export default function RoomShow({ room, chartLogs }: RoomShowProps) {
                             </div>
                         </div>
 
-                        <div className="flex flex-1 flex-col items-center">
-                            <p className="text-base font-bold tracking-widest text-white uppercase">
+                        <div className="flex min-w-0 flex-1 flex-col items-center">
+                            <p className="truncate text-center text-sm font-bold tracking-widest text-white uppercase xl:text-base">
                                 SCADA MONITORING AC PRESISI RUANG SERVER CCTV &
                                 FIDS
                             </p>
-                            <p className="text-[11px] tracking-wider text-slate-400 uppercase">
+                            <p className="truncate text-[10px] tracking-wider text-slate-400 uppercase xl:text-[11px]">
                                 BANDARA SOEKARNO - HATTA
                             </p>
                         </div>
 
-                        <div className="flex w-48 shrink-0 items-center justify-end gap-3">
+                        <div className="flex w-36 shrink-0 items-center justify-end gap-3 xl:w-48">
                             <div className="text-right">
                                 <p className="text-xl font-bold text-white tabular-nums">
                                     {timeStr}
@@ -135,9 +135,9 @@ export default function RoomShow({ room, chartLogs }: RoomShowProps) {
                 </header>
 
                 {/* ── MAIN CONTENT ─────────────────────────────────── */}
-                <main className="flex flex-1 gap-3 overflow-hidden bg-[#151b1f] p-3">
+                <main className="flex min-w-0 flex-1 gap-2 overflow-hidden bg-[#151b1f] p-2 xl:gap-3 xl:p-3">
                     {/* ── LEFT COLUMN: gauges ── */}
-                    <div className="flex w-52 shrink-0 flex-col gap-3">
+                    <div className="flex w-44 shrink-0 flex-col gap-2 xl:w-52 xl:gap-3">
                         <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-slate-700/60 bg-slate-800/50 p-3 backdrop-blur-sm">
                             <div className="flex items-center gap-1.5 self-start">
                                 <Thermometer className="h-4 w-4 text-cyan-400" />
@@ -186,7 +186,7 @@ export default function RoomShow({ room, chartLogs }: RoomShowProps) {
                     </div>
 
                     {/* ── MIDDLE COLUMN: sensor cards 1-3 ── */}
-                    <div className="flex h-full w-56 shrink-0 flex-col gap-3">
+                    <div className="flex h-full w-48 shrink-0 flex-col gap-2 xl:w-56 xl:gap-3">
                         {colMiddleSensors.length > 0
                             ? colMiddleSensors.map((sensor) => (
                                   <SensorCard
@@ -204,11 +204,11 @@ export default function RoomShow({ room, chartLogs }: RoomShowProps) {
                     </div>
 
                     {/* ── RIGHT AREA ── */}
-                    <div className="flex flex-1 flex-col gap-3 overflow-hidden">
+                    <div className="flex min-w-0 flex-1 flex-col gap-2 overflow-hidden xl:gap-3">
                         {colRightSensors.length > 0 && (
-                            <div className="flex shrink-0 gap-3">
+                            <div className="grid shrink-0 grid-cols-1 gap-2 xl:grid-cols-2 xl:gap-3">
                                 {colRightSensors.map((sensor) => (
-                                    <div key={sensor.id} className="flex-1">
+                                    <div key={sensor.id} className="min-w-0">
                                         <SensorCard sensor={sensor} />
                                     </div>
                                 ))}
