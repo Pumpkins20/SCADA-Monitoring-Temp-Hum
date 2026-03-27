@@ -24,10 +24,10 @@ class UpdateSensorRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:100'],
             'unit_id' => ['required', 'integer', 'min:1', 'max:255'],
-            'modbus_address_temp' => ['required', 'integer', 'min:0', 'max:65535'],
-            'modbus_address_hum' => ['required', 'integer', 'min:0', 'max:65535'],
-            'pos_x' => ['nullable', 'integer', 'min:0', 'max:65535'],
-            'pos_y' => ['nullable', 'integer', 'min:0', 'max:65535'],
+            'modbus_address_temp' => ['sometimes', 'integer', 'min:0', 'max:65535'],
+            'modbus_address_hum' => ['sometimes', 'integer', 'min:0', 'max:65535'],
+            'pos_x' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:65535'],
+            'pos_y' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:65535'],
         ];
     }
 
