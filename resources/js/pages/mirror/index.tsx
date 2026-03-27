@@ -246,6 +246,35 @@ export default function MirrorIndex() {
         [],
     );
 
+    const clearBlockTimer = useCallback((panelId: number): void => {
+        const timeoutId = blockTimeoutRef.current[panelId];
+
+        if (timeoutId !== null && timeoutId !== undefined) {
+            window.clearTimeout(timeoutId);
+            blockTimeoutRef.current[panelId] = null;
+        }
+    }, []);
+
+    const armBlockedTimer = useCallback(
+        (panelId: number): void => {
+            clearBlockTimer(panelId);
+
+            blockTimeoutRef.current[panelId] = window.setTimeout(() => {
+                updatePanel(panelId, (current) =>
+                    current.status === 'loading'
+                        ? {
+                              ...current,
+                              status: 'blocked',
+                              message:
+                                  'Iframe diblokir perangkat/policy browser. Gunakan Open External.',
+                          }
+                        : current,
+                );
+            }, BLOCK_TIMEOUT_MS);
+        },
+        [clearBlockTimer, updatePanel],
+    );
+
     const probePanel = useCallback(
         async (panelId: number, reloadIframe: boolean): Promise<void> => {
             const panel = panelsRef.current.find((item) => item.id === panelId);
@@ -254,11 +283,16 @@ export default function MirrorIndex() {
                 return;
             }
 
-            updatePanel(panelId, (current) => ({
-                ...current,
-                status: 'connecting',
-                message: 'Mengecek koneksi target mirror...',
-            }));
+            const isHealthCheckOnly =
+                !reloadIframe && panel.status === 'mirrored';
+
+            if (!isHealthCheckOnly) {
+                updatePanel(panelId, (current) => ({
+                    ...current,
+                    status: 'connecting',
+                    message: 'Mengecek koneksi target mirror...',
+                }));
+            }
 
             try {
                 const response = await fetch('/mirror/test-connection', {
@@ -313,38 +347,32 @@ export default function MirrorIndex() {
                     return;
                 }
 
-                if (blockTimeoutRef.current[panelId]) {
-                    window.clearTimeout(
-                        blockTimeoutRef.current[panelId] as number,
-                    );
+                if (reloadIframe) {
+                    armBlockedTimer(panelId);
+
+                    updatePanel(panelId, (current) => ({
+                        ...current,
+                        status: 'loading',
+                        message: `Target reachable (${payload.latency_ms} ms). Mencoba render iframe...`,
+                        lastCheckedAt: nowTimeLabel(),
+                        refreshSeed: current.refreshSeed + 1,
+                        src: buildMirrorUrl(
+                            current.protocol,
+                            current.ipAddress,
+                            current.port,
+                        ),
+                    }));
+
+                    return;
                 }
 
-                blockTimeoutRef.current[panelId] = window.setTimeout(() => {
-                    updatePanel(panelId, (current) =>
-                        current.status === 'loading'
-                            ? {
-                                  ...current,
-                                  status: 'blocked',
-                                  message:
-                                      'Iframe diblokir perangkat/policy browser. Gunakan Open External.',
-                              }
-                            : current,
-                    );
-                }, BLOCK_TIMEOUT_MS);
+                clearBlockTimer(panelId);
 
                 updatePanel(panelId, (current) => ({
                     ...current,
-                    status: 'loading',
-                    message: `Target reachable (${payload.latency_ms} ms). Mencoba render iframe...`,
+                    status: 'mirrored',
+                    message: `Koneksi normal (${payload.latency_ms} ms).`,
                     lastCheckedAt: nowTimeLabel(),
-                    refreshSeed: reloadIframe
-                        ? current.refreshSeed + 1
-                        : current.refreshSeed,
-                    src: buildMirrorUrl(
-                        current.protocol,
-                        current.ipAddress,
-                        current.port,
-                    ),
                 }));
             } catch {
                 updatePanel(panelId, (current) => ({
@@ -356,7 +384,7 @@ export default function MirrorIndex() {
                 }));
             }
         },
-        [updatePanel],
+        [armBlockedTimer, clearBlockTimer, updatePanel],
     );
 
     useEffect(() => {
@@ -443,10 +471,7 @@ export default function MirrorIndex() {
     }
 
     function removePanel(panelId: number): void {
-        if (blockTimeoutRef.current[panelId]) {
-            window.clearTimeout(blockTimeoutRef.current[panelId] as number);
-            blockTimeoutRef.current[panelId] = null;
-        }
+        clearBlockTimer(panelId);
 
         setPanels((previousPanels) =>
             previousPanels.filter((panel) => panel.id !== panelId),
@@ -553,18 +578,7 @@ export default function MirrorIndex() {
                 },
             ]);
 
-            blockTimeoutRef.current[newPanelId] = window.setTimeout(() => {
-                updatePanel(newPanelId, (current) =>
-                    current.status === 'loading'
-                        ? {
-                              ...current,
-                              status: 'blocked',
-                              message:
-                                  'Iframe diblokir perangkat/policy browser. Gunakan Open External.',
-                          }
-                        : current,
-                );
-            }, BLOCK_TIMEOUT_MS);
+            armBlockedTimer(newPanelId);
 
             setIsAddDialogOpen(false);
             setAddForm(defaultSourceForm(`Screen ${nextPanelIdRef.current}`));
@@ -624,24 +638,7 @@ export default function MirrorIndex() {
                 return;
             }
 
-            if (blockTimeoutRef.current[editPanelId]) {
-                window.clearTimeout(
-                    blockTimeoutRef.current[editPanelId] as number,
-                );
-            }
-
-            blockTimeoutRef.current[editPanelId] = window.setTimeout(() => {
-                updatePanel(editPanelId, (current) =>
-                    current.status === 'loading'
-                        ? {
-                              ...current,
-                              status: 'blocked',
-                              message:
-                                  'Iframe diblokir perangkat/policy browser. Gunakan Open External.',
-                          }
-                        : current,
-                );
-            }, BLOCK_TIMEOUT_MS);
+            armBlockedTimer(editPanelId);
 
             updatePanel(editPanelId, (current) => ({
                 ...current,
@@ -850,20 +847,7 @@ export default function MirrorIndex() {
                                             src={panel.src}
                                             className="h-full w-full"
                                             onLoad={() => {
-                                                if (
-                                                    blockTimeoutRef.current[
-                                                        panel.id
-                                                    ]
-                                                ) {
-                                                    window.clearTimeout(
-                                                        blockTimeoutRef.current[
-                                                            panel.id
-                                                        ] as number,
-                                                    );
-                                                    blockTimeoutRef.current[
-                                                        panel.id
-                                                    ] = null;
-                                                }
+                                                clearBlockTimer(panel.id);
 
                                                 updatePanel(
                                                     panel.id,
@@ -876,20 +860,7 @@ export default function MirrorIndex() {
                                                 );
                                             }}
                                             onError={() => {
-                                                if (
-                                                    blockTimeoutRef.current[
-                                                        panel.id
-                                                    ]
-                                                ) {
-                                                    window.clearTimeout(
-                                                        blockTimeoutRef.current[
-                                                            panel.id
-                                                        ] as number,
-                                                    );
-                                                    blockTimeoutRef.current[
-                                                        panel.id
-                                                    ] = null;
-                                                }
+                                                clearBlockTimer(panel.id);
 
                                                 updatePanel(
                                                     panel.id,
