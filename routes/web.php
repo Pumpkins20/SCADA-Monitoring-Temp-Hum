@@ -2,9 +2,11 @@
 
 use App\Http\Controllers\ChartLogController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\FloorPlanSettingController;
 use App\Http\Controllers\GaugeSettingController;
 use App\Http\Controllers\HeaderLogoSettingController;
 use App\Http\Controllers\HmiController;
+use App\Http\Controllers\MirrorController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\SensorController;
 use App\Http\Controllers\SensorLogController;
@@ -19,14 +21,18 @@ Route::inertia('/welcome', 'welcome', [
 ])->name('welcome');
 
 Route::middleware(['auth'])->group(function () {
-    Route::get('user/confirm-password', fn () => Inertia::render('auth/confirm-password', [
+    Route::get('user/confirm-password', fn() => Inertia::render('auth/confirm-password', [
         'timeoutSeconds' => (int) config('auth.password_timeout', 900),
     ]))
         ->name('password.confirm');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('dashboard', DashboardController::class.'@index')->name('dashboard');
+    Route::get('dashboard', DashboardController::class . '@index')->name('dashboard');
+    Route::get('mirror', [MirrorController::class, 'index'])->name('mirror.index');
+    Route::post('mirror/test-connection', [MirrorController::class, 'testConnection'])
+        ->middleware('throttle:30,1')
+        ->name('mirror.test-connection');
 
     Route::get('rooms/{room}', [DashboardController::class, 'show'])->name('rooms.show');
 
@@ -49,6 +55,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::put('gauge-settings', [GaugeSettingController::class, 'update'])->name('gauge-settings.update');
             Route::get('logo-settings', [HeaderLogoSettingController::class, 'edit'])->name('logo-settings.edit');
             Route::post('logo-settings', [HeaderLogoSettingController::class, 'update'])->name('logo-settings.update');
+            Route::get('floor-plan-settings', [FloorPlanSettingController::class, 'index'])->name('floor-plan-settings.index');
+            Route::patch('floor-plan-settings/sensors/{sensor}', [FloorPlanSettingController::class, 'updatePosition'])->name('floor-plan-settings.update-position');
+            Route::post('floor-plan-settings/{room}/image', [FloorPlanSettingController::class, 'uploadImage'])->name('floor-plan-settings.upload-image');
+            Route::delete('floor-plan-settings/{room}/image', [FloorPlanSettingController::class, 'removeImage'])->name('floor-plan-settings.remove-image');
+            Route::patch('floor-plan-settings/{room}/dimensions', [FloorPlanSettingController::class, 'updateDimensions'])->name('floor-plan-settings.update-dimensions');
 
             Route::post('hmis', [HmiController::class, 'store'])->name('hmis.store');
             Route::get('hmis/{hmi}/preview-data', [HmiController::class, 'previewData'])->name('hmis.preview-data');
@@ -64,4 +75,4 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 });
 
-require __DIR__.'/settings.php';
+require __DIR__ . '/settings.php';

@@ -1,6 +1,6 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import { ArrowLeft, SlidersHorizontal } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
 import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
 import type {
@@ -110,16 +110,19 @@ export default function GaugeSettingsPage({
 }: GaugeSettingsPageProps) {
     const [now, setNow] = useState(new Date());
 
-    const normalizedGaugeSettings: GaugeSettings = {
-        temperature: normalizeMetricSetting(
-            gaugeSettings?.temperature,
-            defaultGaugeSettings.temperature,
-        ),
-        humidity: normalizeMetricSetting(
-            gaugeSettings?.humidity,
-            defaultGaugeSettings.humidity,
-        ),
-    };
+    const normalizedGaugeSettings: GaugeSettings = useMemo(
+        () => ({
+            temperature: normalizeMetricSetting(
+                gaugeSettings?.temperature,
+                defaultGaugeSettings.temperature,
+            ),
+            humidity: normalizeMetricSetting(
+                gaugeSettings?.humidity,
+                defaultGaugeSettings.humidity,
+            ),
+        }),
+        [gaugeSettings],
+    );
 
     const { data, setData, put, processing, errors } =
         useForm<GaugeSettingsFormData>(
@@ -128,7 +131,7 @@ export default function GaugeSettingsPage({
 
     useEffect(() => {
         setData(toGaugeFormData(normalizedGaugeSettings));
-    }, [gaugeSettings, setData]);
+    }, [normalizedGaugeSettings, setData]);
 
     useEffect(() => {
         const timer = setInterval(() => setNow(new Date()), 60_000);

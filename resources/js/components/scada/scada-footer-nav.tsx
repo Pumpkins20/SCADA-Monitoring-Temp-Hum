@@ -5,13 +5,14 @@ import {
     ClipboardList,
     Home,
     LogOut,
+    Monitor,
     SlidersHorizontal,
 } from 'lucide-react';
 import { statusDotColor } from '@/components/scada/scada-helpers';
 import type { RoomData } from '@/components/scada/scada-helpers';
 
 interface ScadaFooterNavProps {
-    activeMenu: 'dashboard' | 'logs' | 'chart-logs' | 'settings';
+    activeMenu: 'dashboard' | 'logs' | 'chart-logs' | 'mirror' | 'settings';
     onDashboardClick?: () => void;
     onSettingsClick?: () => void;
     rooms?: RoomData[];
@@ -34,6 +35,7 @@ export function ScadaFooterNav({
     const isDashboardActive = activeMenu === 'dashboard';
     const isLogsActive = activeMenu === 'logs';
     const isChartLogsActive = activeMenu === 'chart-logs';
+    const isMirrorActive = activeMenu === 'mirror';
     const isSettingsActive = activeMenu === 'settings';
 
     return (
@@ -108,6 +110,19 @@ export function ScadaFooterNav({
                 >
                     <BarChart2 className="h-4 w-4" />
                     <span className="text-[9px] leading-none">Chart</span>
+                </Link>
+
+                <Link
+                    href="/mirror"
+                    title="Mirror"
+                    className={`flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-lg transition-colors ${
+                        isMirrorActive
+                            ? 'bg-cyan-500 text-white shadow-[0_0_10px_#22d3ee80]'
+                            : 'bg-slate-700/60 text-slate-400 hover:bg-slate-600/60 hover:text-white'
+                    }`}
+                >
+                    <Monitor className="h-4 w-4" />
+                    <span className="text-[9px] leading-none">Mirror</span>
                 </Link>
 
                 {onSettingsClick ? (

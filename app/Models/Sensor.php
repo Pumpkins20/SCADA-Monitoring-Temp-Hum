@@ -17,17 +17,21 @@ class Sensor extends Model
     protected $fillable = [
         'hmi_id',
         'name',
-        'unit_id',
         'modbus_address_temp',
         'modbus_address_hum',
+        'unit_id',
+        'pos_x',
+        'pos_y',
     ];
 
     protected function casts(): array
     {
         return [
-            'unit_id' => 'integer',
             'modbus_address_temp' => 'integer',
             'modbus_address_hum' => 'integer',
+            'unit_id' => 'integer',
+            'pos_x' => 'integer',
+            'pos_y' => 'integer',
         ];
     }
 

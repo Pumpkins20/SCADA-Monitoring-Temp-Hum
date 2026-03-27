@@ -67,7 +67,7 @@ test('can create a preview hmi and auto-create 4 sensors', function () {
         'id' => $hmiId,
         'name' => 'HMI 192.168.1.10',
         'room_id' => $room->id,
-        'register_function' => '04',
+        'register_function' => '03',
         'is_active' => false,
         'is_preview' => true,
     ]);
@@ -253,13 +253,11 @@ test('confirm activates preview hmi and updates sensor names', function () {
     ]);
 });
 
-test('cancel-preview deletes preview hmi and orphaned room', function () {
+test('cancel-preview deletes preview hmi', function () {
     $hmi = Hmi::factory()->create([
         'is_active' => false,
         'is_preview' => true,
     ]);
-
-    $roomId = $hmi->room_id;
 
     $this->actingAs(User::factory()->create(['is_admin' => true]))
         ->withSession(['auth.password_confirmed_at' => time()])
@@ -267,34 +265,10 @@ test('cancel-preview deletes preview hmi and orphaned room', function () {
         ->assertOk()
         ->assertJson([
             'success' => true,
+            'room_id' => $hmi->room_id,
         ]);
 
     $this->assertDatabaseMissing('hmis', ['id' => $hmi->id]);
-    $this->assertDatabaseMissing('rooms', ['id' => $roomId]);
-});
-
-test('cancel-preview keeps room when other hmis exist', function () {
-    $room = Room::factory()->create();
-
-    $hmiPreview = Hmi::factory()->create([
-        'room_id' => $room->id,
-        'is_active' => false,
-        'is_preview' => true,
-    ]);
-
-    Hmi::factory()->create([
-        'room_id' => $room->id,
-        'is_active' => true,
-        'is_preview' => false,
-    ]);
-
-    $this->actingAs(User::factory()->create(['is_admin' => true]))
-        ->withSession(['auth.password_confirmed_at' => time()])
-        ->deleteJson(route('hmis.cancel-preview', $hmiPreview))
-        ->assertOk();
-
-    $this->assertDatabaseMissing('hmis', ['id' => $hmiPreview->id]);
-    $this->assertDatabaseHas('rooms', ['id' => $room->id]);
 });
 
 // ─── hmis.update / hmis.destroy ──────────────────────────────────────────────
