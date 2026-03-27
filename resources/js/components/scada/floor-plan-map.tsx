@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { fmt } from '@/components/scada/scada-helpers';
 import type {
     SensorData,
@@ -79,44 +79,56 @@ export function FloorPlanMap({
     const unmapped = sensors.length - placed.length;
     const hasImage = !!backgroundImage;
 
-    function clientToRoomCoord(
-        clientX: number,
-        clientY: number,
-    ): { x: number; y: number } | null {
-        const svg = svgRef.current;
-        if (!svg) return null;
+    const clientToRoomCoord = useCallback(
+        (clientX: number, clientY: number): { x: number; y: number } | null => {
+            const svg = svgRef.current;
+            if (!svg) return null;
 
-        const rect = svg.getBoundingClientRect();
-        const insideRect =
-            clientX >= rect.left &&
-            clientX <= rect.right &&
-            clientY >= rect.top &&
-            clientY <= rect.bottom;
-        if (!insideRect) return null;
+            const rect = svg.getBoundingClientRect();
+            const insideRect =
+                clientX >= rect.left &&
+                clientX <= rect.right &&
+                clientY >= rect.top &&
+                clientY <= rect.bottom;
+            if (!insideRect) return null;
 
-        const ctm = svg.getScreenCTM();
-        if (!ctm) return null;
+            const ctm = svg.getScreenCTM();
+            if (!ctm) return null;
 
-        const point = svg.createSVGPoint();
-        point.x = clientX;
-        point.y = clientY;
+            const point = svg.createSVGPoint();
+            point.x = clientX;
+            point.y = clientY;
 
-        const local = point.matrixTransform(ctm.inverse());
-        const x = Math.round(Math.max(0, Math.min(roomWidth, local.x)));
-        const y = Math.round(Math.max(0, Math.min(roomHeight, local.y)));
+            const local = point.matrixTransform(ctm.inverse());
+            const x = Math.round(Math.max(0, Math.min(roomWidth, local.x)));
+            const y = Math.round(Math.max(0, Math.min(roomHeight, local.y)));
 
-        return { x, y };
-    }
+            return { x, y };
+        },
+        [roomHeight, roomWidth],
+    );
 
     useEffect(() => {
-        if (draggingSensorId === null || dragPointer === null) {
-            setDropPreview(null);
-            return;
-        }
+        let active = true;
 
-        const coord = clientToRoomCoord(dragPointer.x, dragPointer.y);
-        setDropPreview(coord);
-    }, [draggingSensorId, dragPointer, roomWidth, roomHeight]);
+        queueMicrotask(() => {
+            if (!active) {
+                return;
+            }
+
+            if (draggingSensorId === null || dragPointer === null) {
+                setDropPreview(null);
+                return;
+            }
+
+            const coord = clientToRoomCoord(dragPointer.x, dragPointer.y);
+            setDropPreview(coord);
+        });
+
+        return () => {
+            active = false;
+        };
+    }, [clientToRoomCoord, dragPointer, draggingSensorId]);
 
     useEffect(() => {
         if (draggingSensorId === null) return;
@@ -142,7 +154,7 @@ export function FloorPlanMap({
             window.removeEventListener('pointerup', handlePointerUp);
             window.removeEventListener('pointercancel', handlePointerUp);
         };
-    }, [draggingSensorId, onDragEnd, onPlaceSensor, roomWidth, roomHeight]);
+    }, [clientToRoomCoord, draggingSensorId, onDragEnd, onPlaceSensor]);
 
     return (
         <div className="flex h-full flex-col gap-2">

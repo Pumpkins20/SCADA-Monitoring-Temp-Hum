@@ -399,11 +399,6 @@ export default function FloorPlanSettingsPage({
     );
 
     useEffect(() => {
-        setDragSensor(null);
-        setDragPointer(null);
-    }, [selectedRoomId]);
-
-    useEffect(() => {
         if (dragSensor === null) {
             return;
         }
@@ -421,14 +416,17 @@ export default function FloorPlanSettingsPage({
 
     // ── State readers (stable functions, read from current state) ────────────
 
-    function getEdit(roomId: number, sensor: SensorConfig): LocalEdit {
-        return (
-            allEdits[roomId]?.[sensor.id] ?? {
-                pos_x: toStr(sensor.pos_x),
-                pos_y: toStr(sensor.pos_y),
-            }
-        );
-    }
+    const getEdit = useCallback(
+        (roomId: number, sensor: SensorConfig): LocalEdit => {
+            return (
+                allEdits[roomId]?.[sensor.id] ?? {
+                    pos_x: toStr(sensor.pos_x),
+                    pos_y: toStr(sensor.pos_y),
+                }
+            );
+        },
+        [allEdits],
+    );
 
     function getRowState(roomId: number, sensorId: number): RowState {
         return allRowStates[roomId]?.[sensorId] ?? 'idle';
@@ -443,25 +441,28 @@ export default function FloorPlanSettingsPage({
         );
     }
 
-    function getSensorDraft(
-        roomId: number,
-        sensor: SensorConfig,
-    ): {
-        edit: LocalEdit;
-        x: number | null;
-        y: number | null;
-        isValid: boolean;
-        isChanged: boolean;
-    } {
-        const edit = getEdit(roomId, sensor);
-        const x = parseCoord(edit.pos_x);
-        const y = parseCoord(edit.pos_y);
-        const isValid =
-            isValidCoordInput(edit.pos_x) && isValidCoordInput(edit.pos_y);
-        const isChanged = x !== sensor.pos_x || y !== sensor.pos_y;
+    const getSensorDraft = useCallback(
+        (
+            roomId: number,
+            sensor: SensorConfig,
+        ): {
+            edit: LocalEdit;
+            x: number | null;
+            y: number | null;
+            isValid: boolean;
+            isChanged: boolean;
+        } => {
+            const edit = getEdit(roomId, sensor);
+            const x = parseCoord(edit.pos_x);
+            const y = parseCoord(edit.pos_y);
+            const isValid =
+                isValidCoordInput(edit.pos_x) && isValidCoordInput(edit.pos_y);
+            const isChanged = x !== sensor.pos_x || y !== sensor.pos_y;
 
-        return { edit, x, y, isValid, isChanged };
-    }
+            return { edit, x, y, isValid, isChanged };
+        },
+        [getEdit],
+    );
 
     // The background image shown in FloorPlanMap:
     // - if user selected a new file → use blob preview URL
@@ -524,7 +525,13 @@ export default function FloorPlanSettingsPage({
         });
 
         return result;
-    }, [rooms, allEdits]);
+    }, [getSensorDraft, rooms]);
+
+    const handleSelectRoom = useCallback((roomId: number): void => {
+        setSelectedRoomId(roomId);
+        setDragSensor(null);
+        setDragPointer(null);
+    }, []);
 
     // ── Handlers ─────────────────────────────────────────────────────────────
 
@@ -973,7 +980,7 @@ export default function FloorPlanSettingsPage({
                                             key={room.id}
                                             type="button"
                                             onClick={() =>
-                                                setSelectedRoomId(room.id)
+                                                handleSelectRoom(room.id)
                                             }
                                             className={`flex w-full flex-col gap-0.5 rounded-xl border px-3 py-2.5 text-left transition-all ${
                                                 isActive

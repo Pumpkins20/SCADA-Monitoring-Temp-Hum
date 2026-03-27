@@ -14,7 +14,7 @@ import {
     Wifi,
     WifiOff,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
 import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
 import { Badge } from '@/components/ui/badge';
@@ -221,8 +221,10 @@ export default function MirrorIndex() {
     }, []);
 
     useEffect(() => {
+        const timeoutMap = blockTimeoutRef.current;
+
         return () => {
-            Object.values(blockTimeoutRef.current).forEach((timeoutId) => {
+            Object.values(timeoutMap).forEach((timeoutId) => {
                 if (timeoutId !== null) {
                     window.clearTimeout(timeoutId);
                 }
@@ -230,126 +232,132 @@ export default function MirrorIndex() {
         };
     }, []);
 
-    function updatePanel(
-        panelId: number,
-        updater: (panel: MirrorPanel) => MirrorPanel,
-    ): void {
-        setPanels((previousPanels) =>
-            previousPanels.map((panel) =>
-                panel.id === panelId ? updater(panel) : panel,
-            ),
-        );
-    }
+    const updatePanel = useCallback(
+        (
+            panelId: number,
+            updater: (panel: MirrorPanel) => MirrorPanel,
+        ): void => {
+            setPanels((previousPanels) =>
+                previousPanels.map((panel) =>
+                    panel.id === panelId ? updater(panel) : panel,
+                ),
+            );
+        },
+        [],
+    );
 
-    async function probePanel(
-        panelId: number,
-        reloadIframe: boolean,
-    ): Promise<void> {
-        const panel = panelsRef.current.find((item) => item.id === panelId);
+    const probePanel = useCallback(
+        async (panelId: number, reloadIframe: boolean): Promise<void> => {
+            const panel = panelsRef.current.find((item) => item.id === panelId);
 
-        if (!panel) {
-            return;
-        }
-
-        updatePanel(panelId, (current) => ({
-            ...current,
-            status: 'connecting',
-            message: 'Mengecek koneksi target mirror...',
-        }));
-
-        try {
-            const response = await fetch('/mirror/test-connection', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-XSRF-TOKEN': readXsrfToken(),
-                    Accept: 'application/json',
-                },
-                body: JSON.stringify({
-                    ip_address: panel.ipAddress,
-                    port: Number.parseInt(panel.port, 10),
-                    protocol: panel.protocol,
-                }),
-            });
-
-            if (response.status === 422) {
-                const payload = (await response.json()) as {
-                    errors?: Record<string, string[]>;
-                };
-
-                const nextMessage =
-                    payload.errors?.ip_address?.[0] ??
-                    payload.errors?.port?.[0] ??
-                    payload.errors?.protocol?.[0] ??
-                    'Input mirror tidak valid.';
-
-                updatePanel(panelId, (current) => ({
-                    ...current,
-                    status: 'invalid',
-                    message: nextMessage,
-                    lastCheckedAt: nowTimeLabel(),
-                }));
-
+            if (!panel) {
                 return;
             }
 
-            const payload = (await response.json()) as {
-                reachable: boolean;
-                latency_ms: number;
-                message: string;
-            };
+            updatePanel(panelId, (current) => ({
+                ...current,
+                status: 'connecting',
+                message: 'Mengecek koneksi target mirror...',
+            }));
 
-            if (!response.ok || !payload.reachable) {
+            try {
+                const response = await fetch('/mirror/test-connection', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-XSRF-TOKEN': readXsrfToken(),
+                        Accept: 'application/json',
+                    },
+                    body: JSON.stringify({
+                        ip_address: panel.ipAddress,
+                        port: Number.parseInt(panel.port, 10),
+                        protocol: panel.protocol,
+                    }),
+                });
+
+                if (response.status === 422) {
+                    const payload = (await response.json()) as {
+                        errors?: Record<string, string[]>;
+                    };
+
+                    const nextMessage =
+                        payload.errors?.ip_address?.[0] ??
+                        payload.errors?.port?.[0] ??
+                        payload.errors?.protocol?.[0] ??
+                        'Input mirror tidak valid.';
+
+                    updatePanel(panelId, (current) => ({
+                        ...current,
+                        status: 'invalid',
+                        message: nextMessage,
+                        lastCheckedAt: nowTimeLabel(),
+                    }));
+
+                    return;
+                }
+
+                const payload = (await response.json()) as {
+                    reachable: boolean;
+                    latency_ms: number;
+                    message: string;
+                };
+
+                if (!response.ok || !payload.reachable) {
+                    updatePanel(panelId, (current) => ({
+                        ...current,
+                        status: 'unreachable',
+                        message: payload.message,
+                        lastCheckedAt: nowTimeLabel(),
+                    }));
+
+                    return;
+                }
+
+                if (blockTimeoutRef.current[panelId]) {
+                    window.clearTimeout(
+                        blockTimeoutRef.current[panelId] as number,
+                    );
+                }
+
+                blockTimeoutRef.current[panelId] = window.setTimeout(() => {
+                    updatePanel(panelId, (current) =>
+                        current.status === 'loading'
+                            ? {
+                                  ...current,
+                                  status: 'blocked',
+                                  message:
+                                      'Iframe diblokir perangkat/policy browser. Gunakan Open External.',
+                              }
+                            : current,
+                    );
+                }, BLOCK_TIMEOUT_MS);
+
+                updatePanel(panelId, (current) => ({
+                    ...current,
+                    status: 'loading',
+                    message: `Target reachable (${payload.latency_ms} ms). Mencoba render iframe...`,
+                    lastCheckedAt: nowTimeLabel(),
+                    refreshSeed: reloadIframe
+                        ? current.refreshSeed + 1
+                        : current.refreshSeed,
+                    src: buildMirrorUrl(
+                        current.protocol,
+                        current.ipAddress,
+                        current.port,
+                    ),
+                }));
+            } catch {
                 updatePanel(panelId, (current) => ({
                     ...current,
                     status: 'unreachable',
-                    message: payload.message,
+                    message:
+                        'Gagal menghubungi server saat cek koneksi mirror.',
                     lastCheckedAt: nowTimeLabel(),
                 }));
-
-                return;
             }
-
-            if (blockTimeoutRef.current[panelId]) {
-                window.clearTimeout(blockTimeoutRef.current[panelId] as number);
-            }
-
-            blockTimeoutRef.current[panelId] = window.setTimeout(() => {
-                updatePanel(panelId, (current) =>
-                    current.status === 'loading'
-                        ? {
-                              ...current,
-                              status: 'blocked',
-                              message:
-                                  'Iframe diblokir perangkat/policy browser. Gunakan Open External.',
-                          }
-                        : current,
-                );
-            }, BLOCK_TIMEOUT_MS);
-
-            updatePanel(panelId, (current) => ({
-                ...current,
-                status: 'loading',
-                message: `Target reachable (${payload.latency_ms} ms). Mencoba render iframe...`,
-                lastCheckedAt: nowTimeLabel(),
-                refreshSeed: reloadIframe
-                    ? current.refreshSeed + 1
-                    : current.refreshSeed,
-                src: buildMirrorUrl(
-                    current.protocol,
-                    current.ipAddress,
-                    current.port,
-                ),
-            }));
-        } catch {
-            updatePanel(panelId, (current) => ({
-                ...current,
-                status: 'unreachable',
-                message: 'Gagal menghubungi server saat cek koneksi mirror.',
-                lastCheckedAt: nowTimeLabel(),
-            }));
-        }
-    }
+        },
+        [updatePanel],
+    );
 
     useEffect(() => {
         const intervalId = window.setInterval(() => {
@@ -361,7 +369,7 @@ export default function MirrorIndex() {
         }, RECONNECT_INTERVAL_MS);
 
         return () => window.clearInterval(intervalId);
-    }, []);
+    }, [probePanel]);
 
     function savePreset(): void {
         const payload = panels.map((panel) => ({

@@ -61,19 +61,6 @@ function fmt(value: number | string | null, decimals = 1): string {
     return Number(value).toFixed(decimals);
 }
 
-function statusColor(status: string): string {
-    switch (status) {
-        case 'NORMAL':
-            return 'text-green-400';
-        case 'WARNING':
-            return 'text-yellow-400';
-        case 'CRITICAL':
-            return 'text-red-400';
-        default:
-            return 'text-slate-500';
-    }
-}
-
 function statusDotColor(status: string): string {
     switch (status) {
         case 'NORMAL':
