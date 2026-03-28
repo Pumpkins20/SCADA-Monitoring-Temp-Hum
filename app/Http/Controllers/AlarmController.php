@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AlarmEvent;
 use App\Models\Room;
+use App\Models\SensorLatestData;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -21,17 +22,38 @@ class AlarmController extends Controller
         $startDate = $this->parseDate((string) $request->query('start_date', ''), false);
         $endDate = $this->parseDate((string) $request->query('end_date', ''), true);
 
-        $query = $this->buildAlarmQuery($tab, $activeRoomId, $startDate, $endDate);
-
         $perPage = 30;
         $page = max(1, (int) $request->query('page', 1));
 
+        $query = $this->buildAlarmQuery($tab, $activeRoomId, $startDate, $endDate);
         $paginator = $query->paginate($perPage, ['*'], 'page', $page)->withQueryString();
-        $rows = $paginator
-            ->getCollection()
-            ->map(fn (AlarmEvent $event) => $this->mapRow($event))
-            ->values()
-            ->all();
+
+        if ($this->isRealtimeTab($tab) && $paginator->total() === 0) {
+            $fallbackRows = $this->buildRealtimeFallbackRows($activeRoomId, $startDate, $endDate);
+
+            $total = count($fallbackRows);
+            $lastPage = max(1, (int) ceil($total / $perPage));
+            $offset = ($page - 1) * $perPage;
+            $rows = array_slice($fallbackRows, $offset, $perPage);
+
+            $pagination = [
+                'currentPage' => min($page, $lastPage),
+                'lastPage' => $lastPage,
+                'total' => $total,
+            ];
+        } else {
+            $rows = $paginator
+                ->getCollection()
+                ->map(fn (AlarmEvent $event) => $this->mapRow($event))
+                ->values()
+                ->all();
+
+            $pagination = [
+                'currentPage' => $paginator->currentPage(),
+                'lastPage' => $paginator->lastPage(),
+                'total' => $paginator->total(),
+            ];
+        }
 
         return Inertia::render('alarms/index', [
             'rooms' => $rooms->map(fn (Room $room) => [
@@ -45,11 +67,7 @@ class AlarmController extends Controller
                 'end_date' => $endDate?->format('Y-m-d'),
             ],
             'rows' => $rows,
-            'pagination' => [
-                'currentPage' => $paginator->currentPage(),
-                'lastPage' => $paginator->lastPage(),
-                'total' => $paginator->total(),
-            ],
+            'pagination' => $pagination,
             'tabInfo' => [
                 'isViewOnly' => true,
                 'confirmedAvailableFromHmi' => false,
@@ -66,8 +84,12 @@ class AlarmController extends Controller
 
         $query = $this->buildAlarmQuery($tab, $activeRoomId, $startDate, $endDate);
         $filename = 'alarm_export_'.now()->format('Ymd_His').'.csv';
+        $hasPersistedRows = (clone $query)->exists();
+        $fallbackRows = ! $hasPersistedRows && $this->isRealtimeTab($tab)
+            ? $this->buildRealtimeFallbackRows($activeRoomId, $startDate, $endDate)
+            : [];
 
-        return response()->streamDownload(function () use ($query): void {
+        return response()->streamDownload(function () use ($query, $fallbackRows): void {
             $handle = fopen('php://output', 'w');
 
             if ($handle === false) {
@@ -85,19 +107,34 @@ class AlarmController extends Controller
                 'Room detail',
             ]);
 
-            foreach ($query->cursor() as $event) {
-                $row = $this->mapRow($event);
+            if ($fallbackRows !== []) {
+                foreach ($fallbackRows as $row) {
+                    fputcsv($handle, [
+                        $row['alarm_time'],
+                        $row['current_value'],
+                        $row['alarm_text'],
+                        $row['alarm_type'],
+                        $row['variable_name'],
+                        $row['confirmed_time'],
+                        $row['room_name'],
+                        $row['room_detail'],
+                    ]);
+                }
+            } else {
+                foreach ($query->cursor() as $event) {
+                    $row = $this->mapRow($event);
 
-                fputcsv($handle, [
-                    $row['alarm_time'],
-                    $row['current_value'],
-                    $row['alarm_text'],
-                    $row['alarm_type'],
-                    $row['variable_name'],
-                    $row['confirmed_time'],
-                    $row['room_name'],
-                    $row['room_detail'],
-                ]);
+                    fputcsv($handle, [
+                        $row['alarm_time'],
+                        $row['current_value'],
+                        $row['alarm_text'],
+                        $row['alarm_type'],
+                        $row['variable_name'],
+                        $row['confirmed_time'],
+                        $row['room_name'],
+                        $row['room_detail'],
+                    ]);
+                }
             }
 
             fclose($handle);
@@ -189,6 +226,113 @@ class AlarmController extends Controller
             'hum' => "Ext_Device_{$suffix}_hum",
             default => "Ext_Device_{$suffix}_commStatus",
         };
+    }
+
+    private function buildRealtimeFallbackRows(
+        int $activeRoomId,
+        ?Carbon $startDate,
+        ?Carbon $endDate,
+    ): array {
+        $latestRows = SensorLatestData::query()
+            ->with([
+                'sensor:id,hmi_id,unit_id',
+                'sensor.hmi:id,room_id',
+                'sensor.hmi.room:id,name,location',
+            ])
+            ->where(function (Builder $builder): void {
+                $builder
+                    ->where('alarm_temp', true)
+                    ->orWhere('alarm_hum', true)
+                    ->orWhere('alarm_disconnect', true);
+            });
+
+        if ($activeRoomId > 0) {
+            $latestRows->whereHas('sensor.hmi', fn (Builder $builder) => $builder->where('room_id', $activeRoomId));
+        }
+
+        if ($startDate !== null) {
+            $latestRows->where('last_read_at', '>=', $startDate);
+        }
+
+        if ($endDate !== null) {
+            $latestRows->where('last_read_at', '<=', $endDate);
+        }
+
+        return $latestRows
+            ->orderByDesc('last_read_at')
+            ->orderByDesc('id')
+            ->get()
+            ->flatMap(function (SensorLatestData $latest) {
+                $rows = [];
+
+                if ($latest->alarm_temp) {
+                    $rows[] = $this->mapFallbackRow($latest, 'temp', $latest->temperature);
+                }
+
+                if ($latest->alarm_hum) {
+                    $rows[] = $this->mapFallbackRow($latest, 'hum', $latest->humidity);
+                }
+
+                if ($latest->alarm_disconnect) {
+                    $rows[] = $this->mapFallbackRow($latest, 'disconnect', 0.0);
+                }
+
+                return $rows;
+            })
+            ->values()
+            ->all();
+    }
+
+    private function mapFallbackRow(SensorLatestData $latest, string $alarmType, float|string|null $currentValue): array
+    {
+        $sensor = $latest->sensor;
+        $room = $sensor?->hmi?->room;
+
+        return [
+            'id' => (int) ($latest->id * 10 + $this->fallbackAlarmTypeOrder($alarmType)),
+            'alarm_time' => $latest->last_read_at?->format('Y-m-d H:i:s') ?? '-',
+            'current_value' => $this->formatFallbackCurrentValue($currentValue),
+            'alarm_text' => $this->makeAlarmTextFromType($alarmType, $sensor?->unit_id),
+            'alarm_type' => 'alert',
+            'variable_name' => $this->makeVariableName($alarmType, $sensor?->unit_id),
+            'confirmed_time' => '-',
+            'room_name' => $room?->name ?? '-',
+            'room_detail' => $room?->location ?? '-',
+        ];
+    }
+
+    private function formatFallbackCurrentValue(float|string|null $currentValue): string
+    {
+        if ($currentValue === null || $currentValue === '') {
+            return '-';
+        }
+
+        return rtrim(rtrim(number_format((float) $currentValue, 2, '.', ''), '0'), '.');
+    }
+
+    private function makeAlarmTextFromType(string $alarmType, ?int $unitId): string
+    {
+        $deviceLabel = $unitId !== null ? "Device {$unitId}" : 'Device';
+
+        return match ($alarmType) {
+            'temp' => "{$deviceLabel} Temperature Alarm",
+            'hum' => "{$deviceLabel} Humidity Alarm",
+            default => "{$deviceLabel} Disconnected",
+        };
+    }
+
+    private function fallbackAlarmTypeOrder(string $alarmType): int
+    {
+        return match ($alarmType) {
+            'temp' => 1,
+            'hum' => 2,
+            default => 3,
+        };
+    }
+
+    private function isRealtimeTab(string $tab): bool
+    {
+        return in_array($tab, ['realtime', 'no-confirmed'], true);
     }
 
     private function resolveTab(string $tab): string

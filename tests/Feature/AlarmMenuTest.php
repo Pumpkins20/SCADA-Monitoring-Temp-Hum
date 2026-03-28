@@ -4,6 +4,7 @@ use App\Models\AlarmEvent;
 use App\Models\Hmi;
 use App\Models\Room;
 use App\Models\Sensor;
+use App\Models\SensorLatestData;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 
@@ -108,4 +109,35 @@ test('can export alarms as csv with selected filters', function () {
 
     $response->assertOk();
     $response->assertHeader('content-type', 'text/csv; charset=UTF-8');
+});
+
+test('realtime tab falls back to sensor latest alarms when alarm events are empty', function () {
+    $room = Room::factory()->create(['name' => 'RUANG LIVE']);
+    $hmi = Hmi::factory()->create(['room_id' => $room->id]);
+    $sensor = Sensor::factory()->create(['hmi_id' => $hmi->id, 'unit_id' => 2]);
+
+    SensorLatestData::query()->create([
+        'sensor_id' => $sensor->id,
+        'temperature' => null,
+        'humidity' => null,
+        'status' => 'OFFLINE',
+        'alarm_temp' => false,
+        'alarm_hum' => false,
+        'alarm_disconnect' => true,
+        'calibrate_temp' => null,
+        'calibrate_hum' => null,
+        'last_read_at' => now(),
+    ]);
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('alarms.index', [
+            'tab' => 'realtime',
+            'room' => $room->id,
+        ]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('alarms/index')
+            ->has('rows', 1)
+            ->where('rows.0.alarm_text', 'Device 2 Disconnected')
+            ->where('rows.0.variable_name', 'Ext_Device_2_commStatus'));
 });

@@ -8,8 +8,17 @@ import {
     Monitor,
     SlidersHorizontal,
 } from 'lucide-react';
+import { useState } from 'react';
 import { statusDotColor } from '@/components/scada/scada-helpers';
 import type { RoomData } from '@/components/scada/scada-helpers';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 
 interface ScadaFooterNavProps {
     activeMenu: 'dashboard' | 'logs' | 'chart-logs' | 'alarms' | 'mirror' | 'settings';
@@ -32,6 +41,8 @@ export function ScadaFooterNav({
     lastUpdate = '--:--',
     dateStr = '--',
 }: ScadaFooterNavProps) {
+    const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
+
     const isDashboardActive = activeMenu === 'dashboard';
     const isLogsActive = activeMenu === 'logs';
     const isChartLogsActive = activeMenu === 'chart-logs';
@@ -39,25 +50,31 @@ export function ScadaFooterNav({
     const isMirrorActive = activeMenu === 'mirror';
     const isSettingsActive = activeMenu === 'settings';
 
+    function confirmLogout(): void {
+        setIsLogoutDialogOpen(false);
+        router.post('/logout');
+    }
+
     return (
-        <footer className="flex shrink-0 items-center border-t border-slate-700/50 bg-[#0f1316] px-4 py-2">
-            <div className="flex w-56 shrink-0 flex-col gap-0.5">
-                <div className="flex items-center gap-1.5">
-                    <Bell
-                        className={`h-4 w-4 ${hasAlarms ? 'animate-pulse text-red-400' : 'text-slate-500'}`}
-                    />
-                    <span
-                        className={`text-xs font-semibold ${hasAlarms ? 'text-red-400' : 'text-slate-500'}`}
-                    >
-                        ALARM AKTIF : {hasAlarms ? alarmRoomNames : '—'}
+        <>
+            <footer className="flex shrink-0 items-center border-t border-slate-700/50 bg-[#0f1316] px-4 py-2">
+                <div className="flex w-56 shrink-0 flex-col gap-0.5">
+                    <div className="flex items-center gap-1.5">
+                        <Bell
+                            className={`h-4 w-4 ${hasAlarms ? 'animate-pulse text-red-400' : 'text-slate-500'}`}
+                        />
+                        <span
+                            className={`text-xs font-semibold ${hasAlarms ? 'text-red-400' : 'text-slate-500'}`}
+                        >
+                            ALARM AKTIF : {hasAlarms ? alarmRoomNames : '—'}
+                        </span>
+                    </div>
+                    <span className="text-[10px] text-slate-500">
+                        LAST UPDATE : {lastUpdate} | {dateStr}
                     </span>
                 </div>
-                <span className="text-[10px] text-slate-500">
-                    LAST UPDATE : {lastUpdate} | {dateStr}
-                </span>
-            </div>
 
-            <div className="flex flex-1 items-center justify-center gap-3">
+                <div className="flex flex-1 items-center justify-center gap-3">
                 {onDashboardClick ? (
                     <button
                         type="button"
@@ -170,43 +187,74 @@ export function ScadaFooterNav({
 
                 <div className="mx-1 h-6 w-px bg-slate-600/80" />
 
-                <button
-                    type="button"
-                    title="Logout"
-                    onClick={() => router.post('/logout')}
-                    className="flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-lg bg-slate-700/60 text-slate-400 transition-colors hover:bg-red-500/80 hover:text-white"
-                >
-                    <LogOut className="h-4 w-4" />
-                    <span className="text-[9px] leading-none">Logout</span>
-                </button>
-            </div>
-
-            <div className="flex w-56 shrink-0 items-center justify-end gap-2">
-                {rooms.map((room, i) => (
-                    <div
-                        key={room.id}
-                        className="flex flex-col items-center gap-0.5"
+                    <button
+                        type="button"
+                        title="Logout"
+                        onClick={() => setIsLogoutDialogOpen(true)}
+                        className="flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-lg bg-slate-700/60 text-slate-400 transition-colors hover:bg-red-500/80 hover:text-white"
                     >
-                        <svg width="12" height="12" viewBox="0 0 12 12">
-                            <circle
-                                cx="6"
-                                cy="6"
-                                r="5"
-                                fill={statusDotColor(room.status)}
-                                style={{
-                                    filter:
-                                        room.status !== 'OFFLINE'
-                                            ? `drop-shadow(0 0 3px ${statusDotColor(room.status)})`
-                                            : 'none',
-                                }}
-                            />
-                        </svg>
-                        <span className="text-[9px] text-slate-500">
-                            R{i + 1}
-                        </span>
-                    </div>
-                ))}
-            </div>
-        </footer>
+                        <LogOut className="h-4 w-4" />
+                        <span className="text-[9px] leading-none">Logout</span>
+                    </button>
+                </div>
+
+                <div className="flex w-56 shrink-0 items-center justify-end gap-2">
+                    {rooms.map((room, i) => (
+                        <div
+                            key={room.id}
+                            className="flex flex-col items-center gap-0.5"
+                        >
+                            <svg width="12" height="12" viewBox="0 0 12 12">
+                                <circle
+                                    cx="6"
+                                    cy="6"
+                                    r="5"
+                                    fill={statusDotColor(room.status)}
+                                    style={{
+                                        filter:
+                                            room.status !== 'OFFLINE'
+                                                ? `drop-shadow(0 0 3px ${statusDotColor(room.status)})`
+                                                : 'none',
+                                    }}
+                                />
+                            </svg>
+                            <span className="text-[9px] text-slate-500">
+                                R{i + 1}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            </footer>
+
+            <Dialog open={isLogoutDialogOpen} onOpenChange={setIsLogoutDialogOpen}>
+                <DialogContent className="border-slate-700 bg-[#151b1f] text-white sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="text-base font-bold tracking-wide text-white uppercase">
+                            Konfirmasi Logout
+                        </DialogTitle>
+                        <DialogDescription className="text-sm text-slate-300">
+                            Anda akan keluar dari sistem SCADA Monitoring. Lanjutkan logout sekarang?
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <DialogFooter className="gap-2 sm:justify-end">
+                        <button
+                            type="button"
+                            onClick={() => setIsLogoutDialogOpen(false)}
+                            className="inline-flex h-9 items-center justify-center rounded-md border border-slate-600 bg-slate-800/70 px-4 text-sm font-semibold text-slate-200 transition-colors hover:bg-slate-700"
+                        >
+                            Batal
+                        </button>
+                        <button
+                            type="button"
+                            onClick={confirmLogout}
+                            className="inline-flex h-9 items-center justify-center rounded-md bg-red-500 px-4 text-sm font-semibold text-white transition-colors hover:bg-red-400"
+                        >
+                            Ya, Logout
+                        </button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </>
     );
 }
