@@ -27,39 +27,41 @@ export function SensorCard({
                 <span className="text-xs text-cyan-400 opacity-80">((·))</span>
             </div>
 
-            <div className="mt-1 flex min-w-0 items-end gap-0">
-                <div className="flex flex-1 flex-col items-center">
-                    <div className="flex min-w-0 items-end justify-center gap-0.5">
-                        <span
-                            className={`max-w-full truncate text-3xl leading-none font-bold tabular-nums xl:text-4xl ${isOnline ? 'text-white' : 'text-slate-600'}`}
-                        >
-                            {fmt(sensor.temperature)}
-                        </span>
-                        <span className="mb-1 shrink-0 text-[10px] text-slate-400 xl:text-xs">
-                            °C
+            <div className="mt-1 grid min-w-0 grid-cols-2 gap-1.5">
+                <div className="min-w-0">
+                    <div className="flex min-w-0 flex-col items-center">
+                        <div className="flex min-w-0 items-end justify-center gap-1">
+                            <span
+                                className={`max-w-full truncate text-2xl leading-none font-bold tabular-nums sm:text-3xl xl:text-4xl ${isOnline ? 'text-white' : 'text-slate-600'}`}
+                            >
+                                {fmt(sensor.temperature)}
+                            </span>
+                            <span className="mb-0.5 shrink-0 text-[10px] text-slate-400 xl:text-xs">
+                                °C
+                            </span>
+                        </div>
+                        <span className="mt-0.5 text-[10px] font-medium tracking-widest text-slate-500 uppercase">
+                            TEMP
                         </span>
                     </div>
-                    <span className="mt-0.5 text-[10px] font-medium tracking-widest text-slate-500 uppercase">
-                        TEMP
-                    </span>
                 </div>
 
-                <div className="mx-1 h-10 w-px bg-slate-600/80" />
-
-                <div className="flex flex-1 flex-col items-center">
-                    <div className="flex min-w-0 items-end justify-center gap-0.5">
-                        <span
-                            className={`max-w-full truncate text-3xl leading-none font-bold tabular-nums xl:text-4xl ${isOnline ? 'text-white' : 'text-slate-600'}`}
-                        >
-                            {fmt(sensor.humidity)}
-                        </span>
-                        <span className="mb-1 shrink-0 text-[10px] text-slate-400 xl:text-xs">
-                            %
+                <div className="min-w-0 border-l border-slate-600/80 pl-2">
+                    <div className="flex min-w-0 flex-col items-center">
+                        <div className="flex min-w-0 items-end justify-center gap-1">
+                            <span
+                                className={`max-w-full truncate text-2xl leading-none font-bold tabular-nums sm:text-3xl xl:text-4xl ${isOnline ? 'text-white' : 'text-slate-600'}`}
+                            >
+                                {fmt(sensor.humidity)}
+                            </span>
+                            <span className="mb-0.5 shrink-0 text-[10px] text-slate-400 xl:text-xs">
+                                %
+                            </span>
+                        </div>
+                        <span className="mt-0.5 text-[10px] font-medium tracking-widest text-slate-500 uppercase">
+                            RH
                         </span>
                     </div>
-                    <span className="mt-0.5 text-[10px] font-medium tracking-widest text-slate-500 uppercase">
-                        RH
-                    </span>
                 </div>
             </div>
 

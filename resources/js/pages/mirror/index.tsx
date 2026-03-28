@@ -13,6 +13,7 @@ import {
     Trash2,
     Wifi,
     WifiOff,
+    X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
@@ -62,9 +63,18 @@ interface ScreenSourceFormState {
     autoReconnect: boolean;
 }
 
+type NoticeTone = 'success' | 'error';
+
+interface MirrorNotice {
+    id: number;
+    tone: NoticeTone;
+    message: string;
+}
+
 const PRESET_KEY = 'mirror.dynamic.layout.v1';
 const BLOCK_TIMEOUT_MS = 8000;
 const RECONNECT_INTERVAL_MS = 15000;
+const NOTICE_TIMEOUT_MS = 2600;
 
 function readXsrfToken(): string {
     return decodeURIComponent(
@@ -156,11 +166,42 @@ export default function MirrorIndex() {
     );
     const [editError, setEditError] = useState('');
     const [editProcessing, setEditProcessing] = useState(false);
+    const [notices, setNotices] = useState<MirrorNotice[]>([]);
 
     const blockTimeoutRef = useRef<Record<number, number | null>>({});
     const panelRefs = useRef<Record<number, HTMLElement | null>>({});
     const nextPanelIdRef = useRef(1);
     const panelsRef = useRef<MirrorPanel[]>(panels);
+    const nextNoticeIdRef = useRef(1);
+
+    const pushNotice = useCallback(
+        (tone: NoticeTone, message: string): void => {
+            const noticeId = nextNoticeIdRef.current;
+            nextNoticeIdRef.current += 1;
+
+            setNotices((current) => [
+                ...current,
+                {
+                    id: noticeId,
+                    tone,
+                    message,
+                },
+            ]);
+
+            window.setTimeout(() => {
+                setNotices((current) =>
+                    current.filter((notice) => notice.id !== noticeId),
+                );
+            }, NOTICE_TIMEOUT_MS);
+        },
+        [],
+    );
+
+    const dismissNotice = useCallback((noticeId: number): void => {
+        setNotices((current) =>
+            current.filter((notice) => notice.id !== noticeId),
+        );
+    }, []);
 
     useEffect(() => {
         panelsRef.current = panels;
@@ -409,12 +450,20 @@ export default function MirrorIndex() {
         }));
 
         window.localStorage.setItem(PRESET_KEY, JSON.stringify(payload));
+        pushNotice(
+            'success',
+            `Preset berhasil disimpan (${payload.length} screen).`,
+        );
     }
 
     function loadPreset(): void {
         const rawPreset = window.localStorage.getItem(PRESET_KEY);
 
         if (!rawPreset) {
+            pushNotice(
+                'error',
+                'Preset belum tersedia. Simpan preset terlebih dahulu.',
+            );
             return;
         }
 
@@ -431,6 +480,7 @@ export default function MirrorIndex() {
             >;
 
             if (!Array.isArray(presetPanels) || presetPanels.length === 0) {
+                pushNotice('error', 'Preset kosong atau tidak valid.');
                 return;
             }
 
@@ -459,7 +509,15 @@ export default function MirrorIndex() {
             nextPanelIdRef.current = hydratedPanels.length + 1;
             setPanels(hydratedPanels);
             setAddForm(defaultSourceForm(`Screen ${nextPanelIdRef.current}`));
+            pushNotice(
+                'success',
+                `Preset dimuat (${hydratedPanels.length} screen).`,
+            );
         } catch {
+            pushNotice(
+                'error',
+                'Preset gagal dimuat. Format data tidak valid.',
+            );
             // Ignore malformed preset data.
         }
     }
@@ -468,13 +526,23 @@ export default function MirrorIndex() {
         setPanels([]);
         nextPanelIdRef.current = 1;
         setAddForm(defaultSourceForm('Screen 1'));
+        pushNotice('success', 'Layout mirror berhasil direset.');
     }
 
     function removePanel(panelId: number): void {
         clearBlockTimer(panelId);
 
+        const removedPanel = panelsRef.current.find(
+            (panel) => panel.id === panelId,
+        );
+
         setPanels((previousPanels) =>
             previousPanels.filter((panel) => panel.id !== panelId),
+        );
+
+        pushNotice(
+            'success',
+            `${removedPanel?.label ?? 'Screen'} berhasil dihapus.`,
         );
     }
 
@@ -580,10 +648,16 @@ export default function MirrorIndex() {
 
             armBlockedTimer(newPanelId);
 
+            pushNotice('success', `${label} berhasil ditambahkan.`);
+
             setIsAddDialogOpen(false);
             setAddForm(defaultSourceForm(`Screen ${nextPanelIdRef.current}`));
         } catch {
             setAddError('Gagal menghubungi server saat menambahkan screen.');
+            pushNotice(
+                'error',
+                'Gagal menambahkan screen. Periksa koneksi target.',
+            );
         } finally {
             setAddProcessing(false);
         }
@@ -658,10 +732,13 @@ export default function MirrorIndex() {
                 refreshSeed: current.refreshSeed + 1,
             }));
 
+            pushNotice('success', 'Source screen berhasil diperbarui.');
+
             setIsEditDialogOpen(false);
             setEditPanelId(null);
         } catch {
             setEditError('Gagal menghubungi server saat update source.');
+            pushNotice('error', 'Gagal memperbarui source screen.');
         } finally {
             setEditProcessing(false);
         }
@@ -674,6 +751,29 @@ export default function MirrorIndex() {
             <Head title="Mirror Wall" />
 
             <div className="flex h-screen flex-col overflow-hidden bg-[#151b1f] text-white">
+                <div className="pointer-events-none fixed top-4 right-4 z-50 flex w-full max-w-xs flex-col gap-2">
+                    {notices.map((notice) => (
+                        <div
+                            key={notice.id}
+                            className={`pointer-events-auto relative rounded-lg border px-3 py-2 pr-8 text-xs shadow-lg backdrop-blur-sm ${
+                                notice.tone === 'success'
+                                    ? 'border-emerald-400/50 bg-emerald-500/20 text-emerald-100'
+                                    : 'border-red-400/50 bg-red-500/20 text-red-100'
+                            }`}
+                        >
+                            <button
+                                type="button"
+                                onClick={() => dismissNotice(notice.id)}
+                                className="absolute top-1 right-1 inline-flex h-5 w-5 items-center justify-center rounded text-current/80 transition-colors hover:bg-white/10 hover:text-white"
+                                aria-label="Close notification"
+                            >
+                                <X className="h-3.5 w-3.5" />
+                            </button>
+                            {notice.message}
+                        </div>
+                    ))}
+                </div>
+
                 <header className="flex shrink-0 flex-col border-b border-slate-700/50 bg-[#0f1316]">
                     <ScadaHeaderLogos />
 

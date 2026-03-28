@@ -6,7 +6,12 @@ import { ArcGauge } from '@/components/scada/arc-gauge';
 import { FloorPlanMap } from '@/components/scada/floor-plan-map';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
 import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
-import type { RoomData, ChartPoint } from '@/components/scada/scada-helpers';
+import type {
+    RoomData,
+    ChartPoint,
+    GaugeSettings,
+    GaugeMetricSettings,
+} from '@/components/scada/scada-helpers';
 import { SensorCard } from '@/components/scada/sensor-card';
 import {
     ChartContainer,
@@ -20,6 +25,59 @@ import type { ChartConfig } from '@/components/ui/chart';
 interface RoomShowProps {
     room: RoomData;
     chartLogs: ChartPoint[];
+    gaugeSettings: GaugeSettings;
+}
+
+const defaultGaugeSettings: GaugeSettings = {
+    temperature: {
+        min: 0,
+        max: 80,
+        zones: [
+            { from: 0, to: 36, color: '#22c55e' },
+            { from: 36, to: 56, color: '#facc15' },
+            { from: 56, to: 80, color: '#ef4444' },
+        ],
+    },
+    humidity: {
+        min: 0,
+        max: 100,
+        zones: [
+            { from: 0, to: 60, color: '#22c55e' },
+            { from: 60, to: 80, color: '#f59e0b' },
+            { from: 80, to: 100, color: '#ef4444' },
+        ],
+    },
+};
+
+function normalizeMetricSetting(
+    setting: GaugeMetricSettings | undefined,
+    fallback: GaugeMetricSettings,
+): GaugeMetricSettings {
+    if (!setting || setting.zones.length < 3) {
+        return fallback;
+    }
+
+    return {
+        min: Number(setting.min ?? fallback.min),
+        max: Number(setting.max ?? fallback.max),
+        zones: [
+            {
+                from: Number(setting.zones[0]?.from ?? fallback.zones[0].from),
+                to: Number(setting.zones[0]?.to ?? fallback.zones[0].to),
+                color: setting.zones[0]?.color ?? fallback.zones[0].color,
+            },
+            {
+                from: Number(setting.zones[1]?.from ?? fallback.zones[1].from),
+                to: Number(setting.zones[1]?.to ?? fallback.zones[1].to),
+                color: setting.zones[1]?.color ?? fallback.zones[1].color,
+            },
+            {
+                from: Number(setting.zones[2]?.from ?? fallback.zones[2].from),
+                to: Number(setting.zones[2]?.to ?? fallback.zones[2].to),
+                color: setting.zones[2]?.color ?? fallback.zones[2].color,
+            },
+        ],
+    };
 }
 
 // ─── Chart Configs ────────────────────────────────────────────────────────────
@@ -40,11 +98,26 @@ const humChartConfig = {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-export default function RoomShow({ room, chartLogs }: RoomShowProps) {
+export default function RoomShow({
+    room,
+    chartLogs,
+    gaugeSettings,
+}: RoomShowProps) {
     const [now, setNow] = useState(new Date());
     const [activePanel, setActivePanel] = useState<'chart' | 'floorplan'>(
         'chart',
     );
+
+    const normalizedGaugeSettings: GaugeSettings = {
+        temperature: normalizeMetricSetting(
+            gaugeSettings?.temperature,
+            defaultGaugeSettings.temperature,
+        ),
+        humidity: normalizeMetricSetting(
+            gaugeSettings?.humidity,
+            defaultGaugeSettings.humidity,
+        ),
+    };
 
     useEffect(() => {
         const timer = setInterval(() => setNow(new Date()), 60_000);
@@ -53,7 +126,7 @@ export default function RoomShow({ room, chartLogs }: RoomShowProps) {
 
     useEffect(() => {
         const timer = setInterval(() => {
-            router.reload({ only: ['room', 'chartLogs'] });
+            router.reload({ only: ['room', 'chartLogs', 'gaugeSettings'] });
         }, 30_000);
         return () => clearInterval(timer);
     }, []);
@@ -147,10 +220,13 @@ export default function RoomShow({ room, chartLogs }: RoomShowProps) {
                             </div>
                             <ArcGauge
                                 value={room.room_avg_temp}
-                                min={0}
-                                max={40}
+                                min={normalizedGaugeSettings.temperature.min}
+                                max={normalizedGaugeSettings.temperature.max}
                                 unit="°C"
                                 color="#22d3ee"
+                                zones={
+                                    normalizedGaugeSettings.temperature.zones
+                                }
                             />
                         </div>
 
@@ -163,10 +239,11 @@ export default function RoomShow({ room, chartLogs }: RoomShowProps) {
                             </div>
                             <ArcGauge
                                 value={room.room_avg_hum}
-                                min={0}
-                                max={100}
+                                min={normalizedGaugeSettings.humidity.min}
+                                max={normalizedGaugeSettings.humidity.max}
                                 unit="%"
                                 color="#60a5fa"
+                                zones={normalizedGaugeSettings.humidity.zones}
                             />
                         </div>
 
