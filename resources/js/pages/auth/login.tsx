@@ -2,26 +2,20 @@ import { Form, Head, usePage } from '@inertiajs/react';
 import { Droplets, Eye, EyeOff, Thermometer } from 'lucide-react';
 import { useState } from 'react';
 import InputError from '@/components/input-error';
-import {
-    DEFAULT_HEADER_LOGOS
-    
-} from '@/components/scada/scada-helpers';
-import type {HeaderLogos} from '@/components/scada/scada-helpers';
-import TextLink from '@/components/text-link';
+import { DEFAULT_HEADER_LOGOS } from '@/components/scada/scada-helpers';
+import type { HeaderLogos } from '@/components/scada/scada-helpers';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { store } from '@/routes/login';
-import { request } from '@/routes/password';
 
 type Props = {
     status?: string;
-    canResetPassword: boolean;
 };
 
-export default function Login({ status, canResetPassword }: Props) {
+export default function Login({ status }: Props) {
     const [showPassword, setShowPassword] = useState(false);
     const headerLogos =
         usePage<{ headerLogos?: HeaderLogos }>().props.headerLogos ??
@@ -106,15 +100,6 @@ export default function Login({ status, canResetPassword }: Props) {
                                                     >
                                                         Kata Sandi
                                                     </Label>
-                                                    {canResetPassword && (
-                                                        <TextLink
-                                                            href={request()}
-                                                            className="ml-auto text-sm text-cyan-400 no-underline hover:text-cyan-300"
-                                                            tabIndex={5}
-                                                        >
-                                                            Lupa kata sandi?
-                                                        </TextLink>
-                                                    )}
                                                 </div>
                                                 <div className="relative">
                                                     <Input
@@ -233,28 +218,7 @@ export default function Login({ status, canResetPassword }: Props) {
                                     Bandara Soekarno‑Hatta
                                 </p>
 
-                                <div className="mt-8 grid grid-cols-2 gap-3">
-                                    {[
-                                        { label: 'Ruangan', value: '5' },
-                                        { label: 'Sensor', value: '25' },
-                                        { label: 'Protokol', value: 'Modbus' },
-                                        { label: 'Interval', value: '30d' },
-                                    ].map((stat) => (
-                                        <div
-                                            key={stat.label}
-                                            className="flex flex-col items-center rounded-xl border border-slate-700/60 bg-slate-800/60 p-4 backdrop-blur-sm"
-                                        >
-                                            <span className="text-xl font-bold text-cyan-400">
-                                                {stat.value}
-                                            </span>
-                                            <span className="mt-0.5 text-[10px] tracking-wider text-slate-400 uppercase">
-                                                {stat.label}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                <div className="mt-10 flex items-center gap-4 opacity-40">
+                                <div className="mt-8 flex items-center gap-4 opacity-40">
                                     <img
                                         src={headerLogos.left}
                                         alt="InJourney"
