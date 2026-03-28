@@ -589,6 +589,130 @@ def sync_sensor_name(cursor, sensor_id: int, name: str) -> None:
     )
 
 
+def sync_alarm_events(
+    cursor,
+    sensor_id: int,
+    now,
+    temperature: float | None,
+    humidity: float | None,
+    alarm_temp: bool,
+    alarm_hum: bool,
+    alarm_disconnect: bool,
+) -> None:
+    """
+    Sinkron event alarm historis per sensor.
+    - Satu event aktif per kombinasi sensor_id + alarm_type.
+    - Saat alarm masih aktif: update current_value + updated_at.
+    - Saat alarm nonaktif: tutup event aktif via cleared_at.
+    """
+    desired_states = {
+        "temp": (alarm_temp, temperature),
+        "hum": (alarm_hum, humidity),
+        "disconnect": (alarm_disconnect, 0.0 if alarm_disconnect else 1.0),
+    }
+
+    for alarm_type, (is_active, current_value) in desired_states.items():
+        if is_active:
+            cursor.execute(
+                """
+                SELECT id
+                FROM alarm_events
+                WHERE sensor_id = %s
+                  AND alarm_type = %s
+                  AND cleared_at IS NULL
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (sensor_id, alarm_type),
+            )
+            row = cursor.fetchone()
+
+            if row:
+                cursor.execute(
+                    """
+                    UPDATE alarm_events
+                    SET current_value = %s,
+                        updated_at = %s
+                    WHERE id = %s
+                    """,
+                    (current_value, now, row[0]),
+                )
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO alarm_events
+                        (sensor_id, alarm_type, current_value, occurred_at, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    """,
+                    (sensor_id, alarm_type, current_value, now, now, now),
+                )
+        else:
+            cursor.execute(
+                """
+                UPDATE alarm_events
+                SET cleared_at = %s,
+                    updated_at = %s
+                WHERE sensor_id = %s
+                  AND alarm_type = %s
+                  AND cleared_at IS NULL
+                """,
+                (now, now, sensor_id, alarm_type),
+            )
+
+
+def mark_hmi_offline_alarm_events(cursor, hmi_id: int, now) -> None:
+    """
+    Saat koneksi HMI putus total:
+    - tutup event temp/hum yang masih aktif
+    - buka/pertahankan disconnect event aktif untuk semua sensor di HMI ini
+    """
+    cursor.execute(
+        """
+        UPDATE alarm_events ae
+        SET cleared_at = %s,
+            updated_at = %s
+        FROM sensors s
+        WHERE ae.sensor_id = s.id
+          AND s.hmi_id = %s
+          AND ae.alarm_type IN ('temp', 'hum')
+          AND ae.cleared_at IS NULL
+        """,
+        (now, now, hmi_id),
+    )
+
+    cursor.execute(
+        """
+        INSERT INTO alarm_events
+            (sensor_id, alarm_type, current_value, occurred_at, created_at, updated_at)
+        SELECT s.id, 'disconnect', 0, %s, %s, %s
+        FROM sensors s
+        WHERE s.hmi_id = %s
+          AND NOT EXISTS (
+              SELECT 1
+              FROM alarm_events ae
+              WHERE ae.sensor_id = s.id
+                AND ae.alarm_type = 'disconnect'
+                AND ae.cleared_at IS NULL
+          )
+        """,
+        (now, now, now, hmi_id),
+    )
+
+    cursor.execute(
+        """
+        UPDATE alarm_events ae
+        SET current_value = 0,
+            updated_at = %s
+        FROM sensors s
+        WHERE ae.sensor_id = s.id
+          AND s.hmi_id = %s
+          AND ae.alarm_type = 'disconnect'
+          AND ae.cleared_at IS NULL
+        """,
+        (now, hmi_id),
+    )
+
+
 def mark_hmi_offline(cursor, hmi_id: int, now) -> None:
     """
     Bulk UPDATE semua sensor HMI ini ke OFFLINE.
@@ -1059,6 +1183,17 @@ def poll_hmi(hmi: dict, cursor, now) -> None:
                     now,
                 ))
 
+                sync_alarm_events(
+                    cursor,
+                    sensor_id=sensor["sensor_id"],
+                    now=now,
+                    temperature=temp,
+                    humidity=hum,
+                    alarm_temp=alarms["alarm_temp"],
+                    alarm_hum=alarms["alarm_hum"],
+                    alarm_disconnect=alarms["alarm_disconnect"],
+                )
+
                 log.debug(
                     "HMI %d sensor '%s' (pos=%d) — "
                     "temp=%.1f hum=%.1f cal_t=%.2f cal_h=%.2f | "
@@ -1106,6 +1241,18 @@ def poll_hmi(hmi: dict, cursor, now) -> None:
             ]
             upsert_sensor_data(cursor, offline_rows)
 
+            for sensor_id in offline_ids:
+                sync_alarm_events(
+                    cursor,
+                    sensor_id=sensor_id,
+                    now=now,
+                    temperature=None,
+                    humidity=None,
+                    alarm_temp=False,
+                    alarm_hum=False,
+                    alarm_disconnect=True,
+                )
+
         preview_label = " [PREVIEW]" if hmi.get("is_preview") else ""
         log.info(
             "HMI %d (%s)%s — %d OK  %d OFFLINE",
@@ -1119,6 +1266,7 @@ def poll_hmi(hmi: dict, cursor, now) -> None:
             hmi["hmi_id"], hmi["ip_address"], exc,
         )
         mark_hmi_offline(cursor, hmi["hmi_id"], now)
+        mark_hmi_offline_alarm_events(cursor, hmi["hmi_id"], now)
 
     finally:
         client.close()

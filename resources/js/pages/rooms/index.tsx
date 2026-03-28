@@ -108,7 +108,7 @@ function ConnectHmiPreviewDialog({
     const [hasPassedConnectionTest, setHasPassedConnectionTest] =
         useState(false);
     const pollingRef = useRef<number | null>(null);
-    const PREVIEW_TIMEOUT = 15;
+    const PREVIEW_TIMEOUT = 30;
 
     function clearPolling(): void {
         if (pollingRef.current !== null) {

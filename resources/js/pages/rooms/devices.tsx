@@ -108,7 +108,7 @@ function HmiFormDialog({
         Partial<Record<'name' | 'ip_address' | 'port' | 'register_function', string>>
     >({});
     const pollingRef = useRef<number | null>(null);
-    const PREVIEW_TIMEOUT = 15;
+    const PREVIEW_TIMEOUT = 30;
 
     const { data, setData, put, processing, errors, reset } = useForm({
         room_id: roomId,

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Database\Factories\SensorFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Sensor extends Model
 {
-    /** @use HasFactory<\Database\Factories\SensorFactory> */
+    /** @use HasFactory<SensorFactory> */
     use HasFactory;
 
     /** @var list<string> */
@@ -48,5 +49,10 @@ class Sensor extends Model
     public function readings(): HasMany
     {
         return $this->hasMany(SensorReading::class);
+    }
+
+    public function alarmEvents(): HasMany
+    {
+        return $this->hasMany(AlarmEvent::class);
     }
 }
