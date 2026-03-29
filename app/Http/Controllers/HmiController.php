@@ -14,6 +14,10 @@ use Illuminate\Support\Facades\DB;
 
 class HmiController extends Controller
 {
+    private const ROOM_PENDING_PREFIX = 'PENDING_ROOM_';
+
+    private const SENSOR_PENDING_PREFIX = 'PENDING_SENSOR_';
+
     public function store(StoreHmiRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -27,7 +31,7 @@ class HmiController extends Controller
 
         $hmi = DB::transaction(function () use ($validated, $sensorMap): Hmi {
             $room = Room::create([
-                'name' => 'ROOM '.$validated['ip_address'],
+                'name' => self::ROOM_PENDING_PREFIX.$validated['ip_address'],
                 'location' => null,
             ]);
 
@@ -46,7 +50,7 @@ class HmiController extends Controller
             foreach (range(1, 4) as $position) {
                 Sensor::create([
                     'hmi_id' => $hmi->id,
-                    'name' => "Sensor {$position}",
+                    'name' => self::SENSOR_PENDING_PREFIX.$position,
                     'unit_id' => $position,
                     'modbus_address_temp' => $sensorMap[$position]['temp'],
                     'modbus_address_hum' => $sensorMap[$position]['hum'],
@@ -64,11 +68,19 @@ class HmiController extends Controller
 
     public function previewData(Hmi $hmi): JsonResponse
     {
-        $hmi->loadMissing(['room', 'latestData']);
+        $hmi->loadMissing(['room', 'latestData', 'sensors.latestData']);
+
+        $pendingRoomName = $hmi->room !== null
+            && str_starts_with($hmi->room->name, self::ROOM_PENDING_PREFIX);
+
+        $pendingSensorName = $hmi->sensors->contains(
+            fn (Sensor $sensor) => str_starts_with($sensor->name, self::SENSOR_PENDING_PREFIX)
+        );
 
         if (! $hmi->is_preview) {
             return response()->json([
                 'ready' => false,
+                'name_sync_ready' => ! $pendingRoomName && ! $pendingSensorName,
                 'room_name' => $hmi->room?->name,
                 'room_detail' => $hmi->room?->location,
                 'hmi_avg' => [
@@ -94,6 +106,7 @@ class HmiController extends Controller
 
         return response()->json([
             'ready' => $hasData,
+            'name_sync_ready' => ! $pendingRoomName && ! $pendingSensorName,
             'room_name' => $hmi->room?->name,
             'room_detail' => $hmi->room?->location,
             'hmi_avg' => [
@@ -137,20 +150,20 @@ class HmiController extends Controller
             ], 409);
         }
 
-        $validated = $request->validate([
-            'sensor_names' => ['sometimes', 'array'],
-            'sensor_names.*' => ['nullable', 'string', 'max:100'],
-        ]);
+        $hmi->loadMissing(['room', 'sensors']);
 
-        foreach ($validated['sensor_names'] ?? [] as $sensorId => $name) {
-            $normalizedName = trim((string) $name);
-            if ($normalizedName === '') {
-                continue;
-            }
+        $roomNamePending = $hmi->room !== null
+            && str_starts_with($hmi->room->name, self::ROOM_PENDING_PREFIX);
 
-            $hmi->sensors()
-                ->whereKey((int) $sensorId)
-                ->update(['name' => $normalizedName]);
+        $sensorNamePending = $hmi->sensors->contains(
+            fn (Sensor $sensor) => str_starts_with($sensor->name, self::SENSOR_PENDING_PREFIX)
+        );
+
+        if ($roomNamePending || $sensorNamePending) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Nama room/sensor dari HMI belum tersinkron. Pastikan poller berjalan lalu coba lagi.',
+            ], 422);
         }
 
         $hmi->update([

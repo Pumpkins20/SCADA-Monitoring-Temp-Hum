@@ -74,14 +74,14 @@ test('can create a preview hmi and auto-create 4 sensors', function () {
 
     $this->assertDatabaseHas('rooms', [
         'id' => $room->id,
-        'name' => 'ROOM 192.168.1.10',
+        'name' => 'PENDING_ROOM_192.168.1.10',
     ]);
 
     expect(Sensor::query()->where('hmi_id', $hmiId)->count())->toBe(4);
 
     $this->assertDatabaseHas('sensors', [
         'hmi_id' => $hmiId,
-        'name' => 'Sensor 1',
+        'name' => 'PENDING_SENSOR_1',
         'unit_id' => 1,
         'modbus_address_temp' => 9,
         'modbus_address_hum' => 11,
@@ -89,7 +89,7 @@ test('can create a preview hmi and auto-create 4 sensors', function () {
 
     $this->assertDatabaseHas('sensors', [
         'hmi_id' => $hmiId,
-        'name' => 'Sensor 2',
+        'name' => 'PENDING_SENSOR_2',
         'unit_id' => 2,
         'modbus_address_temp' => 33,
         'modbus_address_hum' => 35,
@@ -97,7 +97,7 @@ test('can create a preview hmi and auto-create 4 sensors', function () {
 
     $this->assertDatabaseHas('sensors', [
         'hmi_id' => $hmiId,
-        'name' => 'Sensor 3',
+        'name' => 'PENDING_SENSOR_3',
         'unit_id' => 3,
         'modbus_address_temp' => 57,
         'modbus_address_hum' => 59,
@@ -105,7 +105,7 @@ test('can create a preview hmi and auto-create 4 sensors', function () {
 
     $this->assertDatabaseHas('sensors', [
         'hmi_id' => $hmiId,
-        'name' => 'Sensor 4',
+        'name' => 'PENDING_SENSOR_4',
         'unit_id' => 4,
         'modbus_address_temp' => 81,
         'modbus_address_hum' => 83,
@@ -215,24 +215,23 @@ test('preview-data returns ready true when all sensors have latest data', functi
 
 // ─── hmis.confirm / hmis.cancel-preview ──────────────────────────────────────
 
-test('confirm activates preview hmi and updates sensor names', function () {
+test('confirm activates preview hmi after names are synced from hmi', function () {
     $hmi = Hmi::factory()->create([
         'is_active' => false,
         'is_preview' => true,
     ]);
 
-    $sensors = Sensor::factory()->count(2)->create([
+    $room = Room::query()->findOrFail($hmi->room_id);
+    $room->update(['name' => 'Ruang Produksi']);
+
+    Sensor::factory()->count(2)->create([
         'hmi_id' => $hmi->id,
+        'name' => 'Sensor Rak A',
     ]);
 
     $this->actingAs(User::factory()->create(['is_admin' => true]))
         ->withSession(['auth.password_confirmed_at' => time()])
-        ->postJson(route('hmis.confirm', $hmi), [
-            'sensor_names' => [
-                $sensors[0]->id => 'Sensor Utara',
-                $sensors[1]->id => 'Sensor Selatan',
-            ],
-        ])
+        ->postJson(route('hmis.confirm', $hmi))
         ->assertOk()
         ->assertJson(['success' => true]);
 
@@ -242,14 +241,32 @@ test('confirm activates preview hmi and updates sensor names', function () {
         'is_preview' => false,
     ]);
 
-    $this->assertDatabaseHas('sensors', [
-        'id' => $sensors[0]->id,
-        'name' => 'Sensor Utara',
+});
+
+test('confirm returns validation error while names are still pending from placeholder defaults', function () {
+    $hmi = Hmi::factory()->create([
+        'is_active' => false,
+        'is_preview' => true,
     ]);
 
-    $this->assertDatabaseHas('sensors', [
-        'id' => $sensors[1]->id,
-        'name' => 'Sensor Selatan',
+    $room = Room::query()->findOrFail($hmi->room_id);
+    $room->update(['name' => 'PENDING_ROOM_192.168.1.100']);
+
+    Sensor::factory()->count(2)->create([
+        'hmi_id' => $hmi->id,
+        'name' => 'PENDING_SENSOR_1',
+    ]);
+
+    $this->actingAs(User::factory()->create(['is_admin' => true]))
+        ->withSession(['auth.password_confirmed_at' => time()])
+        ->postJson(route('hmis.confirm', $hmi))
+        ->assertStatus(422)
+        ->assertJsonPath('success', false);
+
+    $this->assertDatabaseHas('hmis', [
+        'id' => $hmi->id,
+        'is_active' => false,
+        'is_preview' => true,
     ]);
 });
 

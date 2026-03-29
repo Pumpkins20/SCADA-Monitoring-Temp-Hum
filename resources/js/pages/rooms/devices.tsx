@@ -6,7 +6,7 @@ import {
     Cpu,
     Lock,
     Pencil,
-    Plus,
+    // Plus,
     Radio,
     Thermometer,
     Trash2,
@@ -1192,13 +1192,13 @@ export default function RoomDevices({ room, hmis }: DevicesPageProps) {
                                 {room.name}
                             </span>
                         </div>
-                        <Button
+                        {/* <Button
                             onClick={() => setShowAddHmi(true)}
                             className="bg-cyan-600 text-white shadow-[0_0_12px_#22d3ee40] hover:bg-cyan-500"
                         >
                             <Plus className="h-4 w-4" />
                             Tambah Koneksi HMI
-                        </Button>
+                        </Button> */}
                     </div>
 
                     {/* ── Room Info Card ── */}
