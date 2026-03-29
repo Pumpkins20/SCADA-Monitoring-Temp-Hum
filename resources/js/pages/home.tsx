@@ -437,7 +437,7 @@ export default function HomePage({ rooms, chartLogs, globalStats }: HomeProps) {
     useEffect(() => {
         const timer = setInterval(() => {
             router.reload({ only: ['rooms', 'chartLogs', 'globalStats'] });
-        }, 30_000);
+        }, 5_000);
         return () => clearInterval(timer);
     }, []);
 

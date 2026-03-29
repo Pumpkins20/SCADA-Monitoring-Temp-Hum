@@ -247,7 +247,7 @@ export default function Dashboard({
             router.reload({
                 only: ['rooms', 'globalStats', 'chartLogs', 'gaugeSettings'],
             });
-        }, 30_000);
+        }, 5_000);
         return () => clearInterval(timer);
     }, []);
 
