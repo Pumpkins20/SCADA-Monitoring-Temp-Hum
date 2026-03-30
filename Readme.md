@@ -82,9 +82,10 @@ php artisan test --compact
 
 # Deployment (Production)
 ```bash
-pm2 start "php artisan serve --host=0.0.0.0 --port=80" --name "laravel-scada"
-pm2 start poller.py --name "python-modbus-worker" --interpreter python3
-pm2 start "php artisan schedule:work" --name "laravel-scheduler"
+APP_DIR=/home/edutic/temperature-humidity-monitor pm2 startOrReload ecosystem.config.cjs --update-env
 pm2 save
 pm2 startup
 ```
+
+Panduan lengkap deployment + Redis cache store ada di:
+- DEPLOYMENT-PRODUCTION-PM2-REDIS.md

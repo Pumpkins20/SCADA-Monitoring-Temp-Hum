@@ -11,18 +11,21 @@ Artisan::command('inspire', function () {
 
 // Agregasi rata-rata per-room ke sensor_logs (setiap 15 menit)
 Schedule::command('aggregate:room-logs')
+    ->name('aggregate-room-logs')
     ->everyFifteenMinutes()
-    ->withoutOverlapping();
+    ->withoutOverlapping(30);
 
 // Agregasi rata-rata per-sensor ke sensor_readings (setiap 1 menit)
 Schedule::command('aggregate:sensor-readings')
+    ->name('aggregate-sensor-readings')
     ->everyMinute()
-    ->withoutOverlapping();
+    ->withoutOverlapping(5);
 
 // Purge data > 90 hari (setiap hari tengah malam)
 Schedule::command('purge:old-logs')
+    ->name('purge-old-logs')
     ->daily()
-    ->withoutOverlapping();
+    ->withoutOverlapping(180);
 
 Schedule::call(function (): void {
     Hmi::query()
@@ -32,4 +35,4 @@ Schedule::call(function (): void {
 })
     ->name('cleanup-preview-hmis')
     ->everyFiveMinutes()
-    ->withoutOverlapping();
+    ->withoutOverlapping(10);
