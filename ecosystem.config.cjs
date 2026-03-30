@@ -9,7 +9,7 @@ module.exports = {
             name: 'laravel-scada',
             cwd: appDir,
             script: '/usr/bin/php',
-            args: 'artisan serve --host=0.0.0.0 --port=80',
+            args: 'artisan serve --host=0.0.0.0 --port=8000',
             interpreter: 'none',
             autorestart: true,
             max_restarts: 20,
