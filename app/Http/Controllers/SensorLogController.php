@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Room;
 use App\Models\Sensor;
 use App\Models\SensorReading;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -20,6 +22,14 @@ class SensorLogController extends Controller
     {
         $rooms = Room::query()->orderBy('name')->get(['id', 'name']);
         $activeRoomId = (int) $request->query('room', $rooms->first()?->id ?? 0);
+        $timeFilterMode = $this->resolveTimeFilterMode(
+            (string) $request->query('time_filter', 'none')
+        );
+        $startAt = $this->parseDateTime((string) $request->query('start_at', ''));
+        $endAt = $this->parseDateTime((string) $request->query('end_at', ''));
+        $recentMinutes = $this->normalizeRecentMinutes(
+            (int) $request->query('recent_minutes', 5)
+        );
 
         // Sensors for the active room, ordered consistently
         $sensors = Sensor::query()
@@ -38,10 +48,27 @@ class SensorLogController extends Controller
             ->selectRaw('DISTINCT created_at')
             ->orderByDesc('created_at');
 
-        $totalRows = SensorReading::query()
+        $this->applyTimeFilter(
+            $timestampsQuery,
+            $timeFilterMode,
+            $startAt,
+            $endAt,
+            $recentMinutes,
+        );
+
+        $totalRowsQuery = SensorReading::query()
             ->whereIn('sensor_id', $sensorIds)
-            ->selectRaw('COUNT(DISTINCT created_at) as cnt')
-            ->value('cnt');
+            ->selectRaw('COUNT(DISTINCT created_at) as cnt');
+
+        $this->applyTimeFilter(
+            $totalRowsQuery,
+            $timeFilterMode,
+            $startAt,
+            $endAt,
+            $recentMinutes,
+        );
+
+        $totalRows = $totalRowsQuery->value('cnt');
 
         $timestamps = $timestampsQuery
             ->offset(($page - 1) * $perPage)
@@ -93,6 +120,12 @@ class SensorLogController extends Controller
             'activeRoomId' => $activeRoomId,
             'sensors' => $sensorList->map(fn (Sensor $s) => ['id' => $s->id, 'name' => $s->name])->all(),
             'logs' => $rows,
+            'timeFilter' => [
+                'mode' => $timeFilterMode,
+                'start_at' => $startAt?->format('Y-m-d H:i:s'),
+                'end_at' => $endAt?->format('Y-m-d H:i:s'),
+                'recent_minutes' => $recentMinutes,
+            ],
             'pagination' => [
                 'currentPage' => $page,
                 'lastPage' => (int) ceil($totalRows / $perPage),
@@ -105,6 +138,14 @@ class SensorLogController extends Controller
     {
         $activeRoomId = (int) $request->query('room');
         $room = Room::findOrFail($activeRoomId);
+        $timeFilterMode = $this->resolveTimeFilterMode(
+            (string) $request->query('time_filter', 'none')
+        );
+        $startAt = $this->parseDateTime((string) $request->query('start_at', ''));
+        $endAt = $this->parseDateTime((string) $request->query('end_at', ''));
+        $recentMinutes = $this->normalizeRecentMinutes(
+            (int) $request->query('recent_minutes', 5)
+        );
 
         $sensors = Sensor::query()
             ->whereHas('hmi', fn ($q) => $q->where('room_id', $activeRoomId))
@@ -147,11 +188,19 @@ class SensorLogController extends Controller
         // Fetch dates chunk by chunk to avoid memory exhaustion
         $perPage = 1000;
         $page = 1;
+        $baseTimestampsQuery = SensorReading::query()->whereIn('sensor_id', $sensorIds);
+
+        $this->applyTimeFilter(
+            $baseTimestampsQuery,
+            $timeFilterMode,
+            $startAt,
+            $endAt,
+            $recentMinutes,
+        );
 
         while (true) {
             // Get distinct timestamps
-            $timestamps = SensorReading::query()
-                ->whereIn('sensor_id', $sensorIds)
+            $timestamps = (clone $baseTimestampsQuery)
                 ->selectRaw('DISTINCT created_at')
                 ->orderByDesc('created_at')
                 ->offset(($page - 1) * $perPage)
@@ -212,5 +261,57 @@ class SensorLogController extends Controller
         }
 
         $writer->close();
+    }
+
+    private function resolveTimeFilterMode(string $mode): string
+    {
+        $allowed = ['none', 'interval', 'recent'];
+
+        return in_array($mode, $allowed, true) ? $mode : 'none';
+    }
+
+    private function parseDateTime(string $value): ?Carbon
+    {
+        if ($value === '') {
+            return null;
+        }
+
+        try {
+            return Carbon::createFromFormat('Y-m-d H:i:s', $value);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function normalizeRecentMinutes(int $minutes): int
+    {
+        if ($minutes < 1) {
+            return 5;
+        }
+
+        return min($minutes, 1440);
+    }
+
+    private function applyTimeFilter(
+        Builder $query,
+        string $mode,
+        ?Carbon $startAt,
+        ?Carbon $endAt,
+        int $recentMinutes,
+    ): void {
+        if ($mode === 'recent') {
+            $query->where('created_at', '>=', now()->subMinutes($recentMinutes));
+
+            return;
+        }
+
+        if ($mode !== 'interval' || $startAt === null || $endAt === null) {
+            return;
+        }
+
+        $from = $startAt->lte($endAt) ? $startAt : $endAt;
+        $to = $startAt->lte($endAt) ? $endAt : $startAt;
+
+        $query->whereBetween('created_at', [$from, $to]);
     }
 }

@@ -433,7 +433,7 @@ export default function HomePage({ rooms, chartLogs, globalStats }: HomeProps) {
         return () => clearInterval(timer);
     }, []);
 
-    // Auto-refresh data every 30 seconds
+    // Auto-refresh data every 5 seconds
     useEffect(() => {
         const timer = setInterval(() => {
             router.reload({ only: ['rooms', 'chartLogs', 'globalStats'] });

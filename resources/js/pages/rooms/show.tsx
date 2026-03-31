@@ -127,7 +127,7 @@ export default function RoomShow({
     useEffect(() => {
         const timer = setInterval(() => {
             router.reload({ only: ['room', 'chartLogs', 'gaugeSettings'] });
-        }, 30_000);
+        }, 5_000);
         return () => clearInterval(timer);
     }, []);
 

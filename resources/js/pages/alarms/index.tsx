@@ -86,7 +86,7 @@ export default function AlarmIndex({
     useEffect(() => {
         const timer = setInterval(() => {
             router.reload({ only: ['rows', 'pagination'] });
-        }, 30_000);
+        }, 5_000);
 
         return () => clearInterval(timer);
     }, []);
@@ -174,6 +174,7 @@ export default function AlarmIndex({
     const activeAlarmRoomNames =
         Array.from(new Set(rows.map((row) => row.room_name).filter((name) => name !== '-'))).join(', ') ||
         '—';
+    const showRoomColumns = filters.room === null;
 
     return (
         <>
@@ -335,6 +336,16 @@ export default function AlarmIndex({
                                     <TableHead className="text-center text-[11px] font-semibold tracking-wider text-slate-300 uppercase">
                                         Alarm time
                                     </TableHead>
+                                    {showRoomColumns && (
+                                        <>
+                                            <TableHead className="text-center text-[11px] font-semibold tracking-wider text-slate-300 uppercase">
+                                                Room name
+                                            </TableHead>
+                                            <TableHead className="text-center text-[11px] font-semibold tracking-wider text-slate-300 uppercase">
+                                                Room detail
+                                            </TableHead>
+                                        </>
+                                    )}
                                     <TableHead className="text-center text-[11px] font-semibold tracking-wider text-slate-300 uppercase">
                                         Current value
                                     </TableHead>
@@ -356,7 +367,7 @@ export default function AlarmIndex({
                                 {rows.length === 0 ? (
                                     <TableRow className="border-slate-700/60 hover:bg-transparent">
                                         <TableCell
-                                            colSpan={6}
+                                            colSpan={showRoomColumns ? 8 : 6}
                                             className="py-14 text-center text-slate-500"
                                         >
                                             No data for the current time period
@@ -371,6 +382,16 @@ export default function AlarmIndex({
                                             <TableCell className="text-center font-mono text-xs text-slate-200 tabular-nums">
                                                 {row.alarm_time}
                                             </TableCell>
+                                            {showRoomColumns && (
+                                                <>
+                                                    <TableCell className="text-center text-xs text-slate-200">
+                                                        {row.room_name}
+                                                    </TableCell>
+                                                    <TableCell className="text-center text-xs text-slate-400">
+                                                        {row.room_detail}
+                                                    </TableCell>
+                                                </>
+                                            )}
                                             <TableCell className="text-center font-mono text-xs text-slate-100 tabular-nums">
                                                 {row.current_value}
                                             </TableCell>
