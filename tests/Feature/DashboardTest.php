@@ -171,22 +171,49 @@ test('room status is WARNING when any sensor is WARNING but none CRITICAL', func
 
 // ─── active_alarms count ──────────────────────────────────────────────────────
 
-test('globalStats active_alarms counts WARNING and CRITICAL sensors', function () {
+test('globalStats active_alarms counts total active alarm conditions', function () {
     $room = Room::factory()->create();
     $hmi = Hmi::factory()->create(['room_id' => $room->id]);
 
-    $sensors = Sensor::factory()->count(5)->create(['hmi_id' => $hmi->id]);
-    SensorLatestData::factory()->normal()->create(['sensor_id' => $sensors[0]->id]);
-    SensorLatestData::factory()->warning()->create(['sensor_id' => $sensors[1]->id]);
-    SensorLatestData::factory()->warning()->create(['sensor_id' => $sensors[2]->id]);
-    SensorLatestData::factory()->critical()->create(['sensor_id' => $sensors[3]->id]);
-    SensorLatestData::factory()->offline()->create(['sensor_id' => $sensors[4]->id]);
+    $sensors = Sensor::factory()->count(4)->create(['hmi_id' => $hmi->id]);
+
+    SensorLatestData::factory()->create([
+        'sensor_id' => $sensors[0]->id,
+        'status' => 'WARNING',
+        'alarm_temp' => true,
+        'alarm_hum' => true,
+        'alarm_disconnect' => false,
+    ]);
+
+    SensorLatestData::factory()->create([
+        'sensor_id' => $sensors[1]->id,
+        'status' => 'WARNING',
+        'alarm_temp' => true,
+        'alarm_hum' => true,
+        'alarm_disconnect' => false,
+    ]);
+
+    SensorLatestData::factory()->create([
+        'sensor_id' => $sensors[2]->id,
+        'status' => 'OFFLINE',
+        'alarm_temp' => false,
+        'alarm_hum' => false,
+        'alarm_disconnect' => true,
+    ]);
+
+    SensorLatestData::factory()->create([
+        'sensor_id' => $sensors[3]->id,
+        'status' => 'NORMAL',
+        'alarm_temp' => false,
+        'alarm_hum' => false,
+        'alarm_disconnect' => false,
+    ]);
 
     $this->actingAs(User::factory()->create())
         ->get(route('dashboard'))
         ->assertInertia(
             fn ($page) => $page
-                ->where('globalStats.active_alarms', 3)
+                ->where('globalStats.active_alarms', 5)
         );
 });
 

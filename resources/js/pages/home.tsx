@@ -465,10 +465,7 @@ export default function HomePage({ rooms, chartLogs, globalStats }: HomeProps) {
 
     const hasAlarms = globalStats.active_alarms > 0;
 
-    const alarmSensorNames = sensors
-        .filter((s) => s.status === 'WARNING' || s.status === 'CRITICAL')
-        .map((s) => s.name)
-        .join(', ');
+    const totalActiveAlarms = globalStats.active_alarms;
 
     const lastUpdate = room?.last_update
         ? new Date(room.last_update).toLocaleTimeString('id-ID', {
@@ -661,8 +658,8 @@ export default function HomePage({ rooms, chartLogs, globalStats }: HomeProps) {
                             <span
                                 className={`text-xs font-semibold ${hasAlarms ? 'text-red-400' : 'text-slate-500'}`}
                             >
-                                ALARM AKTIF :{' '}
-                                {hasAlarms ? alarmSensorNames : '—'}
+                                TOTAL ALARM AKTIF :{' '}
+                                {hasAlarms ? totalActiveAlarms : 0}
                             </span>
                         </div>
                         <span className="text-[10px] text-slate-500">

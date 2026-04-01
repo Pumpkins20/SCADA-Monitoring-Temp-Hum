@@ -114,12 +114,14 @@ function RoomCard({
     const onlineCount = room.sensors.filter(
         (s) => s.status !== 'OFFLINE',
     ).length;
-    const activeAlarmCount = room.sensors.filter(
-        (sensor) =>
-            sensor.alarms?.temp ||
-            sensor.alarms?.hum ||
-            sensor.alarms?.disconnect,
-    ).length;
+    const activeAlarmCount = room.sensors.reduce((total, sensor) => {
+        return (
+            total +
+            Number(Boolean(sensor.alarms?.temp)) +
+            Number(Boolean(sensor.alarms?.hum)) +
+            Number(Boolean(sensor.alarms?.disconnect))
+        );
+    }, 0);
     const totalCount = room.sensors.length;
 
     return (
@@ -273,10 +275,7 @@ export default function Dashboard({
 
     const hasAlarms = globalStats.active_alarms > 0;
 
-    const alarmRoomNames = rooms
-        .filter((r) => r.status === 'WARNING' || r.status === 'CRITICAL')
-        .map((r) => r.name)
-        .join(', ');
+    const alarmSummaryText = `${globalStats.active_alarms} alarm`;
 
     const lastUpdate = globalStats.last_update
         ? new Date(globalStats.last_update).toLocaleTimeString('id-ID', {
@@ -570,7 +569,7 @@ export default function Dashboard({
                     onSettingsClick={() => router.visit('/settings-general')}
                     rooms={rooms}
                     hasAlarms={hasAlarms}
-                    alarmRoomNames={alarmRoomNames}
+                    alarmRoomNames={hasAlarms ? alarmSummaryText : ''}
                     lastUpdate={lastUpdate}
                     dateStr={dateStr}
                 />
