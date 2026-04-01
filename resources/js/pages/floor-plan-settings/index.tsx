@@ -46,6 +46,7 @@ interface LocalEdit {
 
 type RowState = 'idle' | 'saving' | 'saved' | 'error';
 type ActionState = 'idle' | 'saving' | 'saved' | 'error';
+type SensorPatchOutcome = 'success' | 'error' | 'cancelled';
 
 type AllEdits = Record<number, Record<number, LocalEdit>>;
 type AllRowStates = Record<number, Record<number, RowState>>;
@@ -644,51 +645,79 @@ export default function FloorPlanSettingsPage({
         setDragPointer(null);
     }
 
-    function handleSavePosition(
+    function patchSensorPosition(
+        sensorId: number,
+        posX: number | null,
+        posY: number | null,
+    ): Promise<SensorPatchOutcome> {
+        return new Promise((resolve) => {
+            let outcome: SensorPatchOutcome = 'cancelled';
+
+            router.patch(
+                `/floor-plan-settings/sensors/${sensorId}`,
+                { pos_x: posX, pos_y: posY },
+                {
+                    preserveState: true,
+                    preserveScroll: true,
+                    onSuccess: () => {
+                        outcome = 'success';
+                    },
+                    onError: () => {
+                        outcome = 'error';
+                    },
+                    onFinish: () => {
+                        resolve(outcome);
+                    },
+                },
+            );
+        });
+    }
+
+    async function handleSavePosition(
         roomId: number,
         sensor: SensorConfig,
         edit: LocalEdit,
-    ) {
+    ): Promise<void> {
         setAllRowStates((prev) => ({
             ...prev,
             [roomId]: { ...(prev[roomId] ?? {}), [sensor.id]: 'saving' },
         }));
 
-        router.patch(
-            `/floor-plan-settings/sensors/${sensor.id}`,
-            { pos_x: parseCoord(edit.pos_x), pos_y: parseCoord(edit.pos_y) },
-            {
-                preserveState: true,
-                preserveScroll: true,
-                onSuccess: () => {
-                    setAllRowStates((prev) => ({
-                        ...prev,
-                        [roomId]: {
-                            ...(prev[roomId] ?? {}),
-                            [sensor.id]: 'saved',
-                        },
-                    }));
-                    setTimeout(() => {
-                        setAllRowStates((prev) => ({
-                            ...prev,
-                            [roomId]: {
-                                ...(prev[roomId] ?? {}),
-                                [sensor.id]: 'idle',
-                            },
-                        }));
-                    }, 2500);
-                },
-                onError: () => {
-                    setAllRowStates((prev) => ({
-                        ...prev,
-                        [roomId]: {
-                            ...(prev[roomId] ?? {}),
-                            [sensor.id]: 'error',
-                        },
-                    }));
-                },
-            },
+        const outcome = await patchSensorPosition(
+            sensor.id,
+            parseCoord(edit.pos_x),
+            parseCoord(edit.pos_y),
         );
+
+        if (outcome === 'success') {
+            setAllRowStates((prev) => ({
+                ...prev,
+                [roomId]: {
+                    ...(prev[roomId] ?? {}),
+                    [sensor.id]: 'saved',
+                },
+            }));
+
+            setTimeout(() => {
+                setAllRowStates((prev) => ({
+                    ...prev,
+                    [roomId]: {
+                        ...(prev[roomId] ?? {}),
+                        [sensor.id]: 'idle',
+                    },
+                }));
+            }, 2500);
+
+            return;
+        }
+
+        setAllRowStates((prev) => ({
+            ...prev,
+            [roomId]: {
+                ...(prev[roomId] ?? {}),
+                [sensor.id]: outcome === 'error' ? 'error' : 'idle',
+            },
+        }));
     }
 
     async function handleSaveAllPositions(room: RoomConfig): Promise<void> {
@@ -708,80 +737,62 @@ export default function FloorPlanSettingsPage({
             return;
         }
 
-        let completed = 0;
         let failed = false;
 
-        await Promise.all(
-            changedSensors.map(
-                (sensor) =>
-                    new Promise<void>((resolve) => {
-                        const draft = getSensorDraft(room.id, sensor);
+        for (const sensor of changedSensors) {
+            const draft = getSensorDraft(room.id, sensor);
 
-                        setAllRowStates((prev) => ({
-                            ...prev,
-                            [room.id]: {
-                                ...(prev[room.id] ?? {}),
-                                [sensor.id]: 'saving',
-                            },
-                        }));
-
-                        router.patch(
-                            `/floor-plan-settings/sensors/${sensor.id}`,
-                            { pos_x: draft.x, pos_y: draft.y },
-                            {
-                                preserveState: true,
-                                preserveScroll: true,
-                                onSuccess: () => {
-                                    setAllRowStates((prev) => ({
-                                        ...prev,
-                                        [room.id]: {
-                                            ...(prev[room.id] ?? {}),
-                                            [sensor.id]: 'saved',
-                                        },
-                                    }));
-
-                                    setTimeout(() => {
-                                        setAllRowStates((prev) => ({
-                                            ...prev,
-                                            [room.id]: {
-                                                ...(prev[room.id] ?? {}),
-                                                [sensor.id]: 'idle',
-                                            },
-                                        }));
-                                    }, 2500);
-
-                                    completed += 1;
-                                    resolve();
-                                },
-                                onError: () => {
-                                    failed = true;
-                                    setAllRowStates((prev) => ({
-                                        ...prev,
-                                        [room.id]: {
-                                            ...(prev[room.id] ?? {}),
-                                            [sensor.id]: 'error',
-                                        },
-                                    }));
-
-                                    completed += 1;
-                                    resolve();
-                                },
-                            },
-                        );
-                    }),
-            ),
-        );
-
-        if (completed === changedSensors.length) {
-            setSaveAllStates((prev) => ({
+            setAllRowStates((prev) => ({
                 ...prev,
-                [room.id]: failed ? 'error' : 'saved',
+                [room.id]: {
+                    ...(prev[room.id] ?? {}),
+                    [sensor.id]: 'saving',
+                },
             }));
 
-            setTimeout(() => {
-                setSaveAllStates((prev) => ({ ...prev, [room.id]: 'idle' }));
-            }, 2500);
+            const outcome = await patchSensorPosition(sensor.id, draft.x, draft.y);
+
+            if (outcome === 'success') {
+                setAllRowStates((prev) => ({
+                    ...prev,
+                    [room.id]: {
+                        ...(prev[room.id] ?? {}),
+                        [sensor.id]: 'saved',
+                    },
+                }));
+
+                setTimeout(() => {
+                    setAllRowStates((prev) => ({
+                        ...prev,
+                        [room.id]: {
+                            ...(prev[room.id] ?? {}),
+                            [sensor.id]: 'idle',
+                        },
+                    }));
+                }, 2500);
+
+                continue;
+            }
+
+            failed = true;
+
+            setAllRowStates((prev) => ({
+                ...prev,
+                [room.id]: {
+                    ...(prev[room.id] ?? {}),
+                    [sensor.id]: outcome === 'error' ? 'error' : 'idle',
+                },
+            }));
         }
+
+        setSaveAllStates((prev) => ({
+            ...prev,
+            [room.id]: failed ? 'error' : 'saved',
+        }));
+
+        setTimeout(() => {
+            setSaveAllStates((prev) => ({ ...prev, [room.id]: 'idle' }));
+        }, 2500);
     }
 
     function handleFileSelect(roomId: number, file: File) {
