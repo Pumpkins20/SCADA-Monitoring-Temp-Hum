@@ -750,7 +750,11 @@ export default function FloorPlanSettingsPage({
                 },
             }));
 
-            const outcome = await patchSensorPosition(sensor.id, draft.x, draft.y);
+            const outcome = await patchSensorPosition(
+                sensor.id,
+                draft.x,
+                draft.y,
+            );
 
             if (outcome === 'success') {
                 setAllRowStates((prev) => ({
