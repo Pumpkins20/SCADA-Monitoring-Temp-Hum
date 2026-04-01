@@ -28,6 +28,9 @@ export interface RoomData {
     location: string | null;
     temp_max_limit: number;
     hum_max_limit: number;
+    floor_plan_image?: string | null;
+    floor_plan_width?: number;
+    floor_plan_height?: number;
     room_avg_temp: number | null;
     room_avg_hum: number | null;
     hmi_avg_temp?: number | null;

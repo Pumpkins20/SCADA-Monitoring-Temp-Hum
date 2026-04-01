@@ -327,6 +327,11 @@ export default function RoomShow({
                                     <FloorPlanMap
                                         sensors={room.sensors}
                                         roomName={room.name}
+                                        backgroundImage={
+                                            room.floor_plan_image ?? null
+                                        }
+                                        roomWidth={room.floor_plan_width}
+                                        roomHeight={room.floor_plan_height}
                                     />
                                 </div>
                             )}
