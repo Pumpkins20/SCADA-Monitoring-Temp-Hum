@@ -91,8 +91,8 @@ const PRESET_KEY = 'mirror.dynamic.layout.v1';
 const BLOCK_TIMEOUT_MS = 8000;
 const RECONNECT_INTERVAL_MS = 15000;
 const NOTICE_TIMEOUT_MS = 2600;
-const DEFAULT_SOURCE_WIDTH = 1024;
-const DEFAULT_SOURCE_HEIGHT = 600;
+const DEFAULT_SOURCE_WIDTH = 800;
+const DEFAULT_SOURCE_HEIGHT = 480;
 const DEFAULT_ZOOM_PERCENT = 100;
 const MIN_ZOOM_PERCENT = 50;
 const MAX_ZOOM_PERCENT = 250;
@@ -217,6 +217,7 @@ export default function MirrorIndex() {
 
     const blockTimeoutRef = useRef<Record<number, number | null>>({});
     const panelRefs = useRef<Record<number, HTMLElement | null>>({});
+    const frameShellRefs = useRef<Record<number, HTMLDivElement | null>>({});
     const frameViewportRefs = useRef<Record<number, HTMLDivElement | null>>({});
     const nextPanelIdRef = useRef(1);
     const panelsRef = useRef<MirrorPanel[]>(panels);
@@ -642,6 +643,36 @@ export default function MirrorIndex() {
         await container.requestFullscreen();
     }
 
+    function computeViewportSize(
+        panel: MirrorPanel,
+    ): { width: number; height: number } | null {
+        const shell = frameShellRefs.current[panel.id];
+
+        if (!shell) {
+            return null;
+        }
+
+        const shellWidth = Math.max(1, shell.clientWidth);
+        const shellHeight = Math.max(1, shell.clientHeight);
+        const sourceWidth = Math.max(1, panel.sourceWidth);
+        const sourceHeight = Math.max(1, panel.sourceHeight);
+
+        const sourceRatio = sourceWidth / sourceHeight;
+        const shellRatio = shellWidth / shellHeight;
+
+        if (shellRatio > sourceRatio) {
+            const height = shellHeight;
+            const width = Math.round(height * sourceRatio);
+
+            return { width, height };
+        }
+
+        const width = shellWidth;
+        const height = Math.round(width / sourceRatio);
+
+        return { width, height };
+    }
+
     function computePanelScale(panel: MirrorPanel): number {
         const viewport = frameViewportRefs.current[panel.id];
         const sourceWidth = Math.max(1, panel.sourceWidth);
@@ -1052,6 +1083,16 @@ export default function MirrorIndex() {
                                 )
                                     ? `${panel.sourceWidth}x${panel.sourceHeight}`
                                     : 'custom';
+                                const viewportSize = computeViewportSize(panel);
+                                const viewportStyle = viewportSize
+                                    ? {
+                                          width: `${viewportSize.width}px`,
+                                          height: `${viewportSize.height}px`,
+                                      }
+                                    : {
+                                          width: '100%',
+                                          aspectRatio: `${Math.max(panel.sourceWidth, 1)} / ${Math.max(panel.sourceHeight, 1)}`,
+                                      };
 
                                 return (
                                     <article
@@ -1126,13 +1167,21 @@ export default function MirrorIndex() {
 
                                         <div
                                             ref={(element) => {
-                                                frameViewportRefs.current[
+                                                frameShellRefs.current[
                                                     panel.id
                                                 ] = element;
                                             }}
-                                            className="relative flex min-h-0 flex-1 overflow-hidden rounded-lg border border-slate-700 bg-slate-950"
+                                            className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border border-slate-700 bg-slate-950"
                                         >
-                                            <div className="absolute inset-0 overflow-hidden">
+                                            <div
+                                                ref={(element) => {
+                                                    frameViewportRefs.current[
+                                                        panel.id
+                                                    ] = element;
+                                                }}
+                                                className="relative overflow-hidden rounded-md border border-slate-700/40 bg-slate-950"
+                                                style={viewportStyle}
+                                            >
                                                 <div
                                                     className="absolute top-1/2 left-1/2"
                                                     style={{
