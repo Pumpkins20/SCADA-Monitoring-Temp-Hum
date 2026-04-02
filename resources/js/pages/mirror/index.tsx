@@ -40,6 +40,7 @@ type PanelStatus =
     | 'invalid';
 
 type MirrorProtocol = 'http' | 'https';
+type MirrorViewMode = 'fit' | 'fill' | 'native';
 
 interface MirrorPanel {
     id: number;
@@ -53,7 +54,22 @@ interface MirrorPanel {
     lastCheckedAt: string | null;
     autoReconnect: boolean;
     refreshSeed: number;
+    viewMode: MirrorViewMode;
+    sourceWidth: number;
+    sourceHeight: number;
+    zoomPercent: number;
 }
+
+type MirrorPresetPanel = Pick<
+    MirrorPanel,
+    'label' | 'ipAddress' | 'port' | 'protocol' | 'autoReconnect'
+> &
+    Partial<
+        Pick<
+            MirrorPanel,
+            'viewMode' | 'sourceWidth' | 'sourceHeight' | 'zoomPercent'
+        >
+    >;
 
 interface ScreenSourceFormState {
     label: string;
@@ -75,6 +91,36 @@ const PRESET_KEY = 'mirror.dynamic.layout.v1';
 const BLOCK_TIMEOUT_MS = 8000;
 const RECONNECT_INTERVAL_MS = 15000;
 const NOTICE_TIMEOUT_MS = 2600;
+const DEFAULT_SOURCE_WIDTH = 1024;
+const DEFAULT_SOURCE_HEIGHT = 600;
+const DEFAULT_ZOOM_PERCENT = 100;
+const MIN_ZOOM_PERCENT = 50;
+const MAX_ZOOM_PERCENT = 250;
+const RESOLUTION_PRESETS = [
+    { label: '800x480', width: 800, height: 480 },
+    { label: '1024x600', width: 1024, height: 600 },
+    { label: '1280x720', width: 1280, height: 720 },
+    { label: '1366x768', width: 1366, height: 768 },
+    { label: '1920x1080', width: 1920, height: 1080 },
+] as const;
+
+function clampZoom(value: number): number {
+    return Math.min(MAX_ZOOM_PERCENT, Math.max(MIN_ZOOM_PERCENT, value));
+}
+
+function normalizePositiveInt(value: unknown, fallback: number): number {
+    const parsed = Number.parseInt(String(value ?? ''), 10);
+
+    if (!Number.isFinite(parsed) || parsed < 1) {
+        return fallback;
+    }
+
+    return parsed;
+}
+
+function normalizeViewMode(value: unknown): MirrorViewMode {
+    return value === 'fill' || value === 'native' ? value : 'fit';
+}
 
 function readXsrfToken(): string {
     return decodeURIComponent(
@@ -167,9 +213,11 @@ export default function MirrorIndex() {
     const [editError, setEditError] = useState('');
     const [editProcessing, setEditProcessing] = useState(false);
     const [notices, setNotices] = useState<MirrorNotice[]>([]);
+    const [, forceViewportRecalc] = useState(0);
 
     const blockTimeoutRef = useRef<Record<number, number | null>>({});
     const panelRefs = useRef<Record<number, HTMLElement | null>>({});
+    const frameViewportRefs = useRef<Record<number, HTMLDivElement | null>>({});
     const nextPanelIdRef = useRef(1);
     const panelsRef = useRef<MirrorPanel[]>(panels);
     const nextNoticeIdRef = useRef(1);
@@ -208,6 +256,28 @@ export default function MirrorIndex() {
     }, [panels]);
 
     useEffect(() => {
+        function handleResize(): void {
+            forceViewportRecalc((current) => current + 1);
+        }
+
+        window.addEventListener('resize', handleResize);
+
+        return () => {
+            window.removeEventListener('resize', handleResize);
+        };
+    }, []);
+
+    useEffect(() => {
+        const frameId = window.requestAnimationFrame(() => {
+            forceViewportRecalc((current) => current + 1);
+        });
+
+        return () => {
+            window.cancelAnimationFrame(frameId);
+        };
+    }, [panels.length]);
+
+    useEffect(() => {
         const rawPreset = window.localStorage.getItem(PRESET_KEY);
 
         if (!rawPreset) {
@@ -215,16 +285,7 @@ export default function MirrorIndex() {
         }
 
         try {
-            const presetPanels = JSON.parse(rawPreset) as Array<
-                Pick<
-                    MirrorPanel,
-                    | 'label'
-                    | 'ipAddress'
-                    | 'port'
-                    | 'protocol'
-                    | 'autoReconnect'
-                >
-            >;
+            const presetPanels = JSON.parse(rawPreset) as MirrorPresetPanel[];
 
             if (!Array.isArray(presetPanels) || presetPanels.length === 0) {
                 return;
@@ -250,6 +311,21 @@ export default function MirrorIndex() {
                     lastCheckedAt: nowTimeLabel(),
                     autoReconnect: panel.autoReconnect,
                     refreshSeed: 0,
+                    viewMode: normalizeViewMode(panel.viewMode),
+                    sourceWidth: normalizePositiveInt(
+                        panel.sourceWidth,
+                        DEFAULT_SOURCE_WIDTH,
+                    ),
+                    sourceHeight: normalizePositiveInt(
+                        panel.sourceHeight,
+                        DEFAULT_SOURCE_HEIGHT,
+                    ),
+                    zoomPercent: clampZoom(
+                        normalizePositiveInt(
+                            panel.zoomPercent,
+                            DEFAULT_ZOOM_PERCENT,
+                        ),
+                    ),
                 };
             });
 
@@ -447,6 +523,10 @@ export default function MirrorIndex() {
             port: panel.port,
             protocol: panel.protocol,
             autoReconnect: panel.autoReconnect,
+            viewMode: panel.viewMode,
+            sourceWidth: panel.sourceWidth,
+            sourceHeight: panel.sourceHeight,
+            zoomPercent: panel.zoomPercent,
         }));
 
         window.localStorage.setItem(PRESET_KEY, JSON.stringify(payload));
@@ -468,16 +548,7 @@ export default function MirrorIndex() {
         }
 
         try {
-            const presetPanels = JSON.parse(rawPreset) as Array<
-                Pick<
-                    MirrorPanel,
-                    | 'label'
-                    | 'ipAddress'
-                    | 'port'
-                    | 'protocol'
-                    | 'autoReconnect'
-                >
-            >;
+            const presetPanels = JSON.parse(rawPreset) as MirrorPresetPanel[];
 
             if (!Array.isArray(presetPanels) || presetPanels.length === 0) {
                 pushNotice('error', 'Preset kosong atau tidak valid.');
@@ -503,6 +574,21 @@ export default function MirrorIndex() {
                     lastCheckedAt: nowTimeLabel(),
                     autoReconnect: panel.autoReconnect,
                     refreshSeed: 0,
+                    viewMode: normalizeViewMode(panel.viewMode),
+                    sourceWidth: normalizePositiveInt(
+                        panel.sourceWidth,
+                        DEFAULT_SOURCE_WIDTH,
+                    ),
+                    sourceHeight: normalizePositiveInt(
+                        panel.sourceHeight,
+                        DEFAULT_SOURCE_HEIGHT,
+                    ),
+                    zoomPercent: clampZoom(
+                        normalizePositiveInt(
+                            panel.zoomPercent,
+                            DEFAULT_ZOOM_PERCENT,
+                        ),
+                    ),
                 };
             });
 
@@ -554,6 +640,85 @@ export default function MirrorIndex() {
         }
 
         await container.requestFullscreen();
+    }
+
+    function computePanelScale(panel: MirrorPanel): number {
+        const viewport = frameViewportRefs.current[panel.id];
+        const sourceWidth = Math.max(1, panel.sourceWidth);
+        const sourceHeight = Math.max(1, panel.sourceHeight);
+        const zoomScale = clampZoom(panel.zoomPercent) / 100;
+
+        if (!viewport) {
+            return zoomScale;
+        }
+
+        const viewportWidth = Math.max(1, viewport.clientWidth);
+        const viewportHeight = Math.max(1, viewport.clientHeight);
+        const fitScale = Math.min(
+            viewportWidth / sourceWidth,
+            viewportHeight / sourceHeight,
+        );
+        const fillScale = Math.max(
+            viewportWidth / sourceWidth,
+            viewportHeight / sourceHeight,
+        );
+
+        const baseScale =
+            panel.viewMode === 'fill'
+                ? fillScale
+                : panel.viewMode === 'native'
+                  ? 1
+                  : fitScale;
+
+        return Math.max(0.1, baseScale * zoomScale);
+    }
+
+    function updatePanelViewMode(panelId: number, mode: MirrorViewMode): void {
+        updatePanel(panelId, (current) => ({
+            ...current,
+            viewMode: mode,
+        }));
+    }
+
+    function updatePanelZoom(panelId: number, zoomPercent: number): void {
+        updatePanel(panelId, (current) => ({
+            ...current,
+            zoomPercent: clampZoom(zoomPercent),
+        }));
+    }
+
+    function updatePanelSourceSize(
+        panelId: number,
+        field: 'sourceWidth' | 'sourceHeight',
+        value: string,
+    ): void {
+        const parsed = normalizePositiveInt(
+            value,
+            field === 'sourceWidth'
+                ? DEFAULT_SOURCE_WIDTH
+                : DEFAULT_SOURCE_HEIGHT,
+        );
+
+        updatePanel(panelId, (current) => ({
+            ...current,
+            [field]: parsed,
+        }));
+    }
+
+    function applyResolutionPreset(panelId: number, presetValue: string): void {
+        if (presetValue === 'custom') {
+            return;
+        }
+
+        const [widthRaw, heightRaw] = presetValue.split('x');
+        const width = normalizePositiveInt(widthRaw, DEFAULT_SOURCE_WIDTH);
+        const height = normalizePositiveInt(heightRaw, DEFAULT_SOURCE_HEIGHT);
+
+        updatePanel(panelId, (current) => ({
+            ...current,
+            sourceWidth: width,
+            sourceHeight: height,
+        }));
     }
 
     function openExternal(url: string): void {
@@ -643,6 +808,10 @@ export default function MirrorIndex() {
                     lastCheckedAt: nowTimeLabel(),
                     autoReconnect: addForm.autoReconnect,
                     refreshSeed: 0,
+                    viewMode: 'fit',
+                    sourceWidth: DEFAULT_SOURCE_WIDTH,
+                    sourceHeight: DEFAULT_SOURCE_HEIGHT,
+                    zoomPercent: DEFAULT_ZOOM_PERCENT,
                 },
             ]);
 
@@ -871,192 +1040,354 @@ export default function MirrorIndex() {
                         </div>
                     ) : (
                         <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                            {panels.map((panel) => (
-                                <article
-                                    key={panel.id}
-                                    ref={(element) => {
-                                        panelRefs.current[panel.id] = element;
-                                    }}
-                                    className="flex min-h-[460px] flex-col rounded-xl border border-slate-700/60 bg-slate-800/50 p-3"
-                                >
-                                    <div className="mb-2 flex items-start justify-between gap-2">
-                                        <div>
-                                            <p className="text-xs font-semibold tracking-wider text-slate-400 uppercase">
-                                                {panel.label}
-                                            </p>
-                                            <div className="mt-1 flex items-center gap-2">
-                                                <span
-                                                    className={`h-2.5 w-2.5 rounded-full ${getStatusDotClass(panel.status)}`}
-                                                />
-                                                <Badge
-                                                    variant="outline"
-                                                    className="border-slate-600 text-[10px] text-slate-300"
-                                                >
-                                                    {formatStatusLabel(
-                                                        panel.status,
-                                                    )}
-                                                </Badge>
-                                                <span className="text-[11px] text-slate-400">
-                                                    {panel.protocol}://
-                                                    {panel.ipAddress}:
-                                                    {panel.port}
-                                                </span>
+                            {panels.map((panel) => {
+                                const computedScale = computePanelScale(panel);
+                                const effectiveScalePercent = Math.round(
+                                    computedScale * 100,
+                                );
+                                const selectedPreset = RESOLUTION_PRESETS.some(
+                                    (preset) =>
+                                        preset.width === panel.sourceWidth &&
+                                        preset.height === panel.sourceHeight,
+                                )
+                                    ? `${panel.sourceWidth}x${panel.sourceHeight}`
+                                    : 'custom';
+
+                                return (
+                                    <article
+                                        key={panel.id}
+                                        ref={(element) => {
+                                            panelRefs.current[panel.id] =
+                                                element;
+                                        }}
+                                        className="flex min-h-[460px] flex-col rounded-xl border border-slate-700/60 bg-slate-800/50 p-3"
+                                    >
+                                        <div className="mb-2 flex items-start justify-between gap-2">
+                                            <div>
+                                                <p className="text-xs font-semibold tracking-wider text-slate-400 uppercase">
+                                                    {panel.label}
+                                                </p>
+                                                <div className="mt-1 flex items-center gap-2">
+                                                    <span
+                                                        className={`h-2.5 w-2.5 rounded-full ${getStatusDotClass(panel.status)}`}
+                                                    />
+                                                    <Badge
+                                                        variant="outline"
+                                                        className="border-slate-600 text-[10px] text-slate-300"
+                                                    >
+                                                        {formatStatusLabel(
+                                                            panel.status,
+                                                        )}
+                                                    </Badge>
+                                                    <span className="text-[11px] text-slate-400">
+                                                        {panel.protocol}://
+                                                        {panel.ipAddress}:
+                                                        {panel.port}
+                                                    </span>
+                                                </div>
                                             </div>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    updatePanel(
+                                                        panel.id,
+                                                        (current) => ({
+                                                            ...current,
+                                                            autoReconnect:
+                                                                !current.autoReconnect,
+                                                        }),
+                                                    );
+                                                }}
+                                                title="Toggle auto reconnect"
+                                                className={`rounded-md p-1.5 transition-colors ${
+                                                    panel.autoReconnect
+                                                        ? 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30'
+                                                        : 'bg-slate-700/60 text-slate-400 hover:bg-slate-600/70 hover:text-white'
+                                                }`}
+                                            >
+                                                {panel.autoReconnect ? (
+                                                    <Wifi className="h-4 w-4" />
+                                                ) : (
+                                                    <WifiOff className="h-4 w-4" />
+                                                )}
+                                            </button>
                                         </div>
 
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                updatePanel(
-                                                    panel.id,
-                                                    (current) => ({
-                                                        ...current,
-                                                        autoReconnect:
-                                                            !current.autoReconnect,
-                                                    }),
-                                                );
+                                        <div className="mb-2 flex items-center justify-between text-[11px] text-slate-400">
+                                            <span className="truncate">
+                                                {panel.message}
+                                            </span>
+                                            <span>
+                                                {panel.lastCheckedAt ??
+                                                    '--:--:--'}
+                                            </span>
+                                        </div>
+
+                                        <div
+                                            ref={(element) => {
+                                                frameViewportRefs.current[
+                                                    panel.id
+                                                ] = element;
                                             }}
-                                            title="Toggle auto reconnect"
-                                            className={`rounded-md p-1.5 transition-colors ${
-                                                panel.autoReconnect
-                                                    ? 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30'
-                                                    : 'bg-slate-700/60 text-slate-400 hover:bg-slate-600/70 hover:text-white'
-                                            }`}
+                                            className="relative flex min-h-0 flex-1 overflow-hidden rounded-lg border border-slate-700 bg-slate-950"
                                         >
-                                            {panel.autoReconnect ? (
-                                                <Wifi className="h-4 w-4" />
-                                            ) : (
-                                                <WifiOff className="h-4 w-4" />
-                                            )}
-                                        </button>
-                                    </div>
-
-                                    <div className="mb-2 flex items-center justify-between text-[11px] text-slate-400">
-                                        <span className="truncate">
-                                            {panel.message}
-                                        </span>
-                                        <span>
-                                            {panel.lastCheckedAt ?? '--:--:--'}
-                                        </span>
-                                    </div>
-
-                                    <div className="relative flex min-h-0 flex-1 overflow-hidden rounded-lg border border-slate-700 bg-slate-950">
-                                        <iframe
-                                            key={`${panel.id}-${panel.refreshSeed}-${panel.src}`}
-                                            title={`Mirror ${panel.label}`}
-                                            src={panel.src}
-                                            className="h-full w-full"
-                                            onLoad={() => {
-                                                clearBlockTimer(panel.id);
-
-                                                updatePanel(
-                                                    panel.id,
-                                                    (current) => ({
-                                                        ...current,
-                                                        status: 'mirrored',
-                                                        message:
-                                                            'Mirroring aktif.',
-                                                    }),
-                                                );
-                                            }}
-                                            onError={() => {
-                                                clearBlockTimer(panel.id);
-
-                                                updatePanel(
-                                                    panel.id,
-                                                    (current) => ({
-                                                        ...current,
-                                                        status: 'unreachable',
-                                                        message:
-                                                            'Gagal memuat iframe target.',
-                                                    }),
-                                                );
-                                            }}
-                                        />
-
-                                        {(panel.status === 'blocked' ||
-                                            panel.status === 'unreachable') && (
-                                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-950/90 p-3 text-center">
-                                                <p className="text-xs text-red-300">
-                                                    {panel.message}
-                                                </p>
-                                                <Button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        openExternal(panel.src)
-                                                    }
-                                                    className="h-8 bg-cyan-600 text-xs text-white hover:bg-cyan-500"
+                                            <div className="absolute inset-0 overflow-hidden">
+                                                <div
+                                                    className="absolute top-1/2 left-1/2"
+                                                    style={{
+                                                        width: `${panel.sourceWidth}px`,
+                                                        height: `${panel.sourceHeight}px`,
+                                                        transform: `translate(-50%, -50%) scale(${computedScale})`,
+                                                        transformOrigin:
+                                                            'center center',
+                                                    }}
                                                 >
-                                                    <ExternalLink className="h-3.5 w-3.5" />
-                                                    Open External
-                                                </Button>
+                                                    <iframe
+                                                        key={`${panel.id}-${panel.refreshSeed}-${panel.src}`}
+                                                        title={`Mirror ${panel.label}`}
+                                                        src={panel.src}
+                                                        className="h-full w-full border-0"
+                                                        onLoad={() => {
+                                                            clearBlockTimer(
+                                                                panel.id,
+                                                            );
+
+                                                            updatePanel(
+                                                                panel.id,
+                                                                (current) => ({
+                                                                    ...current,
+                                                                    status: 'mirrored',
+                                                                    message:
+                                                                        'Mirroring aktif.',
+                                                                }),
+                                                            );
+                                                        }}
+                                                        onError={() => {
+                                                            clearBlockTimer(
+                                                                panel.id,
+                                                            );
+
+                                                            updatePanel(
+                                                                panel.id,
+                                                                (current) => ({
+                                                                    ...current,
+                                                                    status: 'unreachable',
+                                                                    message:
+                                                                        'Gagal memuat iframe target.',
+                                                                }),
+                                                            );
+                                                        }}
+                                                    />
+                                                </div>
                                             </div>
-                                        )}
-                                    </div>
 
-                                    <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-5">
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            onClick={() =>
-                                                openEditSourceDialog(panel)
-                                            }
-                                            className="h-8 border-slate-600 bg-slate-900/70 text-xs text-slate-200 hover:bg-slate-700"
-                                        >
-                                            <Edit className="h-3.5 w-3.5" />
-                                            Edit Source
-                                        </Button>
+                                            {(panel.status === 'blocked' ||
+                                                panel.status ===
+                                                    'unreachable') && (
+                                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-950/90 p-3 text-center">
+                                                    <p className="text-xs text-red-300">
+                                                        {panel.message}
+                                                    </p>
+                                                    <Button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            openExternal(
+                                                                panel.src,
+                                                            )
+                                                        }
+                                                        className="h-8 bg-cyan-600 text-xs text-white hover:bg-cyan-500"
+                                                    >
+                                                        <ExternalLink className="h-3.5 w-3.5" />
+                                                        Open External
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        </div>
 
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            onClick={() =>
-                                                void probePanel(panel.id, true)
-                                            }
-                                            className="h-8 border-slate-600 bg-slate-900/70 text-xs text-slate-200 hover:bg-slate-700"
-                                        >
-                                            <RefreshCw className="h-3.5 w-3.5" />
-                                            Refresh
-                                        </Button>
+                                        <div className="mt-2 rounded-lg border border-slate-700/60 bg-slate-900/60 p-2">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <Label className="text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
+                                                    View
+                                                </Label>
+                                                <select
+                                                    value={panel.viewMode}
+                                                    onChange={(event) =>
+                                                        updatePanelViewMode(
+                                                            panel.id,
+                                                            event.target
+                                                                .value as MirrorViewMode,
+                                                        )
+                                                    }
+                                                    className="h-7 rounded-md border border-slate-600 bg-slate-800/80 px-2 text-[11px] text-white"
+                                                >
+                                                    <option value="fit">
+                                                        Fit
+                                                    </option>
+                                                    <option value="fill">
+                                                        Fill
+                                                    </option>
+                                                    <option value="native">
+                                                        Native
+                                                    </option>
+                                                </select>
 
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            onClick={() =>
-                                                void openFullscreen(panel.id)
-                                            }
-                                            className="h-8 border-slate-600 bg-slate-900/70 text-xs text-slate-200 hover:bg-slate-700"
-                                        >
-                                            <Expand className="h-3.5 w-3.5" />
-                                            Fullscreen
-                                        </Button>
+                                                <Label className="text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
+                                                    Preset
+                                                </Label>
+                                                <select
+                                                    value={selectedPreset}
+                                                    onChange={(event) =>
+                                                        applyResolutionPreset(
+                                                            panel.id,
+                                                            event.target.value,
+                                                        )
+                                                    }
+                                                    className="h-7 rounded-md border border-slate-600 bg-slate-800/80 px-2 text-[11px] text-white"
+                                                >
+                                                    <option value="custom">
+                                                        Custom
+                                                    </option>
+                                                    {RESOLUTION_PRESETS.map(
+                                                        (preset) => (
+                                                            <option
+                                                                key={
+                                                                    preset.label
+                                                                }
+                                                                value={`${preset.width}x${preset.height}`}
+                                                            >
+                                                                {preset.label}
+                                                            </option>
+                                                        ),
+                                                    )}
+                                                </select>
 
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            onClick={() =>
-                                                openExternal(panel.src)
-                                            }
-                                            className="h-8 border-slate-600 bg-slate-900/70 text-xs text-slate-200 hover:bg-slate-700"
-                                        >
-                                            <ExternalLink className="h-3.5 w-3.5" />
-                                            External
-                                        </Button>
+                                                <span className="ml-auto rounded border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-300">
+                                                    Output{' '}
+                                                    {effectiveScalePercent}%
+                                                </span>
+                                            </div>
 
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            onClick={() =>
-                                                removePanel(panel.id)
-                                            }
-                                            className="h-8 border-red-500/40 bg-red-500/10 text-xs text-red-200 hover:bg-red-500/20"
-                                        >
-                                            <Trash2 className="h-3.5 w-3.5" />
-                                            Remove
-                                        </Button>
-                                    </div>
-                                </article>
-                            ))}
+                                            <div className="mt-2 grid grid-cols-[1fr_1fr_auto] gap-2">
+                                                <Input
+                                                    type="number"
+                                                    min={1}
+                                                    value={panel.sourceWidth}
+                                                    onChange={(event) =>
+                                                        updatePanelSourceSize(
+                                                            panel.id,
+                                                            'sourceWidth',
+                                                            event.target.value,
+                                                        )
+                                                    }
+                                                    className="h-8 border-slate-600 bg-slate-800/80 text-[11px] text-white"
+                                                />
+                                                <Input
+                                                    type="number"
+                                                    min={1}
+                                                    value={panel.sourceHeight}
+                                                    onChange={(event) =>
+                                                        updatePanelSourceSize(
+                                                            panel.id,
+                                                            'sourceHeight',
+                                                            event.target.value,
+                                                        )
+                                                    }
+                                                    className="h-8 border-slate-600 bg-slate-800/80 text-[11px] text-white"
+                                                />
+                                                <div className="flex items-center rounded-md border border-slate-600 bg-slate-800/70 px-2 text-[11px] text-slate-300">
+                                                    Zoom {panel.zoomPercent}%
+                                                </div>
+                                            </div>
+
+                                            <input
+                                                type="range"
+                                                min={MIN_ZOOM_PERCENT}
+                                                max={MAX_ZOOM_PERCENT}
+                                                step={5}
+                                                value={panel.zoomPercent}
+                                                onChange={(event) =>
+                                                    updatePanelZoom(
+                                                        panel.id,
+                                                        Number.parseInt(
+                                                            event.target.value,
+                                                            10,
+                                                        ),
+                                                    )
+                                                }
+                                                className="mt-2 w-full accent-cyan-500"
+                                            />
+                                        </div>
+
+                                        <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-5">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                onClick={() =>
+                                                    openEditSourceDialog(panel)
+                                                }
+                                                className="h-8 border-slate-600 bg-slate-900/70 text-xs text-slate-200 hover:bg-slate-700"
+                                            >
+                                                <Edit className="h-3.5 w-3.5" />
+                                                Edit Source
+                                            </Button>
+
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                onClick={() =>
+                                                    void probePanel(
+                                                        panel.id,
+                                                        true,
+                                                    )
+                                                }
+                                                className="h-8 border-slate-600 bg-slate-900/70 text-xs text-slate-200 hover:bg-slate-700"
+                                            >
+                                                <RefreshCw className="h-3.5 w-3.5" />
+                                                Refresh
+                                            </Button>
+
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                onClick={() =>
+                                                    void openFullscreen(
+                                                        panel.id,
+                                                    )
+                                                }
+                                                className="h-8 border-slate-600 bg-slate-900/70 text-xs text-slate-200 hover:bg-slate-700"
+                                            >
+                                                <Expand className="h-3.5 w-3.5" />
+                                                Fullscreen
+                                            </Button>
+
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                onClick={() =>
+                                                    openExternal(panel.src)
+                                                }
+                                                className="h-8 border-slate-600 bg-slate-900/70 text-xs text-slate-200 hover:bg-slate-700"
+                                            >
+                                                <ExternalLink className="h-3.5 w-3.5" />
+                                                External
+                                            </Button>
+
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                onClick={() =>
+                                                    removePanel(panel.id)
+                                                }
+                                                className="h-8 border-red-500/40 bg-red-500/10 text-xs text-red-200 hover:bg-red-500/20"
+                                            >
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                                Remove
+                                            </Button>
+                                        </div>
+                                    </article>
+                                );
+                            })}
                         </section>
                     )}
                 </main>
