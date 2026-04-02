@@ -29,6 +29,7 @@ import type { ChartConfig } from '@/components/ui/chart';
 interface DashboardProps {
     rooms: RoomData[];
     chartLogs?: Record<number, ChartPoint[]>;
+    globalChartLogs?: ChartPoint[];
     globalStats: GlobalStats;
     gaugeSettings: GaugeSettings;
 }
@@ -222,7 +223,7 @@ function RoomCard({
 
 export default function Dashboard({
     rooms,
-    chartLogs = {},
+    globalChartLogs = [],
     globalStats,
     gaugeSettings,
 }: DashboardProps) {
@@ -247,7 +248,13 @@ export default function Dashboard({
     useEffect(() => {
         const timer = setInterval(() => {
             router.reload({
-                only: ['rooms', 'globalStats', 'chartLogs', 'gaugeSettings'],
+                only: [
+                    'rooms',
+                    'globalStats',
+                    'chartLogs',
+                    'globalChartLogs',
+                    'gaugeSettings',
+                ],
             });
         }, 5_000);
         return () => clearInterval(timer);
@@ -269,9 +276,7 @@ export default function Dashboard({
     const colMiddleRooms = rooms.slice(0, 3);
     const colRightRooms = rooms.slice(3, 5);
 
-    // Use first room's chart data for display (or merge all)
-    const firstRoom = rooms[0] ?? null;
-    const chartData = firstRoom ? (chartLogs[firstRoom.id] ?? []) : [];
+    const chartData = globalChartLogs;
 
     const hasAlarms = globalStats.active_alarms > 0;
 
