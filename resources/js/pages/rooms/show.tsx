@@ -1,5 +1,13 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { BarChart2, ArrowLeft, Thermometer, Droplets, Map } from 'lucide-react';
+import {
+    BarChart2,
+    ArrowLeft,
+    Thermometer,
+    Droplets,
+    Map,
+    Expand,
+    Minimize2,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
 import { ArcGauge } from '@/components/scada/arc-gauge';
@@ -107,6 +115,7 @@ export default function RoomShow({
     const [activePanel, setActivePanel] = useState<'chart' | 'floorplan'>(
         'chart',
     );
+    const [isPanelFullscreen, setIsPanelFullscreen] = useState(false);
 
     const normalizedGaugeSettings: GaugeSettings = {
         temperature: normalizeMetricSetting(
@@ -130,6 +139,28 @@ export default function RoomShow({
         }, 5_000);
         return () => clearInterval(timer);
     }, []);
+
+    useEffect(() => {
+        if (!isPanelFullscreen) {
+            return;
+        }
+
+        function handleKeyDown(event: KeyboardEvent): void {
+            if (event.key === 'Escape') {
+                setIsPanelFullscreen(false);
+            }
+        }
+
+        const previousBodyOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+
+        window.addEventListener('keydown', handleKeyDown);
+
+        return () => {
+            document.body.style.overflow = previousBodyOverflow;
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isPanelFullscreen]);
 
     const timeStr = now.toLocaleTimeString('id-ID', {
         hour: '2-digit',
@@ -155,6 +186,188 @@ export default function RoomShow({
         .filter((s) => s.status === 'WARNING' || s.status === 'CRITICAL')
         .map((s) => s.name)
         .join(', ');
+
+    function renderActivePanel(isFullscreen: boolean) {
+        if (activePanel === 'floorplan') {
+            return (
+                <div className="min-h-0 flex-1 overflow-hidden">
+                    <FloorPlanMap
+                        sensors={room.sensors}
+                        roomName={room.name}
+                        backgroundImage={room.floor_plan_image ?? null}
+                        roomWidth={room.floor_plan_width}
+                        roomHeight={room.floor_plan_height}
+                    />
+                </div>
+            );
+        }
+
+        const chartCardClass = isFullscreen
+            ? 'flex min-h-0 flex-1 flex-col rounded-xl border border-slate-700/60 bg-slate-800/60 px-4 pt-3 pb-2'
+            : 'flex min-h-0 flex-1 flex-col rounded-xl border border-slate-700/60 bg-slate-800/50 px-3 pt-2 pb-1';
+
+        return (
+            <>
+                <div className={chartCardClass}>
+                    <div className="mb-0.5 flex items-center gap-1.5">
+                        <BarChart2 className="h-3.5 w-3.5 text-cyan-400" />
+                        <span className="text-[11px] font-semibold tracking-wider text-slate-300 uppercase">
+                            Avg Temp
+                        </span>
+                    </div>
+                    <div className="min-h-0 flex-1">
+                        {chartLogs.length > 0 ? (
+                            <ChartContainer
+                                config={tempChartConfig}
+                                className="h-full w-full"
+                            >
+                                <LineChart
+                                    data={chartLogs}
+                                    margin={{
+                                        top: 4,
+                                        right: 8,
+                                        bottom: 0,
+                                        left: -12,
+                                    }}
+                                >
+                                    <CartesianGrid
+                                        stroke="#1e3a5f"
+                                        strokeDasharray="3 3"
+                                    />
+                                    <XAxis
+                                        dataKey="time"
+                                        tick={{
+                                            fontSize: 9,
+                                            fill: '#475569',
+                                        }}
+                                        tickLine={false}
+                                        axisLine={{
+                                            stroke: '#1e3a5f',
+                                        }}
+                                    />
+                                    <YAxis
+                                        tick={{
+                                            fontSize: 9,
+                                            fill: '#475569',
+                                        }}
+                                        tickLine={false}
+                                        axisLine={{
+                                            stroke: '#1e3a5f',
+                                        }}
+                                    />
+                                    <ChartTooltip
+                                        cursor={{
+                                            stroke: '#334155',
+                                        }}
+                                        content={
+                                            <ChartTooltipContent indicator="line" />
+                                        }
+                                    />
+                                    <Line
+                                        dataKey="avg_temperature"
+                                        type="linear"
+                                        stroke="var(--color-avg_temperature)"
+                                        strokeWidth={2}
+                                        dot={{
+                                            r: 2,
+                                            fill: '#22d3ee',
+                                        }}
+                                        activeDot={{
+                                            r: 4,
+                                            fill: '#22d3ee',
+                                        }}
+                                    />
+                                </LineChart>
+                            </ChartContainer>
+                        ) : (
+                            <div className="flex h-full items-center justify-center text-xs text-slate-600">
+                                Belum ada data grafik
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className={chartCardClass}>
+                    <div className="mb-0.5 flex items-center gap-1.5">
+                        <BarChart2 className="h-3.5 w-3.5 text-blue-400" />
+                        <span className="text-[11px] font-semibold tracking-wider text-slate-300 uppercase">
+                            Avg Hum
+                        </span>
+                    </div>
+                    <div className="min-h-0 flex-1">
+                        {chartLogs.length > 0 ? (
+                            <ChartContainer
+                                config={humChartConfig}
+                                className="h-full w-full"
+                            >
+                                <LineChart
+                                    data={chartLogs}
+                                    margin={{
+                                        top: 4,
+                                        right: 8,
+                                        bottom: 0,
+                                        left: -12,
+                                    }}
+                                >
+                                    <CartesianGrid
+                                        stroke="#1e3a5f"
+                                        strokeDasharray="3 3"
+                                    />
+                                    <XAxis
+                                        dataKey="time"
+                                        tick={{
+                                            fontSize: 9,
+                                            fill: '#475569',
+                                        }}
+                                        tickLine={false}
+                                        axisLine={{
+                                            stroke: '#1e3a5f',
+                                        }}
+                                    />
+                                    <YAxis
+                                        tick={{
+                                            fontSize: 9,
+                                            fill: '#475569',
+                                        }}
+                                        tickLine={false}
+                                        axisLine={{
+                                            stroke: '#1e3a5f',
+                                        }}
+                                    />
+                                    <ChartTooltip
+                                        cursor={{
+                                            stroke: '#334155',
+                                        }}
+                                        content={
+                                            <ChartTooltipContent indicator="line" />
+                                        }
+                                    />
+                                    <Line
+                                        dataKey="avg_humidity"
+                                        type="linear"
+                                        stroke="var(--color-avg_humidity)"
+                                        strokeWidth={2}
+                                        dot={{
+                                            r: 2,
+                                            fill: '#60a5fa',
+                                        }}
+                                        activeDot={{
+                                            r: 4,
+                                            fill: '#60a5fa',
+                                        }}
+                                    />
+                                </LineChart>
+                            </ChartContainer>
+                        ) : (
+                            <div className="flex h-full items-center justify-center text-xs text-slate-600">
+                                Belum ada data grafik
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </>
+        );
+    }
 
     return (
         <>
@@ -319,187 +532,69 @@ export default function RoomShow({
                                     <Map className="h-3 w-3" />
                                     Denah
                                 </button>
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setIsPanelFullscreen((prev) => !prev)
+                                    }
+                                    aria-label={
+                                        isPanelFullscreen
+                                            ? 'Tutup fullscreen panel'
+                                            : 'Buka fullscreen panel'
+                                    }
+                                    className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-semibold tracking-wider uppercase transition-colors ${
+                                        isPanelFullscreen
+                                            ? 'border border-cyan-500/40 bg-cyan-500/20 text-cyan-300'
+                                            : 'border border-slate-700/40 bg-slate-700/40 text-slate-500 hover:text-slate-300'
+                                    }`}
+                                >
+                                    {isPanelFullscreen ? (
+                                        <Minimize2 className="h-3 w-3" />
+                                    ) : (
+                                        <Expand className="h-3 w-3" />
+                                    )}
+                                    Fullscreen
+                                </button>
                             </div>
 
-                            {/* ── Floor plan panel ── */}
-                            {activePanel === 'floorplan' && (
-                                <div className="min-h-0 flex-1 overflow-hidden">
-                                    <FloorPlanMap
-                                        sensors={room.sensors}
-                                        roomName={room.name}
-                                        backgroundImage={
-                                            room.floor_plan_image ?? null
-                                        }
-                                        roomWidth={room.floor_plan_width}
-                                        roomHeight={room.floor_plan_height}
-                                    />
-                                </div>
-                            )}
-
-                            {/* ── Chart panels ── */}
-                            {activePanel === 'chart' && (
-                                <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-slate-700/60 bg-slate-800/50 px-3 pt-2 pb-1">
-                                    <div className="mb-0.5 flex items-center gap-1.5">
-                                        <BarChart2 className="h-3.5 w-3.5 text-cyan-400" />
-                                        <span className="text-[11px] font-semibold tracking-wider text-slate-300 uppercase">
-                                            Avg Temp
-                                        </span>
-                                    </div>
-                                    <div className="min-h-0 flex-1">
-                                        {chartLogs.length > 0 ? (
-                                            <ChartContainer
-                                                config={tempChartConfig}
-                                                className="h-full w-full"
-                                            >
-                                                <LineChart
-                                                    data={chartLogs}
-                                                    margin={{
-                                                        top: 4,
-                                                        right: 8,
-                                                        bottom: 0,
-                                                        left: -12,
-                                                    }}
-                                                >
-                                                    <CartesianGrid
-                                                        stroke="#1e3a5f"
-                                                        strokeDasharray="3 3"
-                                                    />
-                                                    <XAxis
-                                                        dataKey="time"
-                                                        tick={{
-                                                            fontSize: 9,
-                                                            fill: '#475569',
-                                                        }}
-                                                        tickLine={false}
-                                                        axisLine={{
-                                                            stroke: '#1e3a5f',
-                                                        }}
-                                                    />
-                                                    <YAxis
-                                                        tick={{
-                                                            fontSize: 9,
-                                                            fill: '#475569',
-                                                        }}
-                                                        tickLine={false}
-                                                        axisLine={{
-                                                            stroke: '#1e3a5f',
-                                                        }}
-                                                    />
-                                                    <ChartTooltip
-                                                        cursor={{
-                                                            stroke: '#334155',
-                                                        }}
-                                                        content={
-                                                            <ChartTooltipContent indicator="line" />
-                                                        }
-                                                    />
-                                                    <Line
-                                                        dataKey="avg_temperature"
-                                                        type="linear"
-                                                        stroke="var(--color-avg_temperature)"
-                                                        strokeWidth={2}
-                                                        dot={{
-                                                            r: 2,
-                                                            fill: '#22d3ee',
-                                                        }}
-                                                        activeDot={{
-                                                            r: 4,
-                                                            fill: '#22d3ee',
-                                                        }}
-                                                    />
-                                                </LineChart>
-                                            </ChartContainer>
-                                        ) : (
-                                            <div className="flex h-full items-center justify-center text-xs text-slate-600">
-                                                Belum ada data grafik
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-                            {activePanel === 'chart' && (
-                                <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-slate-700/60 bg-slate-800/50 px-3 pt-2 pb-1">
-                                    <div className="mb-0.5 flex items-center gap-1.5">
-                                        <BarChart2 className="h-3.5 w-3.5 text-blue-400" />
-                                        <span className="text-[11px] font-semibold tracking-wider text-slate-300 uppercase">
-                                            Avg Hum
-                                        </span>
-                                    </div>
-                                    <div className="min-h-0 flex-1">
-                                        {chartLogs.length > 0 ? (
-                                            <ChartContainer
-                                                config={humChartConfig}
-                                                className="h-full w-full"
-                                            >
-                                                <LineChart
-                                                    data={chartLogs}
-                                                    margin={{
-                                                        top: 4,
-                                                        right: 8,
-                                                        bottom: 0,
-                                                        left: -12,
-                                                    }}
-                                                >
-                                                    <CartesianGrid
-                                                        stroke="#1e3a5f"
-                                                        strokeDasharray="3 3"
-                                                    />
-                                                    <XAxis
-                                                        dataKey="time"
-                                                        tick={{
-                                                            fontSize: 9,
-                                                            fill: '#475569',
-                                                        }}
-                                                        tickLine={false}
-                                                        axisLine={{
-                                                            stroke: '#1e3a5f',
-                                                        }}
-                                                    />
-                                                    <YAxis
-                                                        tick={{
-                                                            fontSize: 9,
-                                                            fill: '#475569',
-                                                        }}
-                                                        tickLine={false}
-                                                        axisLine={{
-                                                            stroke: '#1e3a5f',
-                                                        }}
-                                                    />
-                                                    <ChartTooltip
-                                                        cursor={{
-                                                            stroke: '#334155',
-                                                        }}
-                                                        content={
-                                                            <ChartTooltipContent indicator="line" />
-                                                        }
-                                                    />
-                                                    <Line
-                                                        dataKey="avg_humidity"
-                                                        type="linear"
-                                                        stroke="var(--color-avg_humidity)"
-                                                        strokeWidth={2}
-                                                        dot={{
-                                                            r: 2,
-                                                            fill: '#60a5fa',
-                                                        }}
-                                                        activeDot={{
-                                                            r: 4,
-                                                            fill: '#60a5fa',
-                                                        }}
-                                                    />
-                                                </LineChart>
-                                            </ChartContainer>
-                                        ) : (
-                                            <div className="flex h-full items-center justify-center text-xs text-slate-600">
-                                                Belum ada data grafik
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
+                            {renderActivePanel(false)}
                         </div>
                     </div>
                 </main>
+
+                {isPanelFullscreen && (
+                    <div className="fixed inset-0 z-90 flex flex-col bg-[#0f1316] p-3 xl:p-4">
+                        <div className="mb-2 flex shrink-0 items-center justify-between rounded-xl border border-slate-700/60 bg-slate-900/60 px-3 py-2">
+                            <div className="flex items-center gap-1.5">
+                                {activePanel === 'chart' ? (
+                                    <BarChart2 className="h-4 w-4 text-cyan-400" />
+                                ) : (
+                                    <Map className="h-4 w-4 text-cyan-400" />
+                                )}
+                                <span className="text-xs font-semibold tracking-wider text-slate-200 uppercase">
+                                    {activePanel === 'chart'
+                                        ? 'Chart Fullscreen'
+                                        : `Denah ${room.name}`}
+                                </span>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => setIsPanelFullscreen(false)}
+                                className="flex items-center gap-1.5 rounded-lg border border-slate-700/40 bg-slate-700/30 px-2.5 py-1 text-[10px] font-semibold tracking-wider text-slate-300 uppercase transition-colors hover:border-cyan-500/40 hover:text-cyan-300"
+                            >
+                                <Minimize2 className="h-3.5 w-3.5" />
+                                Tutup
+                            </button>
+                        </div>
+
+                        <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-slate-700/60 bg-[#151b1f] p-2 xl:p-3">
+                            <div className="flex h-full min-h-0 flex-col gap-2 xl:gap-3">
+                                {renderActivePanel(true)}
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* ── FOOTER ──────────────────────────────────────── */}
                 <ScadaFooterNav
