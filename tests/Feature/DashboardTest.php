@@ -103,11 +103,11 @@ test('dashboard response contains globalChartLogs as global averages', function 
             fn ($page) => $page
                 ->has('globalChartLogs', 2)
                 ->where('globalChartLogs.0.time', $firstTimestamp->format('H:i'))
-                ->where('globalChartLogs.0.avg_temperature', 25.0)
-                ->where('globalChartLogs.0.avg_humidity', 65.0)
+                ->where('globalChartLogs.0.avg_temperature', 25)
+                ->where('globalChartLogs.0.avg_humidity', 65)
                 ->where('globalChartLogs.1.time', $secondTimestamp->format('H:i'))
-                ->where('globalChartLogs.1.avg_temperature', 30.0)
-                ->where('globalChartLogs.1.avg_humidity', 70.0)
+                ->where('globalChartLogs.1.avg_temperature', 30)
+                ->where('globalChartLogs.1.avg_humidity', 70)
         );
 });
 
