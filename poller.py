@@ -967,6 +967,39 @@ def read_coil(
         return None
 
 
+def read_coils_snapshot(
+    client: ModbusTcpClient,
+    start_address: int,
+    end_address: int,
+    unit_id: int,
+) -> dict[int, bool] | None:
+    """
+    Baca snapshot coil dalam satu request FC01.
+    Return map alamat coil 1-based -> bool.
+    Return None jika gagal.
+    """
+    if end_address < start_address:
+        return None
+
+    try:
+        count = end_address - start_address + 1
+        result = client.read_coils(
+            address=start_address - 1,
+            count=count,
+            device_id=unit_id,
+        )
+
+        if result.isError():
+            return None
+
+        return {
+            coil_address: bool(result.bits[index])
+            for index, coil_address in enumerate(range(start_address, end_address + 1))
+        }
+    except (ModbusException, OSError):
+        return None
+
+
 
 
 def scan_registers(
@@ -1104,10 +1137,26 @@ def poll_hmi(hmi: dict, cursor, now) -> None:
                 HMI_REGISTERS["room_detail"],
             )
 
-        # ── Status global alarm ─────────────────────────────────────────────
-        # Jika disabled, coil alarm tidak dibaca (None → fallback threshold)
-        alarm_enabled      = read_coil(client, COIL_ALARM_STATUS,      1)
-        connection_enabled = read_coil(client, COIL_CONNECTION_STATUS,  1)
+        # ── Snapshot coil untuk seluruh alarm/connection ────────────────────
+        # Menghindari mismatch antar pembacaan coil satu-per-satu.
+        all_coils_snapshot = read_coils_snapshot(client, 1, 14, 1)
+
+        # Jika snapshot gagal, fallback ke pembacaan coil tunggal seperti sebelumnya.
+        if all_coils_snapshot is not None:
+            alarm_enabled = all_coils_snapshot.get(COIL_ALARM_STATUS)
+            connection_enabled = all_coils_snapshot.get(COIL_CONNECTION_STATUS)
+
+            if DEBUG_RAW_REGISTERS:
+                log.warning(
+                    "COIL SNAPSHOT hmi_id=%d addr1..14=%s",
+                    hmi["hmi_id"],
+                    ", ".join(
+                        f"{addr}:{int(val)}" for addr, val in all_coils_snapshot.items()
+                    ),
+                )
+        else:
+            alarm_enabled = read_coil(client, COIL_ALARM_STATUS, 1)
+            connection_enabled = read_coil(client, COIL_CONNECTION_STATUS, 1)
 
         # ── Data per sensor ─────────────────────────────────────────────────
         ok_rows     = []
@@ -1203,20 +1252,23 @@ def poll_hmi(hmi: dict, cursor, now) -> None:
                 )
 
                 # ── Coil alarm ──
-                alarm_temp_coil = (
-                    read_coil(client, coils["alarm_temp"], unit_id)
-                    if coils and alarm_enabled else None
-                )
-                alarm_hum_coil = (
-                    read_coil(client, coils["alarm_hum"], unit_id)
-                    if coils and alarm_enabled else None
-                )
+                alarm_temp_coil = None
+                alarm_hum_coil = None
+                if coils and alarm_enabled:
+                    if all_coils_snapshot is not None:
+                        alarm_temp_coil = all_coils_snapshot.get(coils["alarm_temp"])
+                        alarm_hum_coil = all_coils_snapshot.get(coils["alarm_hum"])
+                    else:
+                        alarm_temp_coil = read_coil(client, coils["alarm_temp"], unit_id)
+                        alarm_hum_coil = read_coil(client, coils["alarm_hum"], unit_id)
 
                 # ── Coil connection ──
-                connected = (
-                    read_coil(client, coils["connection"], unit_id)
-                    if coils and connection_enabled else None
-                )
+                connected = None
+                if coils and connection_enabled:
+                    if all_coils_snapshot is not None:
+                        connected = all_coils_snapshot.get(coils["connection"])
+                    else:
+                        connected = read_coil(client, coils["connection"], unit_id)
                 # Invert: coil True = connected → alarm_disconnect True = terputus
                 alarm_disconnect = (not connected) if connected is not None else None
 
