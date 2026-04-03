@@ -139,6 +139,10 @@ class DashboardController extends Controller
 
         $activeAlarms = $payload->sum(function (array $room): int {
             return collect($room['sensors'])->sum(function (array $sensor): int {
+                if (($sensor['status'] ?? 'OFFLINE') === 'OFFLINE') {
+                    return 0;
+                }
+
                 $alarms = $sensor['alarms'] ?? [];
 
                 return (int) ($alarms['temp'] ?? false)

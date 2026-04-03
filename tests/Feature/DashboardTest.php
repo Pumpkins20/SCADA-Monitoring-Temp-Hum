@@ -278,7 +278,7 @@ test('globalStats active_alarms counts total active alarm conditions', function 
         ->get(route('dashboard'))
         ->assertInertia(
             fn ($page) => $page
-                ->where('globalStats.active_alarms', 5)
+                ->where('globalStats.active_alarms', 4)
         );
 });
 

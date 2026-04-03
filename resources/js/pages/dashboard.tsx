@@ -122,6 +122,10 @@ function RoomCard({
         (s) => s.status !== 'OFFLINE',
     ).length;
     const activeAlarmCount = room.sensors.reduce((total, sensor) => {
+        if (sensor.status === 'OFFLINE') {
+            return total;
+        }
+
         return (
             total +
             Number(Boolean(sensor.alarms?.temp)) +
