@@ -11,6 +11,7 @@ export interface SensorAlarms {
 export interface SensorData {
     id: number;
     name: string;
+    unit_id?: number | null;
     temperature: number | null;
     humidity: number | null;
     calibrate_temp?: number | null;

@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AlarmEvent;
 use App\Models\Hmi;
 use App\Models\Room;
 use App\Models\Sensor;
@@ -363,5 +364,47 @@ test('rooms.show payload contains saved floor plan fields for room detail map', 
                 ->where('room.floor_plan_height', 5400)
                 ->where('room.sensors.0.pos_x', 1234)
                 ->where('room.sensors.0.pos_y', 4321)
+        );
+});
+
+test('rooms.show sensor alarm booleans are synchronized from active alarm logs', function () {
+    $room = Room::factory()->create();
+    $hmi = Hmi::factory()->create(['room_id' => $room->id]);
+    $sensor = Sensor::factory()->create([
+        'hmi_id' => $hmi->id,
+        'unit_id' => 1,
+        'name' => 'Sensor 1',
+    ]);
+
+    SensorLatestData::factory()->create([
+        'sensor_id' => $sensor->id,
+        'status' => 'WARNING',
+        'alarm_temp' => false,
+        'alarm_hum' => true,
+        'alarm_disconnect' => false,
+    ]);
+
+    AlarmEvent::query()->create([
+        'sensor_id' => $sensor->id,
+        'alarm_type' => 'temp_high',
+        'current_value' => 34.1,
+        'occurred_at' => now(),
+    ]);
+
+    AlarmEvent::query()->create([
+        'sensor_id' => $sensor->id,
+        'alarm_type' => 'hum_low',
+        'current_value' => 44.0,
+        'occurred_at' => now()->subSecond(),
+    ]);
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('rooms.show', $room))
+        ->assertInertia(
+            fn ($page) => $page
+                ->component('rooms/show')
+                ->where('room.sensors.0.alarms.temp', true)
+                ->where('room.sensors.0.alarms.hum', true)
+                ->where('room.sensors.0.alarms.disconnect', false)
         );
 });

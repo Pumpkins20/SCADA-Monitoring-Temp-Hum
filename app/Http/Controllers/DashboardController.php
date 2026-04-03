@@ -22,7 +22,7 @@ class DashboardController extends Controller
                 ->where('is_preview', false)
                 ->with([
                     'latestData',
-                    'sensors' => fn ($sq) => $sq->select(['id', 'hmi_id', 'name', 'pos_x', 'pos_y']),
+                    'sensors' => fn ($sq) => $sq->select(['id', 'hmi_id', 'name', 'unit_id', 'pos_x', 'pos_y']),
                     'sensors.latestData' => fn ($sq) => $sq->select([
                         'id',
                         'sensor_id',
@@ -197,7 +197,7 @@ class DashboardController extends Controller
                 ->where('is_preview', false)
                 ->with([
                     'latestData',
-                    'sensors' => fn ($sq) => $sq->select(['id', 'hmi_id', 'name', 'pos_x', 'pos_y']),
+                    'sensors' => fn ($sq) => $sq->select(['id', 'hmi_id', 'name', 'unit_id', 'pos_x', 'pos_y']),
                     'sensors.latestData' => fn ($sq) => $sq->select([
                         'id',
                         'sensor_id',
@@ -211,6 +211,10 @@ class DashboardController extends Controller
                         'calibrate_hum',
                         'last_read_at',
                     ]),
+                    'sensors.alarmEvents' => fn ($sq) => $sq
+                        ->whereNull('cleared_at')
+                        ->orderByDesc('occurred_at')
+                        ->select(['id', 'sensor_id', 'alarm_type', 'occurred_at', 'cleared_at']),
                 ]),
         ]);
 
@@ -263,31 +267,37 @@ class DashboardController extends Controller
                     ->avg(fn ($h) => (float) $h->latestData->avg_hum), 1)
                 : null,
             'status' => $this->resolveRoomStatus($sensors),
-            'sensors' => $sensors->map(fn ($s) => [
-                'id' => $s->id,
-                'name' => $s->name,
-                'temperature' => $s->latestData?->temperature !== null
-                    ? (float) $s->latestData->temperature
-                    : null,
-                'humidity' => $s->latestData?->humidity !== null
-                    ? (float) $s->latestData->humidity
-                    : null,
-                'status' => $s->latestData?->status ?? 'OFFLINE',
-                'calibrate_temp' => $s->latestData?->calibrate_temp !== null
-                    ? (float) $s->latestData->calibrate_temp
-                    : null,
-                'calibrate_hum' => $s->latestData?->calibrate_hum !== null
-                    ? (float) $s->latestData->calibrate_hum
-                    : null,
-                'alarms' => [
-                    'temp' => $s->latestData?->alarm_temp ?? false,
-                    'hum' => $s->latestData?->alarm_hum ?? false,
-                    'disconnect' => $s->latestData?->alarm_disconnect ?? true,
-                ],
-                'last_read_at' => $s->latestData?->last_read_at?->format('Y-m-d H:i:s'),
-                'pos_x' => $s->pos_x,
-                'pos_y' => $s->pos_y,
-            ])->values()->all(),
+            'sensors' => $sensors->map(function ($s): array {
+                $resolvedAlarms = $this->resolveSensorAlarms(
+                    $s->alarmEvents->pluck('alarm_type')->values()->all(),
+                    $s->latestData?->alarm_temp,
+                    $s->latestData?->alarm_hum,
+                    $s->latestData?->alarm_disconnect,
+                );
+
+                return [
+                    'id' => $s->id,
+                    'name' => $s->name,
+                    'unit_id' => $s->unit_id,
+                    'temperature' => $s->latestData?->temperature !== null
+                        ? (float) $s->latestData->temperature
+                        : null,
+                    'humidity' => $s->latestData?->humidity !== null
+                        ? (float) $s->latestData->humidity
+                        : null,
+                    'status' => $s->latestData?->status ?? 'OFFLINE',
+                    'calibrate_temp' => $s->latestData?->calibrate_temp !== null
+                        ? (float) $s->latestData->calibrate_temp
+                        : null,
+                    'calibrate_hum' => $s->latestData?->calibrate_hum !== null
+                        ? (float) $s->latestData->calibrate_hum
+                        : null,
+                    'alarms' => $resolvedAlarms,
+                    'last_read_at' => $s->latestData?->last_read_at?->format('Y-m-d H:i:s'),
+                    'pos_x' => $s->pos_x,
+                    'pos_y' => $s->pos_y,
+                ];
+            })->values()->all(),
         ];
 
         return Inertia::render('rooms/show', [
@@ -340,5 +350,34 @@ class DashboardController extends Controller
         }
 
         return 'NORMAL';
+    }
+
+    /**
+     * @param  list<string>  $activeAlarmTypes
+     * @return array{temp: bool, hum: bool, disconnect: bool}
+     */
+    private function resolveSensorAlarms(
+        array $activeAlarmTypes,
+        ?bool $latestTemp,
+        ?bool $latestHum,
+        ?bool $latestDisconnect,
+    ): array {
+        if ($activeAlarmTypes !== []) {
+            return [
+                'temp' => collect($activeAlarmTypes)->contains(
+                    fn (string $type): bool => in_array($type, ['temp', 'temp_high', 'temp_low'], true)
+                ),
+                'hum' => collect($activeAlarmTypes)->contains(
+                    fn (string $type): bool => in_array($type, ['hum', 'hum_high', 'hum_low'], true)
+                ),
+                'disconnect' => collect($activeAlarmTypes)->contains('disconnect'),
+            ];
+        }
+
+        return [
+            'temp' => (bool) ($latestTemp ?? false),
+            'hum' => (bool) ($latestHum ?? false),
+            'disconnect' => (bool) ($latestDisconnect ?? true),
+        ];
     }
 }
