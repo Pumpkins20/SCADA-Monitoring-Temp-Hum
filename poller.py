@@ -420,10 +420,12 @@ def compute_alarms(
     threshold_alarm_temp = temp > over_temp or temp < under_temp
     threshold_alarm_hum  = hum  > over_hum  or hum  < under_hum
 
-    final_alarm_temp = alarm_temp_coil if alarm_temp_coil is not None \
-                       else threshold_alarm_temp
-    final_alarm_hum  = alarm_hum_coil  if alarm_hum_coil  is not None \
-                       else threshold_alarm_hum
+    # Gunakan OR antara coil dan threshold agar mismatch pembacaan coil
+    # tidak menutupi alarm real dari nilai sensor.
+    final_alarm_temp = threshold_alarm_temp if alarm_temp_coil is None \
+                       else (alarm_temp_coil or threshold_alarm_temp)
+    final_alarm_hum  = threshold_alarm_hum if alarm_hum_coil is None \
+                       else (alarm_hum_coil or threshold_alarm_hum)
 
     if temp > over_temp * 2 or hum > over_hum * 2:
         status = "CRITICAL"
@@ -595,6 +597,10 @@ def sync_alarm_events(
     now,
     temperature: float | None,
     humidity: float | None,
+    over_temp: float | None,
+    under_temp: float | None,
+    over_hum: float | None,
+    under_hum: float | None,
     alarm_temp: bool,
     alarm_hum: bool,
     alarm_disconnect: bool,
@@ -605,9 +611,49 @@ def sync_alarm_events(
     - Saat alarm masih aktif: update current_value + updated_at.
     - Saat alarm nonaktif: tutup event aktif via cleared_at.
     """
+    temp_high_active = bool(
+        alarm_temp
+        and temperature is not None
+        and over_temp is not None
+        and temperature > over_temp
+    )
+    temp_low_active = bool(
+        alarm_temp
+        and temperature is not None
+        and under_temp is not None
+        and temperature < under_temp
+    )
+    hum_high_active = bool(
+        alarm_hum
+        and humidity is not None
+        and over_hum is not None
+        and humidity > over_hum
+    )
+    hum_low_active = bool(
+        alarm_hum
+        and humidity is not None
+        and under_hum is not None
+        and humidity < under_hum
+    )
+
+    # Guard untuk data coil=true tetapi nilai tepat di boundary.
+    if alarm_temp and not temp_high_active and not temp_low_active:
+        if temperature is not None and over_temp is not None and temperature >= over_temp:
+            temp_high_active = True
+        elif temperature is not None and under_temp is not None:
+            temp_low_active = True
+
+    if alarm_hum and not hum_high_active and not hum_low_active:
+        if humidity is not None and over_hum is not None and humidity >= over_hum:
+            hum_high_active = True
+        elif humidity is not None and under_hum is not None:
+            hum_low_active = True
+
     desired_states = {
-        "temp": (alarm_temp, temperature),
-        "hum": (alarm_hum, humidity),
+        "temp_high": (temp_high_active, temperature),
+        "temp_low": (temp_low_active, temperature),
+        "hum_high": (hum_high_active, humidity),
+        "hum_low": (hum_low_active, humidity),
         "disconnect": (alarm_disconnect, 0.0 if alarm_disconnect else 1.0),
     }
 
@@ -659,6 +705,19 @@ def sync_alarm_events(
                 (now, now, sensor_id, alarm_type),
             )
 
+    # Tutup event legacy yang memakai tipe lama temp/hum.
+    cursor.execute(
+        """
+        UPDATE alarm_events
+        SET cleared_at = %s,
+            updated_at = %s
+        WHERE sensor_id = %s
+          AND alarm_type IN ('temp', 'hum')
+          AND cleared_at IS NULL
+        """,
+        (now, now, sensor_id),
+    )
+
 
 def mark_hmi_offline_alarm_events(cursor, hmi_id: int, now) -> None:
     """
@@ -674,7 +733,7 @@ def mark_hmi_offline_alarm_events(cursor, hmi_id: int, now) -> None:
         FROM sensors s
         WHERE ae.sensor_id = s.id
           AND s.hmi_id = %s
-          AND ae.alarm_type IN ('temp', 'hum')
+                    AND ae.alarm_type IN ('temp', 'hum', 'temp_high', 'temp_low', 'hum_high', 'hum_low')
           AND ae.cleared_at IS NULL
         """,
         (now, now, hmi_id),
@@ -1189,6 +1248,10 @@ def poll_hmi(hmi: dict, cursor, now) -> None:
                     now=now,
                     temperature=temp,
                     humidity=hum,
+                    over_temp=over_temp,
+                    under_temp=under_temp,
+                    over_hum=over_hum,
+                    under_hum=under_hum,
                     alarm_temp=alarms["alarm_temp"],
                     alarm_hum=alarms["alarm_hum"],
                     alarm_disconnect=alarms["alarm_disconnect"],
@@ -1248,6 +1311,10 @@ def poll_hmi(hmi: dict, cursor, now) -> None:
                     now=now,
                     temperature=None,
                     humidity=None,
+                    over_temp=None,
+                    under_temp=None,
+                    over_hum=None,
+                    under_hum=None,
                     alarm_temp=False,
                     alarm_hum=False,
                     alarm_disconnect=True,

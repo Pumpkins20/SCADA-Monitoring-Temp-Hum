@@ -183,14 +183,15 @@ class AlarmController extends Controller
     {
         $sensor = $event->sensor;
         $room = $sensor?->hmi?->room;
+        $deviceNumber = $this->resolveDeviceNumber($sensor?->unit_id, $sensor?->name);
 
         return [
             'id' => $event->id,
             'alarm_time' => $event->occurred_at?->format('Y-m-d H:i:s') ?? '-',
             'current_value' => $this->formatCurrentValue($event),
-            'alarm_text' => $this->makeAlarmText($event, $sensor?->unit_id),
+            'alarm_text' => $this->makeAlarmText($event, $deviceNumber),
             'alarm_type' => 'alert',
-            'variable_name' => $this->makeVariableName($event->alarm_type, $sensor?->unit_id),
+            'variable_name' => $this->makeVariableName($event->alarm_type, $deviceNumber),
             'confirmed_time' => '-',
             'room_name' => $room?->name ?? '-',
             'room_detail' => $room?->location ?? '-',
@@ -206,24 +207,28 @@ class AlarmController extends Controller
         return rtrim(rtrim(number_format((float) $event->current_value, 2, '.', ''), '0'), '.');
     }
 
-    private function makeAlarmText(AlarmEvent $event, ?int $unitId): string
+    private function makeAlarmText(AlarmEvent $event, ?int $deviceNumber): string
     {
-        $deviceLabel = $unitId !== null ? "Device {$unitId}" : 'Device';
+        $deviceLabel = $deviceNumber !== null ? "Device {$deviceNumber}" : 'Device';
 
         return match ($event->alarm_type) {
-            'temp' => "{$deviceLabel} Temperature Alarm",
-            'hum' => "{$deviceLabel} Humidity Alarm",
+            'temp_low' => "{$deviceLabel} Low Temperature",
+            'hum_high' => "{$deviceLabel} High Humidity",
+            'hum_low' => "{$deviceLabel} Low Humidity",
+            'temp' => "{$deviceLabel} High Temperature",
+            'hum' => "{$deviceLabel} High Humidity",
+            'temp_high' => "{$deviceLabel} High Temperature",
             default => "{$deviceLabel} Disconnected",
         };
     }
 
-    private function makeVariableName(string $alarmType, ?int $unitId): string
+    private function makeVariableName(string $alarmType, ?int $deviceNumber): string
     {
-        $suffix = $unitId ?? 0;
+        $suffix = $deviceNumber ?? 0;
 
         return match ($alarmType) {
-            'temp' => "Ext_Device_{$suffix}_temp",
-            'hum' => "Ext_Device_{$suffix}_hum",
+            'temp', 'temp_high', 'temp_low' => "Ext_Device_{$suffix}_temp",
+            'hum', 'hum_high', 'hum_low' => "Ext_Device_{$suffix}_hum",
             default => "Ext_Device_{$suffix}_commStatus",
         };
     }
@@ -287,14 +292,15 @@ class AlarmController extends Controller
     {
         $sensor = $latest->sensor;
         $room = $sensor?->hmi?->room;
+        $deviceNumber = $this->resolveDeviceNumber($sensor?->unit_id, $sensor?->name);
 
         return [
             'id' => (int) ($latest->id * 10 + $this->fallbackAlarmTypeOrder($alarmType)),
             'alarm_time' => $latest->last_read_at?->format('Y-m-d H:i:s') ?? '-',
             'current_value' => $this->formatFallbackCurrentValue($currentValue),
-            'alarm_text' => $this->makeAlarmTextFromType($alarmType, $sensor?->unit_id),
+            'alarm_text' => $this->makeAlarmTextFromType($alarmType, $deviceNumber),
             'alarm_type' => 'alert',
-            'variable_name' => $this->makeVariableName($alarmType, $sensor?->unit_id),
+            'variable_name' => $this->makeVariableName($alarmType, $deviceNumber),
             'confirmed_time' => '-',
             'room_name' => $room?->name ?? '-',
             'room_detail' => $room?->location ?? '-',
@@ -310,13 +316,17 @@ class AlarmController extends Controller
         return rtrim(rtrim(number_format((float) $currentValue, 2, '.', ''), '0'), '.');
     }
 
-    private function makeAlarmTextFromType(string $alarmType, ?int $unitId): string
+    private function makeAlarmTextFromType(string $alarmType, ?int $deviceNumber): string
     {
-        $deviceLabel = $unitId !== null ? "Device {$unitId}" : 'Device';
+        $deviceLabel = $deviceNumber !== null ? "Device {$deviceNumber}" : 'Device';
 
         return match ($alarmType) {
-            'temp' => "{$deviceLabel} Temperature Alarm",
-            'hum' => "{$deviceLabel} Humidity Alarm",
+            'temp_low' => "{$deviceLabel} Low Temperature",
+            'hum_high' => "{$deviceLabel} High Humidity",
+            'hum_low' => "{$deviceLabel} Low Humidity",
+            'temp' => "{$deviceLabel} High Temperature",
+            'hum' => "{$deviceLabel} High Humidity",
+            'temp_high' => "{$deviceLabel} High Temperature",
             default => "{$deviceLabel} Disconnected",
         };
     }
@@ -324,10 +334,41 @@ class AlarmController extends Controller
     private function fallbackAlarmTypeOrder(string $alarmType): int
     {
         return match ($alarmType) {
-            'temp' => 1,
-            'hum' => 2,
-            default => 3,
+            'temp', 'temp_high', 'temp_low' => 1,
+            'hum', 'hum_high', 'hum_low' => 2,
+            default => 4,
         };
+    }
+
+    private function resolveDeviceNumber(?int $unitId, ?string $sensorName): ?int
+    {
+        $parsedFromName = null;
+
+        if ($sensorName !== null && preg_match('/(\d+)(?!.*\d)/', $sensorName, $matches) === 1) {
+            $candidate = (int) $matches[1];
+
+            if ($candidate >= 1 && $candidate <= 4) {
+                $parsedFromName = $candidate;
+            }
+        }
+
+        if ($parsedFromName !== null && ($unitId === null || $unitId < 1 || $unitId > 4)) {
+            return $parsedFromName;
+        }
+
+        if ($unitId !== null && $unitId > 0) {
+            if ($parsedFromName !== null && $unitId === 1 && $parsedFromName !== 1) {
+                return $parsedFromName;
+            }
+
+            return $unitId;
+        }
+
+        if ($parsedFromName !== null) {
+            return $parsedFromName;
+        }
+
+        return null;
     }
 
     private function isRealtimeTab(string $tab): bool

@@ -141,3 +141,37 @@ test('realtime tab falls back to sensor latest alarms when alarm events are empt
             ->where('rows.0.alarm_text', 'Device 2 Disconnected')
             ->where('rows.0.variable_name', 'Ext_Device_2_commStatus'));
 });
+
+test('alarm text follows HMI high low format and resolves device number from sensor name', function () {
+    $room = Room::factory()->create(['name' => 'RUANG FORMAT']);
+    $hmi = Hmi::factory()->create(['room_id' => $room->id]);
+    $sensor = Sensor::factory()->create([
+        'hmi_id' => $hmi->id,
+        'unit_id' => 1,
+        'name' => 'Sensor 4',
+    ]);
+
+    AlarmEvent::query()->create([
+        'sensor_id' => $sensor->id,
+        'alarm_type' => 'temp_high',
+        'current_value' => 31.2,
+        'occurred_at' => now(),
+    ]);
+
+    AlarmEvent::query()->create([
+        'sensor_id' => $sensor->id,
+        'alarm_type' => 'hum_low',
+        'current_value' => 42.1,
+        'occurred_at' => now()->subSecond(),
+    ]);
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('alarms.index', ['tab' => 'history', 'room' => $room->id]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('alarms/index')
+            ->where('rows.0.alarm_text', 'Device 4 High Temperature')
+            ->where('rows.0.variable_name', 'Ext_Device_4_temp')
+            ->where('rows.1.alarm_text', 'Device 4 Low Humidity')
+            ->where('rows.1.variable_name', 'Ext_Device_4_hum'));
+});
