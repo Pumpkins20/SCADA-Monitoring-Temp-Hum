@@ -54,6 +54,7 @@ ALLOW_FC_FALLBACK = os.environ.get("ALLOW_FC_FALLBACK", "false").lower() in {
 }
 NUMERIC_REGISTER_FORMAT = os.environ.get("NUMERIC_REGISTER_FORMAT", "float32").lower()
 NUMERIC_FLOAT_WORD_ORDER = os.environ.get("NUMERIC_FLOAT_WORD_ORDER", "ba").lower()
+COIL_ADDRESS_SHIFT = int(os.environ.get("COIL_ADDRESS_SHIFT", "0"))
 
 _numeric_offset_tokens = [
     token.strip()
@@ -953,12 +954,20 @@ def read_coil(
 ) -> bool | None:
     """
     Baca 1 coil dari HMI via FC01 read_coils().
-    Haiwell alamat coil 1-based, pymodbus 0-based — wajib address - 1.
+    Alamat coil logical mengikuti COIL_MAP. Posisi fisik request dapat disesuaikan
+    via env COIL_ADDRESS_SHIFT untuk mengatasi perbedaan indexing perangkat.
+    Contoh:
+    - COIL_ADDRESS_SHIFT=0  -> request pakai alamat persis dari COIL_MAP
+    - COIL_ADDRESS_SHIFT=-1 -> kompatibel mode lama (address - 1)
     Return None jika gagal — alarm fallback ke inferensi threshold.
     """
     try:
+        request_address = address + COIL_ADDRESS_SHIFT
+        if request_address < 0:
+            return None
+
         result = client.read_coils(
-            address=address - 1, count=1, device_id=unit_id
+            address=request_address, count=1, device_id=unit_id
         )
         if result.isError():
             return None
@@ -983,8 +992,12 @@ def read_coils_snapshot(
 
     try:
         count = end_address - start_address + 1
+        request_start = start_address + COIL_ADDRESS_SHIFT
+        if request_start < 0:
+            return None
+
         result = client.read_coils(
-            address=start_address - 1,
+            address=request_start,
             count=count,
             device_id=unit_id,
         )
@@ -1148,8 +1161,9 @@ def poll_hmi(hmi: dict, cursor, now) -> None:
 
             if DEBUG_RAW_REGISTERS:
                 log.warning(
-                    "COIL SNAPSHOT hmi_id=%d addr1..14=%s",
+                    "COIL SNAPSHOT hmi_id=%d shift=%d addr1..14=%s",
                     hmi["hmi_id"],
+                    COIL_ADDRESS_SHIFT,
                     ", ".join(
                         f"{addr}:{int(val)}" for addr, val in all_coils_snapshot.items()
                     ),
