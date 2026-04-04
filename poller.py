@@ -149,7 +149,12 @@ HMI_REGISTERS = {
     "avg_temp":    97,   # rata-rata suhu 4 sensor, dihitung HMI
     "avg_hum":     99,   # rata-rata hum 4 sensor, dihitung HMI
     "room_name":   101,  # nama ruangan, string 8 register
-    "room_detail": 107,  # detail lokasi, string 8 register
+    "room_detail": 107,  # detail lokasi, string (maks 6 register pada device aktif)
+}
+
+HMI_STRING_REGISTER_COUNT = {
+    "room_name": 8,
+    "room_detail": 6,
 }
 
 # Coil 0X (FC01) per sensor — identik untuk semua HMI Haiwell D4.
@@ -1159,8 +1164,20 @@ def poll_hmi(hmi: dict, cursor, now) -> None:
             )
 
         # Nama dan detail room — sync ke DB jika berubah dari HMI
-        room_name   = read_string_register(client, HMI_REGISTERS["room_name"],   1, func)
-        room_detail = read_string_register(client, HMI_REGISTERS["room_detail"], 1, func)
+        room_name = read_string_register(
+            client,
+            HMI_REGISTERS["room_name"],
+            1,
+            func,
+            count=HMI_STRING_REGISTER_COUNT["room_name"],
+        )
+        room_detail = read_string_register(
+            client,
+            HMI_REGISTERS["room_detail"],
+            1,
+            func,
+            count=HMI_STRING_REGISTER_COUNT["room_detail"],
+        )
         if room_name or room_detail:
             sync_room_info(cursor, hmi["room_id"], room_name, room_detail)
             log.debug(
