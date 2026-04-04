@@ -408,3 +408,37 @@ test('rooms.show sensor alarm booleans are synchronized from active alarm logs',
                 ->where('room.sensors.0.alarms.disconnect', false)
         );
 });
+
+test('rooms.show ignores stale disconnect event when sensor latest status is online', function () {
+    $room = Room::factory()->create();
+    $hmi = Hmi::factory()->create(['room_id' => $room->id]);
+    $sensor = Sensor::factory()->create([
+        'hmi_id' => $hmi->id,
+        'unit_id' => 1,
+        'name' => 'Sensor 1',
+    ]);
+
+    SensorLatestData::factory()->create([
+        'sensor_id' => $sensor->id,
+        'status' => 'NORMAL',
+        'alarm_temp' => false,
+        'alarm_hum' => false,
+        'alarm_disconnect' => false,
+    ]);
+
+    AlarmEvent::query()->create([
+        'sensor_id' => $sensor->id,
+        'alarm_type' => 'disconnect',
+        'current_value' => 0,
+        'occurred_at' => now(),
+    ]);
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('rooms.show', $room))
+        ->assertInertia(
+            fn ($page) => $page
+                ->component('rooms/show')
+                ->where('room.sensors.0.status', 'NORMAL')
+                ->where('room.sensors.0.alarms.disconnect', false)
+        );
+});

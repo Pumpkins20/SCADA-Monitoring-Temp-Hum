@@ -54,7 +54,12 @@ ALLOW_FC_FALLBACK = os.environ.get("ALLOW_FC_FALLBACK", "false").lower() in {
 }
 NUMERIC_REGISTER_FORMAT = os.environ.get("NUMERIC_REGISTER_FORMAT", "float32").lower()
 NUMERIC_FLOAT_WORD_ORDER = os.environ.get("NUMERIC_FLOAT_WORD_ORDER", "ba").lower()
-COIL_ADDRESS_SHIFT = int(os.environ.get("COIL_ADDRESS_SHIFT", "0"))
+# Backward-compatible default for current Haiwell deployments.
+COIL_ADDRESS_SHIFT = int(os.environ.get("COIL_ADDRESS_SHIFT", "-1"))
+CONNECTION_COIL_MODE = os.environ.get(
+    "CONNECTION_COIL_MODE",
+    "disconnect_alarm",
+).strip().lower()
 
 _numeric_offset_tokens = [
     token.strip()
@@ -80,6 +85,9 @@ if 0 in NUMERIC_ADDRESS_OFFSETS:
     ]
 else:
     NUMERIC_ADDRESS_OFFSETS = [0] + NUMERIC_ADDRESS_OFFSETS
+
+if CONNECTION_COIL_MODE not in {"disconnect_alarm", "connected_state"}:
+    CONNECTION_COIL_MODE = "disconnect_alarm"
 
 # String register: 16 karakter max = 8 register (big-endian ASCII, 2 char/register)
 STRING_REGISTER_COUNT = 8
@@ -957,8 +965,8 @@ def read_coil(
     Alamat coil logical mengikuti COIL_MAP. Posisi fisik request dapat disesuaikan
     via env COIL_ADDRESS_SHIFT untuk mengatasi perbedaan indexing perangkat.
     Contoh:
+    - COIL_ADDRESS_SHIFT=-1 -> kompatibel mode lama (default)
     - COIL_ADDRESS_SHIFT=0  -> request pakai alamat persis dari COIL_MAP
-    - COIL_ADDRESS_SHIFT=-1 -> kompatibel mode lama (address - 1)
     Return None jika gagal — alarm fallback ke inferensi threshold.
     """
     try:
@@ -1011,6 +1019,23 @@ def read_coils_snapshot(
         }
     except (ModbusException, OSError):
         return None
+
+
+def connection_coil_to_disconnect_alarm(connection_coil: bool | None) -> bool | None:
+    """
+    Normalisasi coil koneksi menjadi alarm_disconnect.
+
+    Mode:
+    - disconnect_alarm: coil True berarti disconnect aktif.
+    - connected_state:  coil True berarti perangkat terhubung.
+    """
+    if connection_coil is None:
+        return None
+
+    if CONNECTION_COIL_MODE == "connected_state":
+        return not connection_coil
+
+    return connection_coil
 
 
 
@@ -1276,15 +1301,15 @@ def poll_hmi(hmi: dict, cursor, now) -> None:
                         alarm_temp_coil = read_coil(client, coils["alarm_temp"], unit_id)
                         alarm_hum_coil = read_coil(client, coils["alarm_hum"], unit_id)
 
-                # ── Coil connection ──
-                connected = None
+                # ── Coil connection/disconnect ──
+                connection_coil = None
                 if coils and connection_enabled:
                     if all_coils_snapshot is not None:
-                        connected = all_coils_snapshot.get(coils["connection"])
+                        connection_coil = all_coils_snapshot.get(coils["connection"])
                     else:
-                        connected = read_coil(client, coils["connection"], unit_id)
-                # Invert: coil True = connected → alarm_disconnect True = terputus
-                alarm_disconnect = (not connected) if connected is not None else None
+                        connection_coil = read_coil(client, coils["connection"], unit_id)
+
+                alarm_disconnect = connection_coil_to_disconnect_alarm(connection_coil)
 
                 alarms = compute_alarms(
                     temp, hum,

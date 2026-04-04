@@ -86,7 +86,7 @@ export default function AlarmIndex({
     useEffect(() => {
         const timer = setInterval(() => {
             router.reload({ only: ['rows', 'pagination'] });
-        }, 5_000);
+        }, 3_000);
 
         return () => clearInterval(timer);
     }, []);

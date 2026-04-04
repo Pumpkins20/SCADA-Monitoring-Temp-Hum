@@ -273,6 +273,7 @@ class DashboardController extends Controller
                     $s->latestData?->alarm_temp,
                     $s->latestData?->alarm_hum,
                     $s->latestData?->alarm_disconnect,
+                    $s->latestData?->status,
                 );
 
                 return [
@@ -361,16 +362,22 @@ class DashboardController extends Controller
         ?bool $latestTemp,
         ?bool $latestHum,
         ?bool $latestDisconnect,
+        ?string $latestStatus = null,
     ): array {
+        $eventAlarmTypes = collect($activeAlarmTypes);
+        $latestDisconnectResolved = (bool) ($latestDisconnect ?? false);
+        $latestIsOffline = $latestStatus === 'OFFLINE';
+
         if ($activeAlarmTypes !== []) {
             return [
-                'temp' => collect($activeAlarmTypes)->contains(
+                'temp' => $eventAlarmTypes->contains(
                     fn (string $type): bool => in_array($type, ['temp', 'temp_high', 'temp_low'], true)
-                ),
-                'hum' => collect($activeAlarmTypes)->contains(
+                ) || (bool) ($latestTemp ?? false),
+                'hum' => $eventAlarmTypes->contains(
                     fn (string $type): bool => in_array($type, ['hum', 'hum_high', 'hum_low'], true)
-                ),
-                'disconnect' => collect($activeAlarmTypes)->contains('disconnect'),
+                ) || (bool) ($latestHum ?? false),
+                'disconnect' => $latestDisconnectResolved
+                    || ($latestIsOffline && $eventAlarmTypes->contains('disconnect')),
             ];
         }
 

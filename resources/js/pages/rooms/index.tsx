@@ -741,8 +741,6 @@ export default function RoomsIndex({ rooms }: RoomsIndexProps) {
     const [showDeleteRoomDialog, setShowDeleteRoomDialog] = useState(false);
     const [roomToDelete, setRoomToDelete] = useState<RoomItem | null>(null);
 
-    const connectedRooms = rooms.filter((room) => room.hmis_count > 0);
-
     return (
         <>
             <Head title="Connecting Devices — SCADA Monitoring" />
@@ -768,7 +766,7 @@ export default function RoomsIndex({ rooms }: RoomsIndexProps) {
                                     CONNECTING DEVICES
                                 </p>
                                 <p className="text-[10px] text-slate-400">
-                                    {connectedRooms.length} Ruangan Terhubung
+                                    {rooms.length} Total Ruangan
                                 </p>
                             </div>
                         </div>
@@ -842,19 +840,18 @@ export default function RoomsIndex({ rooms }: RoomsIndexProps) {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {connectedRooms.length === 0 ? (
+                                {rooms.length === 0 ? (
                                     <TableRow className="border-slate-700/60 hover:bg-transparent">
                                         <TableCell
                                             colSpan={7}
                                             className="py-12 text-center text-slate-500"
                                         >
-                                            Belum ada koneksi HMI yang aktif.
-                                            Klik "Tambah Koneksi HMI" untuk
-                                            memulai flow connect preview.
+                                            Belum ada data ruangan.
+                                            Klik "Tambah Koneksi HMI" untuk memulai flow connect preview.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    connectedRooms.map((room) => (
+                                    rooms.map((room) => (
                                         <TableRow
                                             key={room.id}
                                             className="border-slate-700/60 transition-colors hover:bg-slate-700/30"

@@ -30,8 +30,9 @@ module.exports = {
             kill_timeout: 5000,
             env: {
                 APP_ENV: 'production',
-                COIL_ADDRESS_SHIFT:'0',
-                DEBUG_RAW_REGISTERS:'false',
+                COIL_ADDRESS_SHIFT: '-1',
+                CONNECTION_COIL_MODE: 'disconnect_alarm',
+                DEBUG_RAW_REGISTERS: 'false',
             },
         },
         {
