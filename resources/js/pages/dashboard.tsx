@@ -215,15 +215,16 @@ function RoomCard({
                 <span className="text-[10px] text-slate-500">
                     {onlineCount}/{totalCount} sensor online
                 </span>
-                {activeAlarmCount > 0 ? (
-                    <span className="rounded border border-red-500/40 bg-red-500/10 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-red-300 uppercase">
-                        {activeAlarmCount} alarm
-                    </span>
-                ) : (
+                <div className="flex items-center gap-1.5">
+                    {activeAlarmCount > 0 && (
+                        <span className="rounded border border-red-500/40 bg-red-500/10 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-red-300 uppercase">
+                            {activeAlarmCount} alarm
+                        </span>
+                    )}
                     <span className="text-[10px] text-cyan-400 opacity-0 transition-opacity group-hover:opacity-100">
                         Detail →
                     </span>
-                )}
+                </div>
             </div>
         </Link>
     );
