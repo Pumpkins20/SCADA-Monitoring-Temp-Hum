@@ -171,94 +171,111 @@ function ImageUploadPanel({
                 </button>
 
                 {/* ── Controls ── */}
-                <div className="flex flex-1 flex-col gap-2.5">
+                <div className="flex min-w-0 flex-1 flex-col gap-2">
                     {/* Row 1: header + status */}
-                    <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
-                            Gambar Denah
-                        </span>
-                        {hasImage && !uploadFile && (
-                            <span className="rounded border border-cyan-500/30 bg-cyan-500/10 px-1.5 py-0.5 text-[9px] text-cyan-400">
-                                ✓ Tersimpan
+                    <div className="flex min-w-0 flex-col gap-1.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
+                                Gambar Denah
                             </span>
-                        )}
+                            {hasImage && !uploadFile && (
+                                <span className="rounded border border-cyan-500/30 bg-cyan-500/10 px-1.5 py-0.5 text-[9px] text-cyan-400">
+                                    ✓ Tersimpan
+                                </span>
+                            )}
+                            {!hasImage && !uploadFile && (
+                                <span className="rounded border border-slate-700/40 bg-slate-700/20 px-1.5 py-0.5 text-[9px] text-slate-600">
+                                    Belum ada gambar
+                                </span>
+                            )}
+                        </div>
+
                         {uploadFile && (
-                            <span className="max-w-48 truncate text-[10px] text-slate-400">
+                            <span className="max-w-full truncate text-[10px] text-slate-400">
                                 📎 {uploadFile.name}
                             </span>
                         )}
-                        {!hasImage && !uploadFile && (
-                            <span className="rounded border border-slate-700/40 bg-slate-700/20 px-1.5 py-0.5 text-[9px] text-slate-600">
-                                Belum ada gambar
-                            </span>
-                        )}
-                        <span className="ml-auto text-[9px] text-slate-700">
+
+                        <span className="text-[9px] text-slate-600">
                             JPG · PNG · WebP · SVG · maks 10 MB
                         </span>
                     </div>
 
                     {/* Row 2: dimensions */}
-                    <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-slate-500">
-                            Dimensi:
-                        </span>
-                        <span className="text-[10px] text-slate-600">W</span>
-                        <input
-                            type="number"
-                            min={100}
-                            max={65535}
-                            value={dimEdit.width}
-                            onChange={(e) =>
-                                onDimChange('width', e.target.value)
-                            }
-                            className="w-20 rounded-lg border border-slate-700/60 bg-slate-900/70 px-2 py-1 text-center font-mono text-xs text-white transition-colors outline-none focus:border-cyan-500/60 focus:ring-1 focus:ring-cyan-500/20"
-                        />
-                        <span className="text-[10px] text-slate-600">× H</span>
-                        <input
-                            type="number"
-                            min={100}
-                            max={65535}
-                            value={dimEdit.height}
-                            onChange={(e) =>
-                                onDimChange('height', e.target.value)
-                            }
-                            className="w-20 rounded-lg border border-slate-700/60 bg-slate-900/70 px-2 py-1 text-center font-mono text-xs text-white transition-colors outline-none focus:border-cyan-500/60 focus:ring-1 focus:ring-cyan-500/20"
-                        />
-                        <span className="text-[10px] text-slate-600">mm</span>
-                        <button
-                            type="button"
-                            disabled={isSavingDim}
-                            onClick={onSaveDimensions}
-                            className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-semibold tracking-wider uppercase transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
-                                isDimDone
-                                    ? 'border border-green-500/40 bg-green-500/15 text-green-400'
-                                    : isDimError
-                                      ? 'border border-red-500/40 bg-red-500/15 text-red-400'
-                                      : 'border border-slate-700/40 bg-slate-700/30 text-slate-400 hover:border-cyan-500/40 hover:bg-cyan-500/10 hover:text-cyan-400'
-                            }`}
-                        >
-                            {isSavingDim ? (
-                                <>
-                                    <Loader2 className="h-3 w-3 animate-spin" />{' '}
-                                    Menyimpan
-                                </>
-                            ) : isDimDone ? (
-                                <>
-                                    <CheckCircle2 className="h-3 w-3" />{' '}
-                                    Tersimpan
-                                </>
-                            ) : isDimError ? (
-                                <>
-                                    <XCircle className="h-3 w-3" /> Gagal
-                                </>
-                            ) : (
-                                'Simpan Dimensi'
-                            )}
-                        </button>
+                    <div className="rounded-lg border border-slate-700/50 bg-slate-900/40 p-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-[10px] text-slate-500">
+                                Dimensi:
+                            </span>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-[10px] text-slate-600">
+                                    W
+                                </span>
+                                <input
+                                    type="number"
+                                    min={100}
+                                    max={65535}
+                                    value={dimEdit.width}
+                                    onChange={(e) =>
+                                        onDimChange('width', e.target.value)
+                                    }
+                                    className="w-16 rounded-lg border border-slate-700/60 bg-slate-900/70 px-2 py-1 text-center font-mono text-xs text-white transition-colors outline-none focus:border-cyan-500/60 focus:ring-1 focus:ring-cyan-500/20 sm:w-20"
+                                />
+                                <span className="text-[10px] text-slate-600">
+                                    × H
+                                </span>
+                                <input
+                                    type="number"
+                                    min={100}
+                                    max={65535}
+                                    value={dimEdit.height}
+                                    onChange={(e) =>
+                                        onDimChange('height', e.target.value)
+                                    }
+                                    className="w-16 rounded-lg border border-slate-700/60 bg-slate-900/70 px-2 py-1 text-center font-mono text-xs text-white transition-colors outline-none focus:border-cyan-500/60 focus:ring-1 focus:ring-cyan-500/20 sm:w-20"
+                                />
+                                <span className="text-[10px] text-slate-600">
+                                    mm
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="mt-2 flex justify-end">
+                            <button
+                                type="button"
+                                disabled={isSavingDim}
+                                onClick={onSaveDimensions}
+                                className={`flex w-full max-w-40 items-center justify-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-semibold tracking-wider whitespace-nowrap uppercase transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
+                                    isDimDone
+                                        ? 'border border-green-500/40 bg-green-500/15 text-green-400'
+                                        : isDimError
+                                          ? 'border border-red-500/40 bg-red-500/15 text-red-400'
+                                          : 'border border-slate-700/40 bg-slate-700/30 text-slate-400 hover:border-cyan-500/40 hover:bg-cyan-500/10 hover:text-cyan-400'
+                                }`}
+                            >
+                                {isSavingDim ? (
+                                    <>
+                                        <Loader2 className="h-3 w-3 animate-spin" />{' '}
+                                        Menyimpan
+                                    </>
+                                ) : isDimDone ? (
+                                    <>
+                                        <CheckCircle2 className="h-3 w-3" />{' '}
+                                        Tersimpan
+                                    </>
+                                ) : isDimError ? (
+                                    <>
+                                        <XCircle className="h-3 w-3" /> Gagal
+                                    </>
+                                ) : (
+                                    'Simpan Dimensi'
+                                )}
+                            </button>
+                        </div>
                     </div>
 
                     {/* Row 3: action buttons */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 pt-0.5">
                         {/* Upload */}
                         <button
                             type="button"

@@ -268,7 +268,9 @@ function ConnectHmiPreviewDialog({
                 const json = (await res.json()) as {
                     errors?: Record<string, string[]>;
                 };
-                const nextErrors: Partial<Record<'ip_address' | 'port', string>> = {};
+                const nextErrors: Partial<
+                    Record<'ip_address' | 'port', string>
+                > = {};
 
                 Object.entries(json.errors ?? {}).forEach(([key, messages]) => {
                     if (key === 'ip_address' || key === 'port') {
@@ -291,7 +293,9 @@ function ConnectHmiPreviewDialog({
             setHmiId(json.hmi_id);
             await startPollingPreview(json.hmi_id);
         } catch {
-            setPhaseError('Gagal menghubungi server saat menyimpan HMI preview.');
+            setPhaseError(
+                'Gagal menghubungi server saat menyimpan HMI preview.',
+            );
         } finally {
             setProcessing(false);
         }
@@ -322,7 +326,9 @@ function ConnectHmiPreviewDialog({
                     errors?: Record<string, string[]>;
                 };
 
-                const nextErrors: Partial<Record<'ip_address' | 'port', string>> = {
+                const nextErrors: Partial<
+                    Record<'ip_address' | 'port', string>
+                > = {
                     ...createErrors,
                 };
 
@@ -430,10 +436,13 @@ function ConnectHmiPreviewDialog({
         >
             <DialogContent className="border-slate-700 bg-[#1a2027] text-white sm:max-w-2xl">
                 <DialogHeader>
-                    <DialogTitle className="text-white">Connect HMI Preview</DialogTitle>
+                    <DialogTitle className="text-white">
+                        Connect HMI Preview
+                    </DialogTitle>
                     <DialogDescription className="text-slate-400">
-                        Masukkan IP dan port HMI. Nama ruangan, device, dan sensor akan mengikuti data polling HMI
-                        setelah preview dikonfirmasi.
+                        Masukkan IP dan port HMI. Nama ruangan, device, dan
+                        sensor akan mengikuti data polling HMI setelah preview
+                        dikonfirmasi.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -444,7 +453,10 @@ function ConnectHmiPreviewDialog({
                 )}
 
                 {phase === 'form' && (
-                    <form onSubmit={submitCreateAndPreview} className="flex flex-col gap-4">
+                    <form
+                        onSubmit={submitCreateAndPreview}
+                        className="flex flex-col gap-4"
+                    >
                         <div className="grid grid-cols-2 gap-3">
                             <div className="flex flex-col gap-1.5">
                                 <Label className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
@@ -462,7 +474,9 @@ function ConnectHmiPreviewDialog({
                                     className="border-slate-600 bg-slate-800/80 text-white"
                                 />
                                 {createErrors.ip_address && (
-                                    <span className="text-xs text-red-400">{createErrors.ip_address}</span>
+                                    <span className="text-xs text-red-400">
+                                        {createErrors.ip_address}
+                                    </span>
                                 )}
                             </div>
 
@@ -484,7 +498,9 @@ function ConnectHmiPreviewDialog({
                                     className="border-slate-600 bg-slate-800/80 text-white"
                                 />
                                 {createErrors.port && (
-                                    <span className="text-xs text-red-400">{createErrors.port}</span>
+                                    <span className="text-xs text-red-400">
+                                        {createErrors.port}
+                                    </span>
                                 )}
                             </div>
                         </div>
@@ -537,10 +553,14 @@ function ConnectHmiPreviewDialog({
                             </Button>
                             <Button
                                 type="submit"
-                                disabled={processing || !hasPassedConnectionTest}
+                                disabled={
+                                    processing || !hasPassedConnectionTest
+                                }
                                 className="bg-cyan-600 text-white hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-40"
                             >
-                                {processing ? 'Memproses...' : 'Connect & Preview'}
+                                {processing
+                                    ? 'Memproses...'
+                                    : 'Connect & Preview'}
                             </Button>
                         </DialogFooter>
                     </form>
@@ -550,18 +570,28 @@ function ConnectHmiPreviewDialog({
                     <div className="flex flex-col items-center gap-4 py-8">
                         <div className="h-10 w-10 animate-spin rounded-full border-2 border-slate-600 border-t-cyan-400" />
                         <div className="text-center">
-                            <p className="text-sm font-medium text-white">Menunggu data dari HMI...</p>
+                            <p className="text-sm font-medium text-white">
+                                Menunggu data dari HMI...
+                            </p>
                             <p className="text-xs text-slate-400">
-                                Poller sedang membaca register. Maksimal {PREVIEW_TIMEOUT} detik.
+                                Poller sedang membaca register. Maksimal{' '}
+                                {PREVIEW_TIMEOUT} detik.
                             </p>
                         </div>
                         <div className="h-1 w-full overflow-hidden rounded-full bg-slate-700">
                             <div
                                 className="h-full bg-cyan-500 transition-all duration-1000"
-                                style={{ width: `${(waitElapsed / PREVIEW_TIMEOUT) * 100}%` }}
+                                style={{
+                                    width: `${(waitElapsed / PREVIEW_TIMEOUT) * 100}%`,
+                                }}
                             />
                         </div>
-                        <Button type="button" variant="ghost" onClick={handleCancel} className="text-slate-400">
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={handleCancel}
+                            className="text-slate-400"
+                        >
                             Batalkan
                         </Button>
                     </div>
@@ -600,9 +630,15 @@ function ConnectHmiPreviewDialog({
 
                         <div className="grid grid-cols-2 gap-2">
                             {previewData.map((sensor) => (
-                                <div key={sensor.id} className="rounded-lg border border-slate-700/60 bg-slate-900/60 p-3">
+                                <div
+                                    key={sensor.id}
+                                    className="rounded-lg border border-slate-700/60 bg-slate-900/60 p-3"
+                                >
                                     <Input
-                                        value={sensorNames[sensor.id] ?? sensor.name}
+                                        value={
+                                            sensorNames[sensor.id] ??
+                                            sensor.name
+                                        }
                                         onChange={(e) =>
                                             setSensorNames((prev) => ({
                                                 ...prev,
@@ -612,28 +648,43 @@ function ConnectHmiPreviewDialog({
                                         className="mb-2 h-7 border-slate-600 bg-slate-800 text-xs text-white"
                                     />
                                     <div className="flex justify-between text-xs">
-                                        <span className="text-slate-400">Suhu</span>
-                                        <span className="font-mono text-cyan-300">{sensor.temperature ?? '-'} degC</span>
+                                        <span className="text-slate-400">
+                                            Suhu
+                                        </span>
+                                        <span className="font-mono text-cyan-300">
+                                            {sensor.temperature ?? '-'} degC
+                                        </span>
                                     </div>
                                     <div className="flex justify-between text-xs">
-                                        <span className="text-slate-400">Hum</span>
-                                        <span className="font-mono text-blue-300">{sensor.humidity ?? '-'} %RH</span>
+                                        <span className="text-slate-400">
+                                            Hum
+                                        </span>
+                                        <span className="font-mono text-blue-300">
+                                            {sensor.humidity ?? '-'} %RH
+                                        </span>
                                     </div>
                                     <div className="mt-1 rounded border border-slate-700/60 bg-slate-800/70 px-2 py-1 text-[10px]">
-                                        <p className="mb-0.5 text-slate-500 uppercase">Kalibrasi (HMI)</p>
+                                        <p className="mb-0.5 text-slate-500 uppercase">
+                                            Kalibrasi (HMI)
+                                        </p>
                                         <p className="font-mono text-slate-300">
-                                            Temp: {sensor.calibrate_temp ?? '-'} | Hum: {sensor.calibrate_hum ?? '-'}
+                                            Temp: {sensor.calibrate_temp ?? '-'}{' '}
+                                            | Hum: {sensor.calibrate_hum ?? '-'}
                                         </p>
                                     </div>
                                     <div className="flex justify-between text-xs">
-                                        <span className="text-slate-400">Status</span>
+                                        <span className="text-slate-400">
+                                            Status
+                                        </span>
                                         <span
                                             className={`font-mono text-xs font-semibold ${
                                                 sensor.status === 'NORMAL'
                                                     ? 'text-green-400'
-                                                    : sensor.status === 'WARNING'
+                                                    : sensor.status ===
+                                                        'WARNING'
                                                       ? 'text-amber-400'
-                                                      : sensor.status === 'CRITICAL'
+                                                      : sensor.status ===
+                                                          'CRITICAL'
                                                         ? 'text-red-400'
                                                         : 'text-slate-500'
                                             }`}
@@ -642,15 +693,29 @@ function ConnectHmiPreviewDialog({
                                         </span>
                                     </div>
                                     <div className="mt-2 rounded border border-slate-700/60 bg-slate-800/70 px-2 py-1 text-[10px]">
-                                        <p className="mb-1 text-slate-500 uppercase">Debug Poller</p>
+                                        <p className="mb-1 text-slate-500 uppercase">
+                                            Debug Poller
+                                        </p>
                                         <p className="font-mono text-slate-300">
-                                            Unit: {sensor.unit_id ?? '-'} | T-Addr: {sensor.modbus_address_temp ?? '-'} | H-Addr:{' '}
+                                            Unit: {sensor.unit_id ?? '-'} |
+                                            T-Addr:{' '}
+                                            {sensor.modbus_address_temp ?? '-'}{' '}
+                                            | H-Addr:{' '}
                                             {sensor.modbus_address_hum ?? '-'}
                                         </p>
                                         <p className="mt-0.5 text-slate-400">
-                                            Data: {sensor.readable.has_latest_data ? 'ADA' : 'BELUM'} | T:{' '}
-                                            {sensor.readable.temperature ? 'OK' : 'NO'} | H:{' '}
-                                            {sensor.readable.humidity ? 'OK' : 'NO'}
+                                            Data:{' '}
+                                            {sensor.readable.has_latest_data
+                                                ? 'ADA'
+                                                : 'BELUM'}{' '}
+                                            | T:{' '}
+                                            {sensor.readable.temperature
+                                                ? 'OK'
+                                                : 'NO'}{' '}
+                                            | H:{' '}
+                                            {sensor.readable.humidity
+                                                ? 'OK'
+                                                : 'NO'}
                                         </p>
                                     </div>
                                 </div>
@@ -658,11 +723,23 @@ function ConnectHmiPreviewDialog({
                         </div>
 
                         <DialogFooter>
-                            <Button type="button" variant="ghost" onClick={handleCancel} className="text-slate-400">
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={handleCancel}
+                                className="text-slate-400"
+                            >
                                 Batalkan
                             </Button>
-                            <Button type="button" onClick={handleConfirm} disabled={processing} className="bg-cyan-600 text-white hover:bg-cyan-500">
-                                {processing ? 'Mengaktifkan...' : 'Aktifkan HMI'}
+                            <Button
+                                type="button"
+                                onClick={handleConfirm}
+                                disabled={processing}
+                                className="bg-cyan-600 text-white hover:bg-cyan-500"
+                            >
+                                {processing
+                                    ? 'Mengaktifkan...'
+                                    : 'Aktifkan HMI'}
                             </Button>
                         </DialogFooter>
                     </div>
@@ -704,11 +781,16 @@ function DeleteRoomDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="border-slate-700 bg-[#1a2027] text-white sm:max-w-sm">
                 <DialogHeader>
-                    <DialogTitle className="text-white">Hapus Ruangan</DialogTitle>
+                    <DialogTitle className="text-white">
+                        Hapus Ruangan
+                    </DialogTitle>
                     <DialogDescription className="text-slate-400">
                         Apakah Anda yakin ingin menghapus{' '}
-                        <strong className="text-white">{room?.name ?? 'ruangan ini'}</strong>?
-                        Semua koneksi dan data terkait ruangan ini bisa ikut terhapus.
+                        <strong className="text-white">
+                            {room?.name ?? 'ruangan ini'}
+                        </strong>
+                        ? Semua koneksi dan data terkait ruangan ini bisa ikut
+                        terhapus.
                     </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
@@ -755,7 +837,7 @@ export default function RoomsIndex({ rooms }: RoomsIndexProps) {
                     <div className="flex items-center px-5 pb-2">
                         <div className="flex w-48 shrink-0 items-center gap-2">
                             <Link
-                                href="/dashboard"
+                                href="/settings-general"
                                 className="flex items-center gap-1.5 rounded-lg p-1 transition-colors hover:bg-slate-700/60"
                             >
                                 <ArrowLeft className="h-4 w-4 text-slate-400" />
@@ -846,8 +928,9 @@ export default function RoomsIndex({ rooms }: RoomsIndexProps) {
                                             colSpan={7}
                                             className="py-12 text-center text-slate-500"
                                         >
-                                            Belum ada data ruangan.
-                                            Klik "Tambah Koneksi HMI" untuk memulai flow connect preview.
+                                            Belum ada data ruangan. Klik "Tambah
+                                            Koneksi HMI" untuk memulai flow
+                                            connect preview.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
@@ -900,8 +983,12 @@ export default function RoomsIndex({ rooms }: RoomsIndexProps) {
                                                         variant="destructive"
                                                         className="h-7 px-2.5 text-[10px] tracking-wider uppercase"
                                                         onClick={() => {
-                                                            setRoomToDelete(room);
-                                                            setShowDeleteRoomDialog(true);
+                                                            setRoomToDelete(
+                                                                room,
+                                                            );
+                                                            setShowDeleteRoomDialog(
+                                                                true,
+                                                            );
                                                         }}
                                                     >
                                                         <Trash2 className="h-3.5 w-3.5" />

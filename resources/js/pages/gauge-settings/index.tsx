@@ -171,7 +171,7 @@ export default function GaugeSettingsPage({
                     <div className="flex items-center px-5 pb-2">
                         <div className="flex w-48 shrink-0 items-center gap-2">
                             <Link
-                                href="/dashboard"
+                                href="/settings-general"
                                 className="flex items-center gap-1.5 rounded-lg p-1 transition-colors hover:bg-slate-700/60"
                             >
                                 <ArrowLeft className="h-4 w-4 text-slate-400" />
