@@ -14,6 +14,12 @@ class GaugeSetting extends Model
 
     public const FIXED_LOGO_RIGHT = '/images/logo/edutic.png';
 
+    public const DEFAULT_HEADER_TITLE_LINE_1 =
+    'SCADA MONITORING AC PRESISI RUANG SERVER CCTV & FIDS';
+
+    public const DEFAULT_HEADER_TITLE_LINE_2 =
+    'BANDARA SOEKARNO - HATTA';
+
     /** @use HasFactory<\Database\Factories\GaugeSettingFactory> */
     use HasFactory;
 
@@ -37,6 +43,8 @@ class GaugeSetting extends Model
         'hum_red_to',
         'logo_left_path',
         'logo_center_path',
+        'header_title_line_1',
+        'header_title_line_2',
     ];
 
     protected function casts(): array
@@ -76,6 +84,20 @@ class GaugeSetting extends Model
                 self::DEFAULT_LOGO_CENTER,
             ),
             'right' => self::FIXED_LOGO_RIGHT,
+        ];
+    }
+
+    /**
+     * @return array{line1: string, line2: string}
+     */
+    public static function resolveHeaderTitle(?self $setting): array
+    {
+        $line1 = trim((string) ($setting?->header_title_line_1 ?? ''));
+        $line2 = trim((string) ($setting?->header_title_line_2 ?? ''));
+
+        return [
+            'line1' => $line1 !== '' ? $line1 : self::DEFAULT_HEADER_TITLE_LINE_1,
+            'line2' => $line2 !== '' ? $line2 : self::DEFAULT_HEADER_TITLE_LINE_2,
         ];
     }
 

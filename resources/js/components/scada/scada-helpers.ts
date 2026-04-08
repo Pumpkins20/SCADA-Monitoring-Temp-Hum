@@ -77,10 +77,20 @@ export interface HeaderLogos {
     right: string;
 }
 
+export interface HeaderTitle {
+    line1: string;
+    line2: string;
+}
+
 export const DEFAULT_HEADER_LOGOS: HeaderLogos = {
     left: '/images/logo/injourney.png',
     center: '/images/logo/westindo.png',
     right: '/images/logo/edutic.png',
+};
+
+export const DEFAULT_HEADER_TITLE: HeaderTitle = {
+    line1: 'SCADA MONITORING AC PRESISI RUANG SERVER CCTV & FIDS',
+    line2: 'BANDARA SOEKARNO - HATTA',
 };
 
 export function fmt(value: number | string | null, decimals = 1): string {

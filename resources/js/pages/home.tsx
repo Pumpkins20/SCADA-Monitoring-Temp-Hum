@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
+import { ScadaHeaderTitle } from '@/components/scada/scada-header-title';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -500,15 +501,7 @@ export default function HomePage({ rooms, chartLogs, globalStats }: HomeProps) {
                         </div>
 
                         {/* Center title */}
-                        <div className="flex flex-1 flex-col items-center">
-                            <p className="text-base font-bold tracking-widest text-white uppercase">
-                                SCADA MONITORING AC PRESISI RUANG SERVER CCTV &
-                                FIDS
-                            </p>
-                            <p className="text-[11px] tracking-wider text-slate-400 uppercase">
-                                BANDARA SOEKARNO - HATTA
-                            </p>
-                        </div>
+                        <ScadaHeaderTitle />
 
                         {/* Time / Date */}
                         <div className="flex w-48 shrink-0 items-center justify-end gap-3">

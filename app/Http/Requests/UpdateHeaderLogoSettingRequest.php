@@ -24,6 +24,8 @@ class UpdateHeaderLogoSettingRequest extends FormRequest
         return [
             'logo_left' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'logo_center' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'header_title_line_1' => ['nullable', 'string', 'max:160'],
+            'header_title_line_2' => ['nullable', 'string', 'max:120'],
         ];
     }
 
@@ -39,6 +41,8 @@ class UpdateHeaderLogoSettingRequest extends FormRequest
             'logo_center.image' => 'Logo tengah harus berupa file gambar.',
             'logo_center.mimes' => 'Logo tengah hanya mendukung format JPG, PNG, atau WEBP.',
             'logo_center.max' => 'Ukuran logo tengah maksimal 2 MB.',
+            'header_title_line_1.max' => 'Judul header baris 1 maksimal 160 karakter.',
+            'header_title_line_2.max' => 'Judul header baris 2 maksimal 120 karakter.',
         ];
     }
 }

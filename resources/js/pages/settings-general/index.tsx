@@ -9,6 +9,7 @@ import {
 import { useEffect, useState } from 'react';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
 import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
+import { ScadaHeaderTitle } from '@/components/scada/scada-header-title';
 
 export default function SettingsGeneralPage() {
     const [now, setNow] = useState(new Date());
@@ -59,15 +60,7 @@ export default function SettingsGeneralPage() {
                             </div>
                         </div>
 
-                        <div className="flex flex-1 flex-col items-center">
-                            <p className="text-base font-bold tracking-widest text-white uppercase">
-                                SCADA MONITORING AC PRESISI RUANG SERVER CCTV &
-                                FIDS
-                            </p>
-                            <p className="text-[11px] tracking-wider text-slate-400 uppercase">
-                                BANDARA SOEKARNO - HATTA
-                            </p>
-                        </div>
+                        <ScadaHeaderTitle />
 
                         <div className="flex w-48 shrink-0 items-center justify-end">
                             <div className="text-right">
@@ -122,11 +115,11 @@ export default function SettingsGeneralPage() {
                                 </div>
                                 <div className="text-center">
                                     <p className="text-sm font-bold tracking-wider text-white uppercase">
-                                        Logo Header
+                                        Header Dashboard
                                     </p>
                                     <p className="mt-0.5 text-[11px] text-slate-400">
-                                        Ganti logo kiri dan tengah pada header
-                                        dashboard
+                                        Atur judul header serta logo kiri dan
+                                        tengah dashboard
                                     </p>
                                 </div>
                                 <span className="text-[10px] text-cyan-400 opacity-0 transition-opacity group-hover:opacity-100">

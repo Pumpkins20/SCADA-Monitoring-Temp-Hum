@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from 'react';
 import { PasswordSessionFloating } from '@/components/scada/password-session-floating';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
 import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
+import { ScadaHeaderTitle } from '@/components/scada/scada-header-title';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -109,7 +110,9 @@ function HmiFormDialog({
     const [phaseError, setPhaseError] = useState('');
     const [createProcessing, setCreateProcessing] = useState(false);
     const [createErrors, setCreateErrors] = useState<
-        Partial<Record<'name' | 'ip_address' | 'port' | 'register_function', string>>
+        Partial<
+            Record<'name' | 'ip_address' | 'port' | 'register_function', string>
+        >
     >({});
     const pollingRef = useRef<number | null>(null);
     const PREVIEW_TIMEOUT = 30;
@@ -251,7 +254,10 @@ function HmiFormDialog({
                 };
 
                 const nextErrors: Partial<
-                    Record<'name' | 'ip_address' | 'port' | 'register_function', string>
+                    Record<
+                        'name' | 'ip_address' | 'port' | 'register_function',
+                        string
+                    >
                 > = {};
 
                 Object.entries(json.errors ?? {}).forEach(([key, messages]) => {
@@ -274,11 +280,16 @@ function HmiFormDialog({
                 return;
             }
 
-            const json = (await res.json()) as { hmi_id: number; message: string };
+            const json = (await res.json()) as {
+                hmi_id: number;
+                message: string;
+            };
             setHmiId(json.hmi_id);
             await startPollingPreview(json.hmi_id);
         } catch {
-            setPhaseError('Gagal menghubungi server saat menyimpan HMI preview.');
+            setPhaseError(
+                'Gagal menghubungi server saat menyimpan HMI preview.',
+            );
         } finally {
             setCreateProcessing(false);
         }
@@ -370,7 +381,10 @@ function HmiFormDialog({
                     </DialogDescription>
                 </DialogHeader>
 
-                <form onSubmit={submitCreateFlow} className="flex flex-col gap-4">
+                <form
+                    onSubmit={submitCreateFlow}
+                    className="flex flex-col gap-4"
+                >
                     {phaseError && (
                         <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
                             {phaseError}
@@ -385,9 +399,11 @@ function HmiFormDialog({
                                 </Label>
                                 <Input
                                     value={data.name}
-                                    onChange={(e) => setData('name', e.target.value)}
+                                    onChange={(e) =>
+                                        setData('name', e.target.value)
+                                    }
                                     placeholder="HMI-01"
-                                    disabled={isEdit}   
+                                    disabled={isEdit}
                                     className="border-slate-600 bg-slate-800/80 text-white placeholder:text-slate-500 focus-visible:border-cyan-500 focus-visible:ring-cyan-500/30"
                                 />
                                 {(createErrors.name ?? errors.name) && (
@@ -405,14 +421,19 @@ function HmiFormDialog({
                                     <Input
                                         value={data.ip_address}
                                         onChange={(e) =>
-                                            setData('ip_address', e.target.value)
+                                            setData(
+                                                'ip_address',
+                                                e.target.value,
+                                            )
                                         }
                                         placeholder="192.168.1.10"
                                         className="border-slate-600 bg-slate-800/80 text-white placeholder:text-slate-500 focus-visible:border-cyan-500 focus-visible:ring-cyan-500/30"
                                     />
-                                    {(createErrors.ip_address ?? errors.ip_address) && (
+                                    {(createErrors.ip_address ??
+                                        errors.ip_address) && (
                                         <span className="text-xs text-red-400">
-                                            {createErrors.ip_address ?? errors.ip_address}
+                                            {createErrors.ip_address ??
+                                                errors.ip_address}
                                         </span>
                                     )}
                                 </div>
@@ -426,7 +447,9 @@ function HmiFormDialog({
                                         min={1}
                                         max={65535}
                                         value={data.port}
-                                        onChange={(e) => setData('port', e.target.value)}
+                                        onChange={(e) =>
+                                            setData('port', e.target.value)
+                                        }
                                         className="border-slate-600 bg-slate-800/80 text-white placeholder:text-slate-500 focus-visible:border-cyan-500 focus-visible:ring-cyan-500/30"
                                     />
                                     {(createErrors.port ?? errors.port) && (
@@ -447,9 +470,15 @@ function HmiFormDialog({
                                             <button
                                                 key={fc}
                                                 type="button"
-                                                onClick={() => setData('register_function', fc)}
+                                                onClick={() =>
+                                                    setData(
+                                                        'register_function',
+                                                        fc,
+                                                    )
+                                                }
                                                 className={`flex h-10 items-center justify-center rounded-md border px-3 text-sm font-medium transition-colors ${
-                                                    data.register_function === fc
+                                                    data.register_function ===
+                                                    fc
                                                         ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300'
                                                         : 'border-slate-600 bg-slate-800/80 text-slate-400'
                                                 }`}
@@ -460,7 +489,8 @@ function HmiFormDialog({
                                             </button>
                                         ))}
                                     </div>
-                                    {(createErrors.register_function ?? errors.register_function) && (
+                                    {(createErrors.register_function ??
+                                        errors.register_function) && (
                                         <span className="text-xs text-red-400">
                                             {createErrors.register_function ??
                                                 errors.register_function}
@@ -476,7 +506,10 @@ function HmiFormDialog({
                                         <button
                                             type="button"
                                             onClick={() =>
-                                                setData('is_active', !data.is_active)
+                                                setData(
+                                                    'is_active',
+                                                    !data.is_active,
+                                                )
                                             }
                                             className={`flex h-10 items-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors ${
                                                 data.is_active
@@ -489,7 +522,9 @@ function HmiFormDialog({
                                             ) : (
                                                 <WifiOff className="h-4 w-4" />
                                             )}
-                                            {data.is_active ? 'Aktif' : 'Non-aktif'}
+                                            {data.is_active
+                                                ? 'Aktif'
+                                                : 'Non-aktif'}
                                         </button>
                                     </div>
                                 )}
@@ -527,7 +562,8 @@ function HmiFormDialog({
                                     Menunggu data dari HMI...
                                 </p>
                                 <p className="text-xs text-slate-400">
-                                    Poller sedang membaca register. Maksimal {PREVIEW_TIMEOUT} detik.
+                                    Poller sedang membaca register. Maksimal{' '}
+                                    {PREVIEW_TIMEOUT} detik.
                                 </p>
                             </div>
                             <div className="h-1 w-full overflow-hidden rounded-full bg-slate-700">
@@ -564,7 +600,10 @@ function HmiFormDialog({
                                         className="rounded-lg border border-slate-700/60 bg-slate-900/60 p-3"
                                     >
                                         <Input
-                                            value={sensorNames[sensor.id] ?? sensor.name}
+                                            value={
+                                                sensorNames[sensor.id] ??
+                                                sensor.name
+                                            }
                                             onChange={(e) =>
                                                 setSensorNames((prev) => ({
                                                     ...prev,
@@ -574,26 +613,34 @@ function HmiFormDialog({
                                             className="mb-2 h-7 border-slate-600 bg-slate-800 text-xs text-white"
                                         />
                                         <div className="flex justify-between text-xs">
-                                            <span className="text-slate-400">Suhu</span>
+                                            <span className="text-slate-400">
+                                                Suhu
+                                            </span>
                                             <span className="font-mono text-cyan-300">
                                                 {sensor.temperature ?? '-'} degC
                                             </span>
                                         </div>
                                         <div className="flex justify-between text-xs">
-                                            <span className="text-slate-400">Hum</span>
+                                            <span className="text-slate-400">
+                                                Hum
+                                            </span>
                                             <span className="font-mono text-blue-300">
                                                 {sensor.humidity ?? '-'} %RH
                                             </span>
                                         </div>
                                         <div className="flex justify-between text-xs">
-                                            <span className="text-slate-400">Status</span>
+                                            <span className="text-slate-400">
+                                                Status
+                                            </span>
                                             <span
                                                 className={`font-mono text-xs font-semibold ${
                                                     sensor.status === 'NORMAL'
                                                         ? 'text-green-400'
-                                                        : sensor.status === 'WARNING'
+                                                        : sensor.status ===
+                                                            'WARNING'
                                                           ? 'text-amber-400'
-                                                          : sensor.status === 'CRITICAL'
+                                                          : sensor.status ===
+                                                              'CRITICAL'
                                                             ? 'text-red-400'
                                                             : 'text-slate-500'
                                                 }`}
@@ -616,7 +663,9 @@ function HmiFormDialog({
                                 </Button>
                                 <Button
                                     type="button"
-                                    onClick={() => hmiId && handleConfirm(hmiId)}
+                                    onClick={() =>
+                                        hmiId && handleConfirm(hmiId)
+                                    }
                                     disabled={createProcessing || !hmiId}
                                     className="bg-cyan-600 text-white hover:bg-cyan-500"
                                 >
@@ -692,8 +741,6 @@ function DeleteHmiDialog({
     );
 }
 
-
-
 // ─── Delete Sensor Dialog ─────────────────────────────────────────────────────
 
 function DeleteSensorDialog({
@@ -765,7 +812,10 @@ function HmiCard({ hmi, roomId }: { hmi: HmiItem; roomId: number }) {
         return value === null ? '-' : value.toFixed(2);
     }
 
-    function formatIdealRange(under: number | null, over: number | null): string {
+    function formatIdealRange(
+        under: number | null,
+        over: number | null,
+    ): string {
         if (under === null || over === null) {
             return '-';
         }
@@ -903,10 +953,16 @@ function HmiCard({ hmi, roomId }: { hmi: HmiItem; roomId: number }) {
                                         {formatValue(sensor.calibrate_hum)}
                                     </TableCell>
                                     <TableCell className="text-center text-amber-300 tabular-nums">
-                                        {formatIdealRange(sensor.under_temp, sensor.over_temp)}
+                                        {formatIdealRange(
+                                            sensor.under_temp,
+                                            sensor.over_temp,
+                                        )}
                                     </TableCell>
                                     <TableCell className="text-center text-orange-300 tabular-nums">
-                                        {formatIdealRange(sensor.under_hum, sensor.over_hum)}
+                                        {formatIdealRange(
+                                            sensor.under_hum,
+                                            sensor.over_hum,
+                                        )}
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <div className="flex items-center justify-end gap-1">
@@ -1009,15 +1065,7 @@ export default function RoomDevices({ room, hmis }: DevicesPageProps) {
                             </div>
                         </div>
 
-                        <div className="flex flex-1 flex-col items-center">
-                            <p className="text-base font-bold tracking-widest text-white uppercase">
-                                SCADA MONITORING AC PRESISI RUANG SERVER CCTV &
-                                FIDS
-                            </p>
-                            <p className="text-[11px] tracking-wider text-slate-400 uppercase">
-                                BANDARA SOEKARNO - HATTA
-                            </p>
-                        </div>
+                        <ScadaHeaderTitle />
 
                         <div className="w-48 shrink-0" />
                     </div>
@@ -1047,7 +1095,6 @@ export default function RoomDevices({ room, hmis }: DevicesPageProps) {
                             Tambah Koneksi HMI
                         </Button> */}
                     </div>
-
 
                     {/* ── HMI Cards ── */}
                     {hmis.length === 0 ? (

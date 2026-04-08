@@ -9,6 +9,7 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
 import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
+import { ScadaHeaderTitle } from '@/components/scada/scada-header-title';
 import {
     Table,
     TableBody,
@@ -91,7 +92,9 @@ export default function AlarmIndex({
         return () => clearInterval(timer);
     }, []);
 
-    const [startDateInput, setStartDateInput] = useState(filters.start_date ?? '');
+    const [startDateInput, setStartDateInput] = useState(
+        filters.start_date ?? '',
+    );
     const [endDateInput, setEndDateInput] = useState(filters.end_date ?? '');
 
     const timeStr = now.toLocaleTimeString('id-ID', {
@@ -172,8 +175,11 @@ export default function AlarmIndex({
     });
 
     const activeAlarmRoomNames =
-        Array.from(new Set(rows.map((row) => row.room_name).filter((name) => name !== '-'))).join(', ') ||
-        '—';
+        Array.from(
+            new Set(
+                rows.map((row) => row.room_name).filter((name) => name !== '-'),
+            ),
+        ).join(', ') || '—';
     const showRoomColumns = filters.room === null;
 
     return (
@@ -203,15 +209,7 @@ export default function AlarmIndex({
                             </div>
                         </div>
 
-                        <div className="flex flex-1 flex-col items-center">
-                            <p className="text-base font-bold tracking-widest text-white uppercase">
-                                SCADA MONITORING AC PRESISI RUANG SERVER CCTV &
-                                FIDS
-                            </p>
-                            <p className="text-[11px] tracking-wider text-slate-400 uppercase">
-                                BANDARA SOEKARNO - HATTA
-                            </p>
-                        </div>
+                        <ScadaHeaderTitle />
 
                         <div className="flex w-48 shrink-0 items-center justify-end">
                             <div className="text-right">
@@ -282,7 +280,9 @@ export default function AlarmIndex({
                                 <input
                                     type="date"
                                     value={startDateInput}
-                                    onChange={(event) => setStartDateInput(event.target.value)}
+                                    onChange={(event) =>
+                                        setStartDateInput(event.target.value)
+                                    }
                                     className="rounded-md border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-100"
                                 />
                             </div>
@@ -294,7 +294,9 @@ export default function AlarmIndex({
                                 <input
                                     type="date"
                                     value={endDateInput}
-                                    onChange={(event) => setEndDateInput(event.target.value)}
+                                    onChange={(event) =>
+                                        setEndDateInput(event.target.value)
+                                    }
                                     className="rounded-md border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-100"
                                 />
                             </div>
@@ -302,7 +304,7 @@ export default function AlarmIndex({
                             <button
                                 type="button"
                                 onClick={applyDateFilter}
-                                className="rounded-md bg-cyan-600 px-3 py-1.5 text-[11px] font-semibold tracking-wide uppercase text-white transition-colors hover:bg-cyan-500"
+                                className="rounded-md bg-cyan-600 px-3 py-1.5 text-[11px] font-semibold tracking-wide text-white uppercase transition-colors hover:bg-cyan-500"
                             >
                                 Apply
                             </button>
@@ -317,15 +319,18 @@ export default function AlarmIndex({
                         </div>
                     </div>
 
-                    {filters.tab === 'been-confirmed' && !tabInfo.confirmedAvailableFromHmi && (
-                        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
-                            Data confirmed dari HMI belum tersedia. Tab ini ditampilkan sebagai empty state (view-only).
-                        </div>
-                    )}
+                    {filters.tab === 'been-confirmed' &&
+                        !tabInfo.confirmedAvailableFromHmi && (
+                            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+                                Data confirmed dari HMI belum tersedia. Tab ini
+                                ditampilkan sebagai empty state (view-only).
+                            </div>
+                        )}
 
                     {tabInfo.isViewOnly && (
                         <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200">
-                            Data alarm bersifat view-only dari hasil baca HMI oleh poller.
+                            Data alarm bersifat view-only dari hasil baca HMI
+                            oleh poller.
                         </div>
                     )}
 
@@ -418,7 +423,9 @@ export default function AlarmIndex({
                         <button
                             type="button"
                             disabled={pagination.currentPage <= 1}
-                            onClick={() => navigatePage(pagination.currentPage - 1)}
+                            onClick={() =>
+                                navigatePage(pagination.currentPage - 1)
+                            }
                             className="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-700/60 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400"
                         >
                             <ChevronLeft className="h-4 w-4" />
@@ -428,8 +435,12 @@ export default function AlarmIndex({
                         </span>
                         <button
                             type="button"
-                            disabled={pagination.currentPage >= pagination.lastPage}
-                            onClick={() => navigatePage(pagination.currentPage + 1)}
+                            disabled={
+                                pagination.currentPage >= pagination.lastPage
+                            }
+                            onClick={() =>
+                                navigatePage(pagination.currentPage + 1)
+                            }
                             className="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-700/60 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400"
                         >
                             <ChevronRight className="h-4 w-4" />
@@ -439,7 +450,11 @@ export default function AlarmIndex({
 
                 <ScadaFooterNav
                     activeMenu="alarms"
-                    hasAlarms={rows.length > 0 && (filters.tab === 'realtime' || filters.tab === 'no-confirmed')}
+                    hasAlarms={
+                        rows.length > 0 &&
+                        (filters.tab === 'realtime' ||
+                            filters.tab === 'no-confirmed')
+                    }
                     alarmRoomNames={activeAlarmRoomNames}
                     lastUpdate={timeStr}
                     dateStr={dateStr}

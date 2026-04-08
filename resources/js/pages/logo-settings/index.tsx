@@ -3,30 +3,43 @@ import { ArrowLeft, ImageUp, Lock } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
 import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
+import { ScadaHeaderTitle } from '@/components/scada/scada-header-title';
 import {
-    DEFAULT_HEADER_LOGOS
-    
+    DEFAULT_HEADER_LOGOS,
+    DEFAULT_HEADER_TITLE,
 } from '@/components/scada/scada-helpers';
-import type {HeaderLogos} from '@/components/scada/scada-helpers';
+import type {
+    HeaderLogos,
+    HeaderTitle,
+} from '@/components/scada/scada-helpers';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface LogoSettingsFormData {
     logo_left: File | null;
     logo_center: File | null;
+    header_title_line_1: string;
+    header_title_line_2: string;
 }
 
 export default function LogoSettingsPage() {
     const [now, setNow] = useState(new Date());
     const [leftPreview, setLeftPreview] = useState<string | null>(null);
     const [centerPreview, setCenterPreview] = useState<string | null>(null);
-    const headerLogos =
-        usePage<{ headerLogos?: HeaderLogos }>().props.headerLogos ??
-        DEFAULT_HEADER_LOGOS;
+    const pageProps = usePage<{
+        headerLogos?: HeaderLogos;
+        headerTitle?: HeaderTitle;
+    }>().props;
+    const headerLogos = pageProps.headerLogos ?? DEFAULT_HEADER_LOGOS;
+    const headerTitle = pageProps.headerTitle ?? DEFAULT_HEADER_TITLE;
 
-    const { setData, post, processing, errors, recentlySuccessful } =
+    const { data, setData, post, processing, errors, recentlySuccessful } =
         useForm<LogoSettingsFormData>({
             logo_left: null,
             logo_center: null,
+            header_title_line_1: headerTitle.line1,
+            header_title_line_2: headerTitle.line2,
         });
 
     useEffect(() => {
@@ -90,10 +103,11 @@ export default function LogoSettingsPage() {
             preserveScroll: true,
             forceFormData: true,
             onSuccess: () => {
-                setData({
+                setData((current) => ({
+                    ...current,
                     logo_left: null,
                     logo_center: null,
-                });
+                }));
                 setLeftPreview(null);
                 setCenterPreview(null);
             },
@@ -102,7 +116,7 @@ export default function LogoSettingsPage() {
 
     return (
         <>
-            <Head title="Setting Logo Header" />
+            <Head title="Setting Header Dashboard" />
 
             <div className="flex h-screen flex-col overflow-hidden bg-[#151b1f] font-sans text-white">
                 <header className="flex shrink-0 flex-col border-b border-slate-700/50 bg-[#0f1316]">
@@ -122,20 +136,21 @@ export default function LogoSettingsPage() {
                                     SETTINGS
                                 </p>
                                 <p className="text-[10px] text-slate-400">
-                                    Header Logo
+                                    Header Dashboard
                                 </p>
                             </div>
                         </div>
 
-                        <div className="flex flex-1 flex-col items-center">
-                            <p className="text-base font-bold tracking-widest text-white uppercase">
-                                SCADA MONITORING AC PRESISI RUANG SERVER CCTV &
-                                FIDS
-                            </p>
-                            <p className="text-[11px] tracking-wider text-slate-400 uppercase">
-                                BANDARA SOEKARNO - HATTA
-                            </p>
-                        </div>
+                        <ScadaHeaderTitle
+                            title={{
+                                line1:
+                                    data.header_title_line_1.trim() ||
+                                    DEFAULT_HEADER_TITLE.line1,
+                                line2:
+                                    data.header_title_line_2.trim() ||
+                                    DEFAULT_HEADER_TITLE.line2,
+                            }}
+                        />
 
                         <div className="flex w-48 shrink-0 items-center justify-end">
                             <div className="text-right">
@@ -157,12 +172,60 @@ export default function LogoSettingsPage() {
                     >
                         <div>
                             <p className="text-lg font-bold tracking-wider text-white uppercase">
-                                Setting Logo Header
+                                Setting Header Dashboard
                             </p>
                             <p className="text-xs text-slate-400">
-                                Ubah logo kiri dan tengah pada header. Logo
-                                kanan tetap fixed.
+                                Ubah judul header serta logo kiri dan tengah.
+                                Logo kanan tetap fixed.
                             </p>
+                        </div>
+
+                        <div className="grid gap-3 rounded-xl border border-slate-700/60 bg-slate-900/40 p-4 md:grid-cols-2">
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
+                                    Judul Header Baris 1
+                                </Label>
+                                <Input
+                                    value={data.header_title_line_1}
+                                    onChange={(event) =>
+                                        setData(
+                                            'header_title_line_1',
+                                            event.target.value,
+                                        )
+                                    }
+                                    maxLength={160}
+                                    className="border-slate-600 bg-slate-800/80 text-white placeholder:text-slate-500"
+                                    placeholder={DEFAULT_HEADER_TITLE.line1}
+                                />
+                                {errors.header_title_line_1 && (
+                                    <p className="text-[11px] text-red-300">
+                                        {errors.header_title_line_1}
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
+                                    Judul Header Baris 2
+                                </Label>
+                                <Input
+                                    value={data.header_title_line_2}
+                                    onChange={(event) =>
+                                        setData(
+                                            'header_title_line_2',
+                                            event.target.value,
+                                        )
+                                    }
+                                    maxLength={120}
+                                    className="border-slate-600 bg-slate-800/80 text-white placeholder:text-slate-500"
+                                    placeholder={DEFAULT_HEADER_TITLE.line2}
+                                />
+                                {errors.header_title_line_2 && (
+                                    <p className="text-[11px] text-red-300">
+                                        {errors.header_title_line_2}
+                                    </p>
+                                )}
+                            </div>
                         </div>
 
                         <div className="grid gap-4 lg:grid-cols-3">
@@ -242,7 +305,7 @@ export default function LogoSettingsPage() {
                             <div className="flex items-center gap-2">
                                 {recentlySuccessful && (
                                     <span className="text-xs font-semibold text-green-300">
-                                        Logo berhasil diperbarui.
+                                        Pengaturan header berhasil diperbarui.
                                     </span>
                                 )}
                                 <Button
@@ -252,7 +315,7 @@ export default function LogoSettingsPage() {
                                 >
                                     {processing
                                         ? 'Menyimpan...'
-                                        : 'Simpan Logo'}
+                                        : 'Simpan Pengaturan Header'}
                                 </Button>
                             </div>
                         </div>

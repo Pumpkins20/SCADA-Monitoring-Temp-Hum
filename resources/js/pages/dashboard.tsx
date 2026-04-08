@@ -11,6 +11,7 @@ import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
 import { ArcGauge } from '@/components/scada/arc-gauge';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
 import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
+import { ScadaHeaderTitle } from '@/components/scada/scada-header-title';
 import {
     fmt,
     statusDotColor,
@@ -514,15 +515,11 @@ export default function Dashboard({
                             </div>
                         </div>
 
-                        <div className="flex min-w-0 flex-1 flex-col items-center">
-                            <p className="truncate text-center text-sm font-bold tracking-widest text-white uppercase xl:text-base">
-                                SCADA MONITORING AC PRESISI RUANG SERVER CCTV &
-                                FIDS
-                            </p>
-                            <p className="truncate text-[10px] tracking-wider text-slate-400 uppercase xl:text-[11px]">
-                                BANDARA SOEKARNO - HATTA
-                            </p>
-                        </div>
+                        <ScadaHeaderTitle
+                            wrapperClassName="flex min-w-0 flex-1 flex-col items-center"
+                            line1ClassName="truncate text-center text-sm font-bold tracking-widest text-white uppercase xl:text-base"
+                            line2ClassName="truncate text-[10px] tracking-wider text-slate-400 uppercase xl:text-[11px]"
+                        />
 
                         <div className="flex w-36 shrink-0 items-center justify-end gap-3 xl:w-48">
                             <div className="text-right">

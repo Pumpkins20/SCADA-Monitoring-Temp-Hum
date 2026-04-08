@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
 import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
+import { ScadaHeaderTitle } from '@/components/scada/scada-header-title';
 import {
     ChartContainer,
     ChartTooltip,
@@ -118,14 +119,7 @@ function PageHeader({
                     </div>
                 </div>
 
-                <div className="flex flex-1 flex-col items-center">
-                    <p className="text-base font-bold tracking-widest text-white uppercase">
-                        SCADA MONITORING AC PRESISI RUANG SERVER CCTV & FIDS
-                    </p>
-                    <p className="text-[11px] tracking-wider text-slate-400 uppercase">
-                        BANDARA SOEKARNO - HATTA
-                    </p>
-                </div>
+                <ScadaHeaderTitle />
 
                 <div className="flex w-48 shrink-0 items-center justify-end">
                     <div className="text-right">

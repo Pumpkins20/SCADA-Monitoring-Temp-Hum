@@ -50,6 +50,7 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'name' => config('app.name'),
             'headerLogos' => GaugeSetting::resolveHeaderLogos($gaugeSetting),
+            'headerTitle' => GaugeSetting::resolveHeaderTitle($gaugeSetting),
             'auth' => [
                 'user' => $request->user(),
                 'can' => [

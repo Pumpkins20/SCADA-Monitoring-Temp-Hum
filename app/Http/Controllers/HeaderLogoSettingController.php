@@ -20,6 +20,20 @@ class HeaderLogoSettingController extends Controller
     {
         $gaugeSetting = GaugeSetting::query()->firstOrCreate(['id' => 1]);
 
+        if ($request->has('header_title_line_1')) {
+            $gaugeSetting->header_title_line_1 = $this->normalizeHeaderTitle(
+                $request->input('header_title_line_1'),
+                GaugeSetting::DEFAULT_HEADER_TITLE_LINE_1,
+            );
+        }
+
+        if ($request->has('header_title_line_2')) {
+            $gaugeSetting->header_title_line_2 = $this->normalizeHeaderTitle(
+                $request->input('header_title_line_2'),
+                GaugeSetting::DEFAULT_HEADER_TITLE_LINE_2,
+            );
+        }
+
         if ($request->hasFile('logo_left')) {
             $this->deleteManagedLogo($gaugeSetting->logo_left_path);
             $gaugeSetting->logo_left_path = $request->file('logo_left')?->store('header-logos', 'public');
@@ -33,6 +47,13 @@ class HeaderLogoSettingController extends Controller
         $gaugeSetting->save();
 
         return redirect()->route('logo-settings.edit');
+    }
+
+    private function normalizeHeaderTitle(mixed $value, string $fallback): string
+    {
+        $normalized = trim((string) $value);
+
+        return $normalized !== '' ? $normalized : $fallback;
     }
 
     private function deleteManagedLogo(?string $path): void

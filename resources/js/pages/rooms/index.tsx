@@ -1,14 +1,10 @@
 import { Head, Link, router } from '@inertiajs/react';
-import {
-    ArrowLeft,
-    Cpu,
-    Plus,
-    Trash2,
-} from 'lucide-react';
+import { ArrowLeft, Cpu, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { PasswordSessionFloating } from '@/components/scada/password-session-floating';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
 import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
+import { ScadaHeaderTitle } from '@/components/scada/scada-header-title';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -853,15 +849,7 @@ export default function RoomsIndex({ rooms }: RoomsIndexProps) {
                             </div>
                         </div>
 
-                        <div className="flex flex-1 flex-col items-center">
-                            <p className="text-base font-bold tracking-widest text-white uppercase">
-                                SCADA MONITORING AC PRESISI RUANG SERVER CCTV &
-                                FIDS
-                            </p>
-                            <p className="text-[11px] tracking-wider text-slate-400 uppercase">
-                                BANDARA SOEKARNO - HATTA
-                            </p>
-                        </div>
+                        <ScadaHeaderTitle />
 
                         <div className="w-48 shrink-0" />
                     </div>
@@ -952,8 +940,7 @@ export default function RoomsIndex({ rooms }: RoomsIndexProps) {
                                             <TableCell className="text-center">
                                                 <span
                                                     className={`inline-flex rounded-full px-2 py-1 text-[10px] font-semibold tracking-wider uppercase ${
-                                                        room.status ===
-                                                        'ONLINE'
+                                                        room.status === 'ONLINE'
                                                             ? 'bg-emerald-500/20 text-emerald-400'
                                                             : 'bg-red-500/20 text-red-400'
                                                     }`}

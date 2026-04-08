@@ -14,6 +14,7 @@ import {
 import { useEffect, useState } from 'react';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
 import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
+import { ScadaHeaderTitle } from '@/components/scada/scada-header-title';
 import {
     Dialog,
     DialogContent,
@@ -231,14 +232,7 @@ function validateDateTimeParts(
             formatted: null,
             date: null,
             error: `Format ${label} tidak valid.`,
-            invalidFields: [
-                'year',
-                'month',
-                'day',
-                'hour',
-                'minute',
-                'second',
-            ],
+            invalidFields: ['year', 'month', 'day', 'hour', 'minute', 'second'],
         };
     }
 
@@ -306,7 +300,9 @@ function DateTimePartsInput({
                     type="text"
                     inputMode="numeric"
                     value={value.year}
-                    onChange={(event) => updateField('year', event.target.value)}
+                    onChange={(event) =>
+                        updateField('year', event.target.value)
+                    }
                     maxLength={4}
                     placeholder="YYYY"
                     className={inputClass('year')}
@@ -316,7 +312,9 @@ function DateTimePartsInput({
                     type="text"
                     inputMode="numeric"
                     value={value.month}
-                    onChange={(event) => updateField('month', event.target.value)}
+                    onChange={(event) =>
+                        updateField('month', event.target.value)
+                    }
                     maxLength={2}
                     placeholder="MM"
                     className={inputClass('month')}
@@ -338,7 +336,9 @@ function DateTimePartsInput({
                     type="text"
                     inputMode="numeric"
                     value={value.hour}
-                    onChange={(event) => updateField('hour', event.target.value)}
+                    onChange={(event) =>
+                        updateField('hour', event.target.value)
+                    }
                     maxLength={2}
                     placeholder="HH"
                     className={inputClass('hour')}
@@ -348,7 +348,9 @@ function DateTimePartsInput({
                     type="text"
                     inputMode="numeric"
                     value={value.minute}
-                    onChange={(event) => updateField('minute', event.target.value)}
+                    onChange={(event) =>
+                        updateField('minute', event.target.value)
+                    }
                     maxLength={2}
                     placeholder="MM"
                     className={inputClass('minute')}
@@ -358,7 +360,9 @@ function DateTimePartsInput({
                     type="text"
                     inputMode="numeric"
                     value={value.second}
-                    onChange={(event) => updateField('second', event.target.value)}
+                    onChange={(event) =>
+                        updateField('second', event.target.value)
+                    }
                     maxLength={2}
                     placeholder="SS"
                     className={inputClass('second')}
@@ -434,9 +438,13 @@ export default function LogsIndex({
     const activeFilterQuery = {
         time_filter: timeFilter.mode !== 'none' ? timeFilter.mode : undefined,
         start_at:
-            timeFilter.mode === 'interval' ? timeFilter.start_at ?? undefined : undefined,
+            timeFilter.mode === 'interval'
+                ? (timeFilter.start_at ?? undefined)
+                : undefined,
         end_at:
-            timeFilter.mode === 'interval' ? timeFilter.end_at ?? undefined : undefined,
+            timeFilter.mode === 'interval'
+                ? (timeFilter.end_at ?? undefined)
+                : undefined,
         recent_minutes:
             timeFilter.mode === 'recent'
                 ? String(timeFilter.recent_minutes)
@@ -451,7 +459,9 @@ export default function LogsIndex({
         ...(activeFilterQuery.start_at
             ? { start_at: activeFilterQuery.start_at }
             : {}),
-        ...(activeFilterQuery.end_at ? { end_at: activeFilterQuery.end_at } : {}),
+        ...(activeFilterQuery.end_at
+            ? { end_at: activeFilterQuery.end_at }
+            : {}),
         ...(activeFilterQuery.recent_minutes
             ? { recent_minutes: activeFilterQuery.recent_minutes }
             : {}),
@@ -466,7 +476,11 @@ export default function LogsIndex({
     }
 
     function switchRoom(roomId: number) {
-        router.get('/logs', { room: roomId, ...activeFilterQuery }, { preserveState: false });
+        router.get(
+            '/logs',
+            { room: roomId, ...activeFilterQuery },
+            { preserveState: false },
+        );
     }
 
     function openIntervalDialog(): void {
@@ -577,14 +591,18 @@ export default function LogsIndex({
         const trimmedValue = recentMinutesInput.trim();
 
         if (trimmedValue === '') {
-            setRecentValidationError('Silakan isi Recent interval terlebih dahulu.');
+            setRecentValidationError(
+                'Silakan isi Recent interval terlebih dahulu.',
+            );
             setRecentFieldError(true);
             return;
         }
 
         const recentMinutes = Number(trimmedValue);
         if (!Number.isInteger(recentMinutes)) {
-            setRecentValidationError('Recent interval harus berupa angka bulat.');
+            setRecentValidationError(
+                'Recent interval harus berupa angka bulat.',
+            );
             setRecentFieldError(true);
             return;
         }
@@ -653,15 +671,7 @@ export default function LogsIndex({
                             </div>
                         </div>
 
-                        <div className="flex flex-1 flex-col items-center">
-                            <p className="text-base font-bold tracking-widest text-white uppercase">
-                                SCADA MONITORING AC PRESISI RUANG SERVER CCTV &
-                                FIDS
-                            </p>
-                            <p className="text-[11px] tracking-wider text-slate-400 uppercase">
-                                BANDARA SOEKARNO - HATTA
-                            </p>
-                        </div>
+                        <ScadaHeaderTitle />
 
                         <div className="flex w-48 shrink-0 items-center justify-end">
                             <div className="text-right">
@@ -871,14 +881,18 @@ export default function LogsIndex({
                     dateStr={dateStr}
                 />
 
-                <Dialog open={showIntervalDialog} onOpenChange={setShowIntervalDialog}>
+                <Dialog
+                    open={showIntervalDialog}
+                    onOpenChange={setShowIntervalDialog}
+                >
                     <DialogContent className="border-slate-700 bg-[#1a2027] text-white sm:max-w-xl">
                         <DialogHeader>
                             <DialogTitle className="text-white">
                                 Time Interval
                             </DialogTitle>
                             <DialogDescription className="text-slate-400">
-                                Set waktu awal dan akhir log yang ingin ditampilkan.
+                                Set waktu awal dan akhir log yang ingin
+                                ditampilkan.
                             </DialogDescription>
                         </DialogHeader>
 
@@ -938,12 +952,18 @@ export default function LogsIndex({
                     </DialogContent>
                 </Dialog>
 
-                <Dialog open={showRecentDialog} onOpenChange={setShowRecentDialog}>
+                <Dialog
+                    open={showRecentDialog}
+                    onOpenChange={setShowRecentDialog}
+                >
                     <DialogContent className="border-slate-700 bg-[#1a2027] text-white sm:max-w-sm">
                         <DialogHeader>
-                            <DialogTitle className="text-white">Time set</DialogTitle>
+                            <DialogTitle className="text-white">
+                                Time set
+                            </DialogTitle>
                             <DialogDescription className="text-slate-400">
-                                Tampilkan data berdasarkan rentang menit terbaru.
+                                Tampilkan data berdasarkan rentang menit
+                                terbaru.
                             </DialogDescription>
                         </DialogHeader>
 
@@ -958,7 +978,9 @@ export default function LogsIndex({
                                     max={1440}
                                     value={recentMinutesInput}
                                     onChange={(event) => {
-                                        setRecentMinutesInput(event.target.value);
+                                        setRecentMinutesInput(
+                                            event.target.value,
+                                        );
                                         if (recentValidationError) {
                                             setRecentValidationError(null);
                                         }
