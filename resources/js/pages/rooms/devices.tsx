@@ -4,11 +4,9 @@ import {
     ChevronRight,
     Circle,
     Cpu,
-    Lock,
     Pencil,
     // Plus,
     Radio,
-    Thermometer,
     Trash2,
     WifiOff,
     Wifi,
@@ -36,7 +34,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { COIL_MAP, SENSOR_MAP } from '@/constants/sensor-map';
+import { SENSOR_MAP } from '@/constants/sensor-map';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -53,6 +51,12 @@ interface SensorItem {
     name: string;
     unit_id: number;
     position: number;
+    calibrate_temp: number | null;
+    calibrate_hum: number | null;
+    over_temp: number | null;
+    under_temp: number | null;
+    over_hum: number | null;
+    under_hum: number | null;
 }
 
 interface HmiItem {
@@ -383,6 +387,7 @@ function HmiFormDialog({
                                     value={data.name}
                                     onChange={(e) => setData('name', e.target.value)}
                                     placeholder="HMI-01"
+                                    disabled={isEdit}   
                                     className="border-slate-600 bg-slate-800/80 text-white placeholder:text-slate-500 focus-visible:border-cyan-500 focus-visible:ring-cyan-500/30"
                                 />
                                 {(createErrors.name ?? errors.name) && (
@@ -395,7 +400,7 @@ function HmiFormDialog({
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="flex flex-col gap-1.5">
                                     <Label className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
-                                        Alamat IP
+                                        IP Address
                                     </Label>
                                     <Input
                                         value={data.ip_address}
@@ -497,7 +502,7 @@ function HmiFormDialog({
                                     onClick={() => onOpenChange(false)}
                                     className="text-slate-400 hover:bg-slate-700/60 hover:text-white"
                                 >
-                                    Batal
+                                    Cancel
                                 </Button>
                                 <Button
                                     type="submit"
@@ -671,7 +676,7 @@ function DeleteHmiDialog({
                         onClick={() => onOpenChange(false)}
                         className="text-slate-400 hover:bg-slate-700/60 hover:text-white"
                     >
-                        Batal
+                        Cancel
                     </Button>
                     <Button
                         type="button"
@@ -687,179 +692,7 @@ function DeleteHmiDialog({
     );
 }
 
-// ─── Sensor Form Dialog ───────────────────────────────────────────────────────
 
-function SensorConfigInfo({
-    position,
-    registerFunction,
-}: {
-    position: number;
-    registerFunction: '03' | '04';
-}) {
-    const regs = SENSOR_MAP[position as keyof typeof SENSOR_MAP];
-    const coils = COIL_MAP[position as keyof typeof COIL_MAP];
-
-    if (!regs || !coils) {
-        return null;
-    }
-
-    const fcLabel =
-        registerFunction === '03'
-            ? 'FC03 - Holding Register'
-            : 'FC04 - Input Register';
-
-    return (
-        <div className="rounded-lg border border-slate-700/60 bg-slate-900/60 p-3">
-            <p className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
-                <Lock className="h-3 w-3" />
-                Konfigurasi Register Aktif
-            </p>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                <span className="text-slate-500">Posisi di HMI</span>
-                <span className="font-mono text-slate-300">
-                    Device {position}
-                </span>
-
-                <span className="text-slate-500">Function Code</span>
-                <span className="font-mono text-slate-300">{fcLabel}</span>
-
-                <span className="text-slate-500">Reg. Suhu</span>
-                <span className="font-mono text-cyan-400">{regs.temp}</span>
-
-                <span className="text-slate-500">Reg. Hum</span>
-                <span className="font-mono text-blue-400">{regs.hum}</span>
-
-                <span className="text-slate-500">Coil Alarm Suhu</span>
-                <span className="font-mono text-slate-300">
-                    {coils.alarm_temp} (FC01)
-                </span>
-
-                <span className="text-slate-500">Coil Alarm Hum</span>
-                <span className="font-mono text-slate-300">
-                    {coils.alarm_hum} (FC01)
-                </span>
-
-                <span className="text-slate-500">Coil Koneksi</span>
-                <span className="font-mono text-slate-300">
-                    {coils.connection} (FC01)
-                </span>
-            </div>
-        </div>
-    );
-}
-
-function SensorFormDialog({
-    open,
-    onOpenChange,
-    hmi,
-    sensor,
-}: {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    hmi: HmiItem;
-    sensor: SensorItem;
-}) {
-    const { data, setData, put, processing, errors, reset } = useForm({
-        hmi_id: hmi.id,
-        name: sensor.name,
-        unit_id: sensor.unit_id.toString(),
-    });
-
-    function submit(e: React.FormEvent) {
-        e.preventDefault();
-        put(`/sensors/${sensor.id}`, {
-            onSuccess: () => {
-                reset();
-                onOpenChange(false);
-            },
-        });
-    }
-
-    return (
-        <Dialog
-            open={open}
-            onOpenChange={(v) => {
-                if (!v) reset();
-                onOpenChange(v);
-            }}
-        >
-            <DialogContent className="border-slate-700 bg-[#1a2027] text-white sm:max-w-md">
-                <DialogHeader>
-                    <DialogTitle className="text-white">
-                        Edit Sensor
-                    </DialogTitle>
-                    <DialogDescription className="text-slate-400">
-                        Ubah nama sensor dan unit id. Konfigurasi register
-                        mengikuti posisi sensor di HMI.
-                    </DialogDescription>
-                </DialogHeader>
-
-                <form onSubmit={submit} className="flex flex-col gap-4">
-                    {/* Name */}
-                    <div className="flex flex-col gap-1.5">
-                        <Label className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
-                            Nama Sensor
-                        </Label>
-                        <Input
-                            value={data.name}
-                            onChange={(e) => setData('name', e.target.value)}
-                            placeholder="SENSOR-01"
-                            className="border-slate-600 bg-slate-800/80 text-white placeholder:text-slate-500 focus-visible:border-cyan-500 focus-visible:ring-cyan-500/30"
-                        />
-                        {errors.name && (
-                            <span className="text-xs text-red-400">
-                                {errors.name}
-                            </span>
-                        )}
-                    </div>
-
-                    {/* Slave ID */}
-                    <div className="flex flex-col gap-1.5">
-                        <Label className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
-                            Slave ID (Unit ID)
-                        </Label>
-                        <Input
-                            type="number"
-                            min={1}
-                            max={247}
-                            value={data.unit_id}
-                            onChange={(e) => setData('unit_id', e.target.value)}
-                            className="border-slate-600 bg-slate-800/80 text-white placeholder:text-slate-500 focus-visible:border-cyan-500 focus-visible:ring-cyan-500/30"
-                        />
-                        {errors.unit_id && (
-                            <span className="text-xs text-red-400">
-                                {errors.unit_id}
-                            </span>
-                        )}
-                    </div>
-
-                    <SensorConfigInfo
-                        position={sensor.position}
-                        registerFunction={hmi.register_function}
-                    />
-
-                    <DialogFooter className="mt-2">
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            onClick={() => onOpenChange(false)}
-                            className="text-slate-400 hover:bg-slate-700/60 hover:text-white"
-                        >
-                            Batal
-                        </Button>
-                        <Button
-                            type="submit"
-                            disabled={processing}
-                            className="bg-cyan-600 text-white hover:bg-cyan-500"
-                        >
-                            {processing ? 'Menyimpan...' : 'Simpan Perubahan'}
-                        </Button>
-                    </DialogFooter>
-                </form>
-            </DialogContent>
-        </Dialog>
-    );
-}
 
 // ─── Delete Sensor Dialog ─────────────────────────────────────────────────────
 
@@ -905,7 +738,7 @@ function DeleteSensorDialog({
                         onClick={() => onOpenChange(false)}
                         className="text-slate-400 hover:bg-slate-700/60 hover:text-white"
                     >
-                        Batal
+                        Cancel
                     </Button>
                     <Button
                         type="button"
@@ -926,8 +759,19 @@ function DeleteSensorDialog({
 function HmiCard({ hmi, roomId }: { hmi: HmiItem; roomId: number }) {
     const [showEditHmi, setShowEditHmi] = useState(false);
     const [showDeleteHmi, setShowDeleteHmi] = useState(false);
-    const [editSensor, setEditSensor] = useState<SensorItem | null>(null);
     const [deleteSensor, setDeleteSensor] = useState<SensorItem | null>(null);
+
+    function formatValue(value: number | null): string {
+        return value === null ? '-' : value.toFixed(2);
+    }
+
+    function formatIdealRange(under: number | null, over: number | null): string {
+        if (under === null || over === null) {
+            return '-';
+        }
+
+        return `${under.toFixed(2)} - ${over.toFixed(2)}`;
+    }
 
     return (
         <div className="rounded-xl border border-slate-700/60 bg-slate-800/50 backdrop-blur-sm">
@@ -999,6 +843,18 @@ function HmiCard({ hmi, roomId }: { hmi: HmiItem; roomId: number }) {
                         <TableHead className="text-center text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
                             Reg. Hum
                         </TableHead>
+                        <TableHead className="text-center text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+                            Cal. Temp
+                        </TableHead>
+                        <TableHead className="text-center text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+                            Cal. Hum
+                        </TableHead>
+                        <TableHead className="text-center text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+                            Ideal Value Temp
+                        </TableHead>
+                        <TableHead className="text-center text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+                            Ideal Value Hum
+                        </TableHead>
                         <TableHead className="text-right text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
                             Aksi
                         </TableHead>
@@ -1008,7 +864,7 @@ function HmiCard({ hmi, roomId }: { hmi: HmiItem; roomId: number }) {
                     {hmi.sensors.length === 0 ? (
                         <TableRow className="border-slate-700/60 hover:bg-transparent">
                             <TableCell
-                                colSpan={5}
+                                colSpan={9}
                                 className="py-6 text-center text-xs text-slate-600"
                             >
                                 Belum ada sensor pada HMI ini.
@@ -1040,21 +896,20 @@ function HmiCard({ hmi, roomId }: { hmi: HmiItem; roomId: number }) {
                                     <TableCell className="text-center text-blue-300 tabular-nums">
                                         {regs?.hum ?? '-'}
                                     </TableCell>
+                                    <TableCell className="text-center text-emerald-300 tabular-nums">
+                                        {formatValue(sensor.calibrate_temp)}
+                                    </TableCell>
+                                    <TableCell className="text-center text-lime-300 tabular-nums">
+                                        {formatValue(sensor.calibrate_hum)}
+                                    </TableCell>
+                                    <TableCell className="text-center text-amber-300 tabular-nums">
+                                        {formatIdealRange(sensor.under_temp, sensor.over_temp)}
+                                    </TableCell>
+                                    <TableCell className="text-center text-orange-300 tabular-nums">
+                                        {formatIdealRange(sensor.under_hum, sensor.over_hum)}
+                                    </TableCell>
                                     <TableCell className="text-right">
                                         <div className="flex items-center justify-end gap-1">
-                                            <button
-                                                type="button"
-                                                title="Edit"
-                                                onClick={() =>
-                                                    setEditSensor({
-                                                        ...sensor,
-                                                        position,
-                                                    })
-                                                }
-                                                className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-600/60 hover:text-cyan-400"
-                                            >
-                                                <Pencil className="h-3.5 w-3.5" />
-                                            </button>
                                             <button
                                                 type="button"
                                                 title="Hapus"
@@ -1086,14 +941,6 @@ function HmiCard({ hmi, roomId }: { hmi: HmiItem; roomId: number }) {
                 onOpenChange={setShowDeleteHmi}
                 hmi={hmi}
             />
-            {editSensor && (
-                <SensorFormDialog
-                    open={!!editSensor}
-                    onOpenChange={(v) => !v && setEditSensor(null)}
-                    hmi={hmi}
-                    sensor={editSensor}
-                />
-            )}
             {deleteSensor && (
                 <DeleteSensorDialog
                     open={!!deleteSensor}
@@ -1201,50 +1048,6 @@ export default function RoomDevices({ room, hmis }: DevicesPageProps) {
                         </Button> */}
                     </div>
 
-                    {/* ── Room Info Card ── */}
-                    <div className="flex items-center gap-6 rounded-xl border border-slate-700/60 bg-slate-800/40 px-4 py-3">
-                        <div className="flex items-center gap-2">
-                            <Thermometer className="h-4 w-4 text-cyan-400" />
-                            <span className="text-[11px] font-semibold text-slate-400 uppercase">
-                                Batas Suhu
-                            </span>
-                            <span className="text-sm font-bold text-cyan-300">
-                                {room.temp_max_limit}°C
-                            </span>
-                        </div>
-                        <div className="h-4 w-px bg-slate-700" />
-                        <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-semibold text-slate-400 uppercase">
-                                Batas RH
-                            </span>
-                            <span className="text-sm font-bold text-blue-300">
-                                {room.hum_max_limit}%
-                            </span>
-                        </div>
-                        <div className="h-4 w-px bg-slate-700" />
-                        <div className="flex items-center gap-2">
-                            <Cpu className="h-4 w-4 text-slate-400" />
-                            <span className="text-[11px] font-semibold text-slate-400 uppercase">
-                                HMI
-                            </span>
-                            <span className="text-sm font-bold text-white">
-                                {hmis.length}
-                            </span>
-                        </div>
-                        <div className="h-4 w-px bg-slate-700" />
-                        <div className="flex items-center gap-2">
-                            <Radio className="h-4 w-4 text-slate-400" />
-                            <span className="text-[11px] font-semibold text-slate-400 uppercase">
-                                Sensor
-                            </span>
-                            <span className="text-sm font-bold text-white">
-                                {hmis.reduce(
-                                    (acc, h) => acc + h.sensors.length,
-                                    0,
-                                )}
-                            </span>
-                        </div>
-                    </div>
 
                     {/* ── HMI Cards ── */}
                     {hmis.length === 0 ? (

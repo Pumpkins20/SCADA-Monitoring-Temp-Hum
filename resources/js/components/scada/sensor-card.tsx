@@ -82,16 +82,6 @@ export function SensorCard({
                     </span>
                 )}
             </div>
-
-            <div className="mt-1 rounded border border-slate-700/60 bg-slate-900/60 px-2 py-1">
-                <p className="text-[9px] tracking-wider text-slate-500 uppercase">
-                    Kalibrasi HMI
-                </p>
-                <p className="font-mono text-[10px] text-slate-300">
-                    Temp: {fmt(sensor.calibrate_temp ?? null, 2)} | Hum:{' '}
-                    {fmt(sensor.calibrate_hum ?? null, 2)}
-                </p>
-            </div>
         </div>
     );
 }

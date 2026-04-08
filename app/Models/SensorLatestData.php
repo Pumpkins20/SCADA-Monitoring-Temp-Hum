@@ -23,6 +23,10 @@ class SensorLatestData extends Model
         'alarm_disconnect',
         'calibrate_temp',
         'calibrate_hum',
+        'over_temp',
+        'under_temp',
+        'over_hum',
+        'under_hum',
         'last_read_at',
     ];
 
@@ -36,6 +40,10 @@ class SensorLatestData extends Model
             'alarm_disconnect' => 'boolean',
             'calibrate_temp' => 'decimal:2',
             'calibrate_hum' => 'decimal:2',
+            'over_temp' => 'decimal:2',
+            'under_temp' => 'decimal:2',
+            'over_hum' => 'decimal:2',
+            'under_hum' => 'decimal:2',
             'last_read_at' => 'datetime',
         ];
     }

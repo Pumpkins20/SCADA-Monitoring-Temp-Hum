@@ -3,8 +3,6 @@ import {
     ArrowLeft,
     Cpu,
     Plus,
-    Thermometer,
-    Droplets,
     Trash2,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -37,6 +35,8 @@ interface RoomItem {
     id: number;
     name: string;
     location: string | null;
+    ip_address: string;
+    status: 'ONLINE' | 'OFFLINE';
     temp_max_limit: number;
     hum_max_limit: number;
     hmis_count: number;
@@ -460,7 +460,7 @@ function ConnectHmiPreviewDialog({
                         <div className="grid grid-cols-2 gap-3">
                             <div className="flex flex-col gap-1.5">
                                 <Label className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
-                                    Alamat IP
+                                    IP Address
                                 </Label>
                                 <Input
                                     value={formData.ip_address}
@@ -549,7 +549,7 @@ function ConnectHmiPreviewDialog({
                                 onClick={() => onOpenChange(false)}
                                 className="text-slate-400 hover:bg-slate-700/60 hover:text-white"
                             >
-                                Batal
+                                Cancel
                             </Button>
                             <Button
                                 type="submit"
@@ -800,7 +800,7 @@ function DeleteRoomDialog({
                         onClick={() => onOpenChange(false)}
                         className="text-slate-400 hover:bg-slate-700/60 hover:text-white"
                     >
-                        Batal
+                        Cancel
                     </Button>
                     <Button
                         type="button"
@@ -898,17 +898,11 @@ export default function RoomsIndex({ rooms }: RoomsIndexProps) {
                                     <TableHead className="text-[11px] font-semibold tracking-wider text-slate-400 uppercase">
                                         Lokasi
                                     </TableHead>
-                                    <TableHead className="text-center text-[11px] font-semibold tracking-wider text-slate-400 uppercase">
-                                        <span className="flex items-center justify-center gap-1">
-                                            <Thermometer className="h-3 w-3 text-cyan-400" />
-                                            Batas Suhu
-                                        </span>
+                                    <TableHead className="text-[11px] font-semibold tracking-wider text-slate-400 uppercase">
+                                        IP Address
                                     </TableHead>
                                     <TableHead className="text-center text-[11px] font-semibold tracking-wider text-slate-400 uppercase">
-                                        <span className="flex items-center justify-center gap-1">
-                                            <Droplets className="h-3 w-3 text-blue-400" />
-                                            Batas RH
-                                        </span>
+                                        Status
                                     </TableHead>
                                     <TableHead className="text-center text-[11px] font-semibold tracking-wider text-slate-400 uppercase">
                                         HMI
@@ -950,11 +944,22 @@ export default function RoomsIndex({ rooms }: RoomsIndexProps) {
                                             <TableCell className="text-slate-400">
                                                 {room.location ?? '—'}
                                             </TableCell>
-                                            <TableCell className="text-center text-cyan-300 tabular-nums">
-                                                {room.temp_max_limit}°C
+                                            <TableCell className="text-slate-300">
+                                                <span className="font-mono text-xs">
+                                                    {room.ip_address}
+                                                </span>
                                             </TableCell>
-                                            <TableCell className="text-center text-blue-300 tabular-nums">
-                                                {room.hum_max_limit}%
+                                            <TableCell className="text-center">
+                                                <span
+                                                    className={`inline-flex rounded-full px-2 py-1 text-[10px] font-semibold tracking-wider uppercase ${
+                                                        room.status ===
+                                                        'ONLINE'
+                                                            ? 'bg-emerald-500/20 text-emerald-400'
+                                                            : 'bg-red-500/20 text-red-400'
+                                                    }`}
+                                                >
+                                                    {room.status}
+                                                </span>
                                             </TableCell>
                                             <TableCell className="text-center text-slate-300 tabular-nums">
                                                 {room.hmis_count}

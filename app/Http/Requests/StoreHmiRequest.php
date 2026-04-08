@@ -22,7 +22,7 @@ class StoreHmiRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'ip_address' => ['required', 'ip'],
+            'ip_address' => ['required', 'ip', 'unique:hmis,ip_address'],
             'port' => ['required', 'integer', 'min:1', 'max:65535'],
             'register_function' => ['sometimes', 'in:03,04'],
         ];
@@ -36,6 +36,7 @@ class StoreHmiRequest extends FormRequest
         return [
             'ip_address.required' => 'Alamat IP wajib diisi.',
             'ip_address.ip' => 'Format alamat IP tidak valid.',
+            'ip_address.unique' => 'IP Address sudah terdaftar',
             'port.required' => 'Port wajib diisi.',
             'port.integer' => 'Port harus berupa angka.',
             'port.min' => 'Port minimal 1.',

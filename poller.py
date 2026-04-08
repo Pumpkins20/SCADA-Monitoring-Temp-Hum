@@ -529,8 +529,9 @@ def upsert_sensor_data(cursor, rows: list[tuple]) -> None:
             (sensor_id, temperature, humidity, status,
              alarm_temp, alarm_hum, alarm_disconnect,
              calibrate_temp, calibrate_hum,
+             over_temp, under_temp, over_hum, under_hum,
              last_read_at, updated_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (sensor_id) DO UPDATE SET
             temperature      = EXCLUDED.temperature,
             humidity         = EXCLUDED.humidity,
@@ -540,6 +541,10 @@ def upsert_sensor_data(cursor, rows: list[tuple]) -> None:
             alarm_disconnect = EXCLUDED.alarm_disconnect,
             calibrate_temp   = EXCLUDED.calibrate_temp,
             calibrate_hum    = EXCLUDED.calibrate_hum,
+            over_temp        = EXCLUDED.over_temp,
+            under_temp       = EXCLUDED.under_temp,
+            over_hum         = EXCLUDED.over_hum,
+            under_hum        = EXCLUDED.under_hum,
             last_read_at     = EXCLUDED.last_read_at,
             updated_at       = EXCLUDED.updated_at
         """,
@@ -1306,6 +1311,18 @@ def poll_hmi(hmi: dict, cursor, now) -> None:
                 calibrate_hum = normalize_decimal_5_2(
                     calibrate_hum, "calibrate_hum", context
                 )
+                over_temp = normalize_decimal_5_2(
+                    over_temp, "over_temp", context
+                )
+                under_temp = normalize_decimal_5_2(
+                    under_temp, "under_temp", context
+                )
+                over_hum = normalize_decimal_5_2(
+                    over_hum, "over_hum", context
+                )
+                under_hum = normalize_decimal_5_2(
+                    under_hum, "under_hum", context
+                )
 
                 # ── Coil alarm ──
                 alarm_temp_coil = None
@@ -1346,6 +1363,10 @@ def poll_hmi(hmi: dict, cursor, now) -> None:
                     alarms["alarm_disconnect"],
                     calibrate_temp,
                     calibrate_hum,
+                    over_temp,
+                    under_temp,
+                    over_hum,
+                    under_hum,
                     now,
                     now,
                 ))
@@ -1403,6 +1424,10 @@ def poll_hmi(hmi: dict, cursor, now) -> None:
                     False,
                     False,
                     True,
+                    None,
+                    None,
+                    None,
+                    None,
                     None,
                     None,
                     now,

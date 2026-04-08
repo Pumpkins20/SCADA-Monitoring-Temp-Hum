@@ -163,6 +163,23 @@ test('hmi store validation fails when register_function is invalid', function ()
         ->assertJsonValidationErrors('register_function');
 });
 
+test('hmi store validation fails when ip_address is already registered', function () {
+    Hmi::factory()->create([
+        'ip_address' => '192.168.1.55',
+        'is_preview' => false,
+    ]);
+
+    $this->actingAs(User::factory()->create(['is_admin' => true]))
+        ->withSession(['auth.password_confirmed_at' => time()])
+        ->postJson(route('hmis.store'), [
+            'ip_address' => '192.168.1.55',
+            'port' => 502,
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('ip_address')
+        ->assertJsonPath('errors.ip_address.0', 'IP Address sudah terdaftar');
+});
+
 // ─── hmis.preview-data ────────────────────────────────────────────────────────
 
 test('preview-data returns ready false when no latest data exists', function () {
@@ -309,6 +326,39 @@ test('can update an existing hmi', function () {
         'name' => 'HMI-UPDATED',
         'register_function' => '04',
         'is_active' => false,
+    ]);
+});
+
+test('hmi update validation fails when ip_address is already registered', function () {
+    $hmiA = Hmi::factory()->create([
+        'ip_address' => '192.168.2.10',
+    ]);
+
+    $hmiB = Hmi::factory()->create([
+        'ip_address' => '192.168.2.20',
+    ]);
+
+    $this->actingAs(User::factory()->create(['is_admin' => true]))
+        ->withSession(['auth.password_confirmed_at' => time()])
+        ->put(route('hmis.update', $hmiB), [
+            'name' => 'HMI-B-UPDATED',
+            'ip_address' => '192.168.2.10',
+            'port' => 502,
+            'register_function' => '03',
+            'is_active' => true,
+        ])
+        ->assertSessionHasErrors([
+            'ip_address' => 'IP Address sudah terdaftar',
+        ]);
+
+    $this->assertDatabaseHas('hmis', [
+        'id' => $hmiA->id,
+        'ip_address' => '192.168.2.10',
+    ]);
+
+    $this->assertDatabaseHas('hmis', [
+        'id' => $hmiB->id,
+        'ip_address' => '192.168.2.20',
     ]);
 });
 

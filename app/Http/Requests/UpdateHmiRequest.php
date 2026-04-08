@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateHmiRequest extends FormRequest
 {
@@ -12,13 +14,17 @@ class UpdateHmiRequest extends FormRequest
     }
 
     /**
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
         return [
             'name' => ['required', 'string', 'max:100'],
-            'ip_address' => ['required', 'ip'],
+            'ip_address' => [
+                'required',
+                'ip',
+                Rule::unique('hmis', 'ip_address')->ignore($this->route('hmi')),
+            ],
             'port' => ['required', 'integer', 'min:1', 'max:65535'],
             'register_function' => ['required', 'in:03,04'],
             'is_active' => ['required', 'boolean'],
@@ -35,6 +41,7 @@ class UpdateHmiRequest extends FormRequest
             'name.max' => 'Nama HMI maksimal 100 karakter.',
             'ip_address.required' => 'Alamat IP wajib diisi.',
             'ip_address.ip' => 'Format alamat IP tidak valid.',
+            'ip_address.unique' => 'IP Address sudah terdaftar',
             'port.required' => 'Port wajib diisi.',
             'port.integer' => 'Port harus berupa angka.',
             'port.min' => 'Port minimal 1.',
