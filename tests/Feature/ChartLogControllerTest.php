@@ -361,19 +361,19 @@ test('custom interval is capped to 30 days in detail mode', function () {
         );
 });
 
-test('filtered detail mode is sampled to 180 points for ranges above 1 hour', function () {
+test('filtered detail mode uses 5-minute buckets for ranges up to 6 hours', function () {
     $room = Room::factory()->create();
     $hmi = Hmi::factory()->create(['room_id' => $room->id]);
     $sensor = Sensor::factory()->create(['hmi_id' => $hmi->id]);
 
-    $baseTime = now();
+    $startAt = now()->subHours(5)->startOfMinute();
     $rows = [];
     for ($i = 0; $i < 250; $i++) {
         $rows[] = [
             'sensor_id' => $sensor->id,
             'avg_temp' => 24.00,
             'avg_hum' => 55.00,
-            'created_at' => $baseTime->copy()->subMinutes(249 - $i),
+            'created_at' => $startAt->copy()->addMinutes($i),
         ];
     }
 
@@ -383,30 +383,30 @@ test('filtered detail mode is sampled to 180 points for ranges above 1 hour', fu
         ->get(route('chart-logs.index', [
             'room' => $room->id,
             'time_filter' => 'interval',
-            'start_at' => now()->subHours(5)->format('Y-m-d H:i:s'),
-            'end_at' => now()->format('Y-m-d H:i:s'),
+            'start_at' => $startAt->format('Y-m-d H:i:s'),
+            'end_at' => $startAt->copy()->addMinutes(249)->format('Y-m-d H:i:s'),
         ]))
         ->assertOk()
         ->assertInertia(
             fn($page) => $page
                 ->where('timeFilter.mode', 'interval')
-                ->has('chartSeriesPerSensor.0.points', 180)
+                ->has('chartSeriesPerSensor.0.points', 50)
         );
 });
 
-test('filtered detail mode is sampled to 120 points for ranges above 6 hours', function () {
+test('filtered detail mode uses 30-minute buckets for 24-hour ranges', function () {
     $room = Room::factory()->create();
     $hmi = Hmi::factory()->create(['room_id' => $room->id]);
     $sensor = Sensor::factory()->create(['hmi_id' => $hmi->id]);
 
-    $baseTime = now();
+    $startAt = now()->subDay()->startOfHour();
     $rows = [];
-    for ($i = 0; $i < 450; $i++) {
+    for ($i = 0; $i < 144; $i++) {
         $rows[] = [
             'sensor_id' => $sensor->id,
             'avg_temp' => 24.00,
             'avg_hum' => 55.00,
-            'created_at' => $baseTime->copy()->subMinutes(449 - $i),
+            'created_at' => $startAt->copy()->addMinutes($i * 10),
         ];
     }
 
@@ -416,13 +416,118 @@ test('filtered detail mode is sampled to 120 points for ranges above 6 hours', f
         ->get(route('chart-logs.index', [
             'room' => $room->id,
             'time_filter' => 'interval',
-            'start_at' => now()->subHours(8)->format('Y-m-d H:i:s'),
-            'end_at' => now()->format('Y-m-d H:i:s'),
+            'start_at' => $startAt->format('Y-m-d H:i:s'),
+            'end_at' => $startAt->copy()->addMinutes(1430)->format('Y-m-d H:i:s'),
         ]))
         ->assertOk()
         ->assertInertia(
             fn($page) => $page
                 ->where('timeFilter.mode', 'interval')
-                ->has('chartSeriesPerSensor.0.points', 120)
+                ->has('chartSeriesPerSensor.0.points', 48)
+        );
+});
+
+test('filtered detail mode uses 1-hour buckets for 2-day ranges and shows date on day transition', function () {
+    $room = Room::factory()->create();
+    $hmi = Hmi::factory()->create(['room_id' => $room->id]);
+    $sensor = Sensor::factory()->create(['hmi_id' => $hmi->id]);
+
+    $startAt = now()->subDays(2)->startOfDay();
+    $rows = [];
+    for ($i = 0; $i < 144; $i++) {
+        $rows[] = [
+            'sensor_id' => $sensor->id,
+            'avg_temp' => 24.00,
+            'avg_hum' => 55.00,
+            'created_at' => $startAt->copy()->addMinutes($i * 20),
+        ];
+    }
+
+    SensorReading::query()->insert($rows);
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('chart-logs.index', [
+            'room' => $room->id,
+            'time_filter' => 'interval',
+            'start_at' => $startAt->format('Y-m-d H:i:s'),
+            'end_at' => $startAt->copy()->addMinutes(2860)->format('Y-m-d H:i:s'),
+        ]))
+        ->assertOk()
+        ->assertInertia(
+            fn($page) => $page
+                ->where('timeFilter.mode', 'interval')
+                ->has('chartSeriesPerSensor.0.points', 48)
+                ->where('chartSeriesPerSensor.0.points.24.time', fn($label) => is_string($label)
+                    && str_contains($label, '/')
+                    && str_contains($label, ':'))
+        );
+});
+
+test('filtered detail mode uses 6-hour buckets for 1-week ranges', function () {
+    $room = Room::factory()->create();
+    $hmi = Hmi::factory()->create(['room_id' => $room->id]);
+    $sensor = Sensor::factory()->create(['hmi_id' => $hmi->id]);
+
+    $startAt = now()->subWeek()->startOfHour();
+    $rows = [];
+    for ($i = 0; $i < 168; $i++) {
+        $rows[] = [
+            'sensor_id' => $sensor->id,
+            'avg_temp' => 24.00,
+            'avg_hum' => 55.00,
+            'created_at' => $startAt->copy()->addHours($i),
+        ];
+    }
+
+    SensorReading::query()->insert($rows);
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('chart-logs.index', [
+            'room' => $room->id,
+            'time_filter' => 'interval',
+            'start_at' => $startAt->format('Y-m-d H:i:s'),
+            'end_at' => $startAt->copy()->addHours(167)->format('Y-m-d H:i:s'),
+        ]))
+        ->assertOk()
+        ->assertInertia(
+            fn($page) => $page
+                ->where('timeFilter.mode', 'interval')
+                ->has('chartSeriesPerSensor.0.points', 28)
+        );
+});
+
+test('filtered detail mode uses daily buckets and date labels for 1-month ranges', function () {
+    $room = Room::factory()->create();
+    $hmi = Hmi::factory()->create(['room_id' => $room->id]);
+    $sensor = Sensor::factory()->create(['hmi_id' => $hmi->id]);
+
+    $startAt = now()->subDays(30)->startOfHour();
+    $rows = [];
+    for ($i = 0; $i < 120; $i++) {
+        $rows[] = [
+            'sensor_id' => $sensor->id,
+            'avg_temp' => 24.00,
+            'avg_hum' => 55.00,
+            'created_at' => $startAt->copy()->addHours($i * 6),
+        ];
+    }
+
+    SensorReading::query()->insert($rows);
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('chart-logs.index', [
+            'room' => $room->id,
+            'time_filter' => 'interval',
+            'start_at' => $startAt->format('Y-m-d H:i:s'),
+            'end_at' => $startAt->copy()->addHours(714)->format('Y-m-d H:i:s'),
+        ]))
+        ->assertOk()
+        ->assertInertia(
+            fn($page) => $page
+                ->where('timeFilter.mode', 'interval')
+                ->has('chartSeriesPerSensor.0.points', 30)
+                ->where('chartSeriesPerSensor.0.points.0.time', fn($label) => is_string($label)
+                    && str_contains($label, '/')
+                    && ! str_contains($label, ':'))
         );
 });
