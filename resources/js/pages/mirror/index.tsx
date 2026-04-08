@@ -88,6 +88,7 @@ interface MirrorNotice {
 }
 
 const PRESET_KEY = 'mirror.dynamic.layout.v1';
+const RUNTIME_LAYOUT_KEY = 'mirror.dynamic.runtime.v1';
 const BLOCK_TIMEOUT_MS = 8000;
 const RECONNECT_INTERVAL_MS = 15000;
 const NOTICE_TIMEOUT_MS = 2600;
@@ -103,6 +104,174 @@ const RESOLUTION_PRESETS = [
     { label: '1366x768', width: 1366, height: 768 },
     { label: '1920x1080', width: 1920, height: 1080 },
 ] as const;
+
+const PERSISTENT_IFRAME_STASH_ID = 'mirror-iframe-stash';
+const persistentMirrorIframes = new Map<number, HTMLIFrameElement>();
+
+function ensureIframeStashHost(): HTMLDivElement | null {
+    if (typeof document === 'undefined') {
+        return null;
+    }
+
+    const existingHost = document.getElementById(PERSISTENT_IFRAME_STASH_ID);
+
+    if (existingHost instanceof HTMLDivElement) {
+        return existingHost;
+    }
+
+    const host = document.createElement('div');
+    host.id = PERSISTENT_IFRAME_STASH_ID;
+    host.style.position = 'fixed';
+    host.style.left = '-9999px';
+    host.style.top = '-9999px';
+    host.style.width = '1px';
+    host.style.height = '1px';
+    host.style.overflow = 'hidden';
+    host.style.opacity = '0';
+    host.style.pointerEvents = 'none';
+    host.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(host);
+
+    return host;
+}
+
+function getOrCreatePersistentIframe(
+    panelId: number,
+): HTMLIFrameElement | null {
+    if (typeof document === 'undefined') {
+        return null;
+    }
+
+    const existingFrame = persistentMirrorIframes.get(panelId);
+
+    if (existingFrame) {
+        return existingFrame;
+    }
+
+    const iframe = document.createElement('iframe');
+    iframe.className = 'h-full w-full border-0';
+    persistentMirrorIframes.set(panelId, iframe);
+
+    return iframe;
+}
+
+function removePersistentIframe(panelId: number): void {
+    const iframe = persistentMirrorIframes.get(panelId);
+
+    if (!iframe) {
+        return;
+    }
+
+    iframe.remove();
+    persistentMirrorIframes.delete(panelId);
+}
+
+function clearPersistentIframes(): void {
+    Array.from(persistentMirrorIframes.keys()).forEach((panelId) => {
+        removePersistentIframe(panelId);
+    });
+}
+
+function prunePersistentIframes(panelIds: number[]): void {
+    const activePanelIds = new Set(panelIds);
+
+    Array.from(persistentMirrorIframes.keys()).forEach((panelId) => {
+        if (!activePanelIds.has(panelId)) {
+            removePersistentIframe(panelId);
+        }
+    });
+}
+
+function serializePanelsForStorage(panels: MirrorPanel[]): MirrorPresetPanel[] {
+    return panels.map((panel) => ({
+        label: panel.label,
+        ipAddress: panel.ipAddress,
+        port: panel.port,
+        protocol: panel.protocol,
+        autoReconnect: panel.autoReconnect,
+        viewMode: panel.viewMode,
+        sourceWidth: panel.sourceWidth,
+        sourceHeight: panel.sourceHeight,
+        zoomPercent: panel.zoomPercent,
+    }));
+}
+
+interface PersistentMirrorFrameProps {
+    panel: MirrorPanel;
+    onPanelLoad: (panelId: number) => void;
+    onPanelError: (panelId: number) => void;
+}
+
+function PersistentMirrorFrame({
+    panel,
+    onPanelLoad,
+    onPanelError,
+}: PersistentMirrorFrameProps) {
+    const mountRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        const mountElement = mountRef.current;
+
+        if (!mountElement) {
+            return;
+        }
+
+        const iframe = getOrCreatePersistentIframe(panel.id);
+
+        if (!iframe) {
+            return;
+        }
+
+        const handleLoad = (): void => {
+            onPanelLoad(panel.id);
+        };
+
+        const handleError = (): void => {
+            onPanelError(panel.id);
+        };
+
+        iframe.className = 'h-full w-full border-0';
+        iframe.title = `Mirror ${panel.label}`;
+        iframe.addEventListener('load', handleLoad);
+        iframe.addEventListener('error', handleError);
+
+        const refreshSeed = String(panel.refreshSeed);
+        const shouldReloadFrame =
+            iframe.dataset.baseSrc !== panel.src ||
+            iframe.dataset.refreshSeed !== refreshSeed;
+
+        if (shouldReloadFrame) {
+            iframe.dataset.baseSrc = panel.src;
+            iframe.dataset.refreshSeed = refreshSeed;
+            iframe.src = panel.src;
+        }
+
+        if (iframe.parentElement !== mountElement) {
+            mountElement.replaceChildren();
+            mountElement.appendChild(iframe);
+        }
+
+        return () => {
+            iframe.removeEventListener('load', handleLoad);
+            iframe.removeEventListener('error', handleError);
+
+            const stashHost = ensureIframeStashHost();
+
+            if (stashHost && iframe.parentElement !== stashHost) {
+                stashHost.appendChild(iframe);
+            }
+        };
+    }, [
+        panel.id,
+        panel.label,
+        panel.refreshSeed,
+        panel.src,
+        onPanelError,
+        onPanelLoad,
+    ]);
+
+    return <div ref={mountRef} className="h-full w-full" />;
+}
 
 function clampZoom(value: number): number {
     return Math.min(MAX_ZOOM_PERCENT, Math.max(MIN_ZOOM_PERCENT, value));
@@ -213,6 +382,7 @@ export default function MirrorIndex() {
     const [editError, setEditError] = useState('');
     const [editProcessing, setEditProcessing] = useState(false);
     const [notices, setNotices] = useState<MirrorNotice[]>([]);
+    const [isLayoutHydrated, setIsLayoutHydrated] = useState(false);
     const [, forceViewportRecalc] = useState(0);
 
     const blockTimeoutRef = useRef<Record<number, number | null>>({});
@@ -279,16 +449,21 @@ export default function MirrorIndex() {
     }, [panels.length]);
 
     useEffect(() => {
-        const rawPreset = window.localStorage.getItem(PRESET_KEY);
+        const rawRuntimeLayout =
+            window.localStorage.getItem(RUNTIME_LAYOUT_KEY);
+        const rawPresetLayout = window.localStorage.getItem(PRESET_KEY);
+        const rawLayout = rawRuntimeLayout ?? rawPresetLayout;
 
-        if (!rawPreset) {
+        if (!rawLayout) {
+            setIsLayoutHydrated(true);
             return;
         }
 
         try {
-            const presetPanels = JSON.parse(rawPreset) as MirrorPresetPanel[];
+            const presetPanels = JSON.parse(rawLayout) as MirrorPresetPanel[];
 
             if (!Array.isArray(presetPanels) || presetPanels.length === 0) {
+                setIsLayoutHydrated(true);
                 return;
             }
 
@@ -331,12 +506,27 @@ export default function MirrorIndex() {
             });
 
             nextPanelIdRef.current = hydratedPanels.length + 1;
+            prunePersistentIframes(hydratedPanels.map((panel) => panel.id));
             setPanels(hydratedPanels);
             setAddForm(defaultSourceForm(`Screen ${nextPanelIdRef.current}`));
         } catch {
             // Ignore malformed preset data.
+        } finally {
+            setIsLayoutHydrated(true);
         }
     }, []);
+
+    useEffect(() => {
+        if (!isLayoutHydrated) {
+            return;
+        }
+
+        const payload = serializePanelsForStorage(panels);
+        window.localStorage.setItem(
+            RUNTIME_LAYOUT_KEY,
+            JSON.stringify(payload),
+        );
+    }, [isLayoutHydrated, panels]);
 
     useEffect(() => {
         const timeoutMap = blockTimeoutRef.current;
@@ -518,17 +708,7 @@ export default function MirrorIndex() {
     }, [probePanel]);
 
     function savePreset(): void {
-        const payload = panels.map((panel) => ({
-            label: panel.label,
-            ipAddress: panel.ipAddress,
-            port: panel.port,
-            protocol: panel.protocol,
-            autoReconnect: panel.autoReconnect,
-            viewMode: panel.viewMode,
-            sourceWidth: panel.sourceWidth,
-            sourceHeight: panel.sourceHeight,
-            zoomPercent: panel.zoomPercent,
-        }));
+        const payload = serializePanelsForStorage(panels);
 
         window.localStorage.setItem(PRESET_KEY, JSON.stringify(payload));
         pushNotice(
@@ -594,6 +774,7 @@ export default function MirrorIndex() {
             });
 
             nextPanelIdRef.current = hydratedPanels.length + 1;
+            prunePersistentIframes(hydratedPanels.map((panel) => panel.id));
             setPanels(hydratedPanels);
             setAddForm(defaultSourceForm(`Screen ${nextPanelIdRef.current}`));
             pushNotice(
@@ -611,6 +792,7 @@ export default function MirrorIndex() {
 
     function resetLayout(): void {
         setPanels([]);
+        clearPersistentIframes();
         nextPanelIdRef.current = 1;
         setAddForm(defaultSourceForm('Screen 1'));
         pushNotice('success', 'Layout mirror berhasil direset.');
@@ -618,6 +800,7 @@ export default function MirrorIndex() {
 
     function removePanel(panelId: number): void {
         clearBlockTimer(panelId);
+        removePersistentIframe(panelId);
 
         const removedPanel = panelsRef.current.find(
             (panel) => panel.id === panelId,
@@ -768,6 +951,32 @@ export default function MirrorIndex() {
         });
         setIsEditDialogOpen(true);
     }
+
+    const handlePanelFrameLoad = useCallback(
+        (panelId: number): void => {
+            clearBlockTimer(panelId);
+
+            updatePanel(panelId, (current) => ({
+                ...current,
+                status: 'mirrored',
+                message: 'Mirroring aktif.',
+            }));
+        },
+        [clearBlockTimer, updatePanel],
+    );
+
+    const handlePanelFrameError = useCallback(
+        (panelId: number): void => {
+            clearBlockTimer(panelId);
+
+            updatePanel(panelId, (current) => ({
+                ...current,
+                status: 'unreachable',
+                message: 'Gagal memuat iframe target.',
+            }));
+        },
+        [clearBlockTimer, updatePanel],
+    );
 
     async function handleAddScreen(): Promise<void> {
         setAddProcessing(true);
@@ -999,7 +1208,7 @@ export default function MirrorIndex() {
                 </header>
 
                 <main className="flex flex-1 flex-col gap-3 overflow-auto p-3">
-                    <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-3">
+                    <div className="sticky top-0 z-20 rounded-xl border border-slate-700/60 bg-slate-900 p-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                             <div>
                                 <p className="text-sm font-semibold">
@@ -1192,41 +1401,14 @@ export default function MirrorIndex() {
                                                             'center center',
                                                     }}
                                                 >
-                                                    <iframe
-                                                        key={`${panel.id}-${panel.refreshSeed}-${panel.src}`}
-                                                        title={`Mirror ${panel.label}`}
-                                                        src={panel.src}
-                                                        className="h-full w-full border-0"
-                                                        onLoad={() => {
-                                                            clearBlockTimer(
-                                                                panel.id,
-                                                            );
-
-                                                            updatePanel(
-                                                                panel.id,
-                                                                (current) => ({
-                                                                    ...current,
-                                                                    status: 'mirrored',
-                                                                    message:
-                                                                        'Mirroring aktif.',
-                                                                }),
-                                                            );
-                                                        }}
-                                                        onError={() => {
-                                                            clearBlockTimer(
-                                                                panel.id,
-                                                            );
-
-                                                            updatePanel(
-                                                                panel.id,
-                                                                (current) => ({
-                                                                    ...current,
-                                                                    status: 'unreachable',
-                                                                    message:
-                                                                        'Gagal memuat iframe target.',
-                                                                }),
-                                                            );
-                                                        }}
+                                                    <PersistentMirrorFrame
+                                                        panel={panel}
+                                                        onPanelLoad={
+                                                            handlePanelFrameLoad
+                                                        }
+                                                        onPanelError={
+                                                            handlePanelFrameError
+                                                        }
                                                     />
                                                 </div>
                                             </div>
