@@ -116,8 +116,7 @@ const chartConfig = {
     avg_humidity: { label: 'Humidity', color: '#60a5fa' },
 } satisfies ChartConfig;
 
-const quickRangeOptions = [
-    { label: '5 Menit Terakhir', minutes: 5 },
+const overviewQuickRangeOptions = [
     { label: '15 Menit Terakhir', minutes: 15 },
     { label: '30 Menit Terakhir', minutes: 30 },
     { label: '1 Jam Terakhir', minutes: 60 },
@@ -128,6 +127,11 @@ const quickRangeOptions = [
     { label: '2 Hari Terakhir', minutes: 2880 },
     { label: '1 Minggu Terakhir', minutes: 10080 },
     { label: '1 Bulan Terakhir', minutes: 43200 },
+];
+
+const detailQuickRangeOptions = [
+    { label: '5 Menit Terakhir', minutes: 5 },
+    ...overviewQuickRangeOptions,
 ];
 
 const maxCustomRangeDays = 30;
@@ -584,6 +588,7 @@ function ChartPanel({
                                 strokeWidth={2}
                                 dot={false}
                                 activeDot={{ r: 3 }}
+                                isAnimationActive={false}
                                 connectNulls
                             />
                         ))}
@@ -800,6 +805,10 @@ export default function ChartLogsIndex(props: ChartLogsIndexProps) {
     const [endParts, setEndParts] = useState<DateTimeParts>(() =>
         parseDateTimeParts(props.timeFilter.end_at),
     );
+    const shouldAutoRefresh =
+        props.timeFilter.mode === 'none' ||
+        (props.timeFilter.mode === 'recent' &&
+            props.timeFilter.recent_minutes <= 60);
 
     useEffect(() => {
         const timer = setInterval(() => setNow(new Date()), 60_000);
@@ -808,6 +817,10 @@ export default function ChartLogsIndex(props: ChartLogsIndexProps) {
 
     // Auto-refresh every 60 seconds
     useEffect(() => {
+        if (!shouldAutoRefresh) {
+            return;
+        }
+
         const timer = setInterval(() => {
             if (props.mode === 'overview') {
                 router.reload({ only: ['roomChartSeries'] });
@@ -816,7 +829,7 @@ export default function ChartLogsIndex(props: ChartLogsIndexProps) {
             }
         }, 60_000);
         return () => clearInterval(timer);
-    }, [props.mode]);
+    }, [props.mode, shouldAutoRefresh]);
 
     const timeStr = now.toLocaleTimeString('id-ID', {
         hour: '2-digit',
@@ -832,6 +845,9 @@ export default function ChartLogsIndex(props: ChartLogsIndexProps) {
         .toUpperCase();
 
     const isOverview = props.mode === 'overview';
+    const quickRangeOptions = isOverview
+        ? overviewQuickRangeOptions
+        : detailQuickRangeOptions;
     const activeFilterQuery = {
         ...(props.timeFilter.mode !== 'none'
             ? { time_filter: props.timeFilter.mode }

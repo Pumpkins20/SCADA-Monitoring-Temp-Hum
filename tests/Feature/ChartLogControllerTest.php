@@ -137,7 +137,7 @@ test('detail mode activeRoomName matches the room name', function () {
         );
 });
 
-test('overview mode can filter logs by recent minutes', function () {
+test('overview mode enforces minimum recent filter of 15 minutes', function () {
     $room = Room::factory()->create();
 
     SensorLog::factory()->create([
@@ -164,7 +164,7 @@ test('overview mode can filter logs by recent minutes', function () {
             fn($page) => $page
                 ->where('mode', 'overview')
                 ->where('timeFilter.mode', 'recent')
-                ->where('timeFilter.recent_minutes', 5)
+                ->where('timeFilter.recent_minutes', 15)
                 ->has('roomChartSeries.0.points', 1)
         );
 });
@@ -361,18 +361,52 @@ test('custom interval is capped to 30 days in detail mode', function () {
         );
 });
 
-test('filtered detail mode is sampled to 400 points max', function () {
+test('filtered detail mode is sampled to 180 points for ranges above 1 hour', function () {
     $room = Room::factory()->create();
     $hmi = Hmi::factory()->create(['room_id' => $room->id]);
     $sensor = Sensor::factory()->create(['hmi_id' => $hmi->id]);
 
+    $baseTime = now();
+    $rows = [];
+    for ($i = 0; $i < 250; $i++) {
+        $rows[] = [
+            'sensor_id' => $sensor->id,
+            'avg_temp' => 24.00,
+            'avg_hum' => 55.00,
+            'created_at' => $baseTime->copy()->subMinutes(249 - $i),
+        ];
+    }
+
+    SensorReading::query()->insert($rows);
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('chart-logs.index', [
+            'room' => $room->id,
+            'time_filter' => 'interval',
+            'start_at' => now()->subHours(5)->format('Y-m-d H:i:s'),
+            'end_at' => now()->format('Y-m-d H:i:s'),
+        ]))
+        ->assertOk()
+        ->assertInertia(
+            fn($page) => $page
+                ->where('timeFilter.mode', 'interval')
+                ->has('chartSeriesPerSensor.0.points', 180)
+        );
+});
+
+test('filtered detail mode is sampled to 120 points for ranges above 6 hours', function () {
+    $room = Room::factory()->create();
+    $hmi = Hmi::factory()->create(['room_id' => $room->id]);
+    $sensor = Sensor::factory()->create(['hmi_id' => $hmi->id]);
+
+    $baseTime = now();
     $rows = [];
     for ($i = 0; $i < 450; $i++) {
         $rows[] = [
             'sensor_id' => $sensor->id,
             'avg_temp' => 24.00,
             'avg_hum' => 55.00,
-            'created_at' => now()->subMinutes(449 - $i),
+            'created_at' => $baseTime->copy()->subMinutes(449 - $i),
         ];
     }
 
@@ -389,6 +423,6 @@ test('filtered detail mode is sampled to 400 points max', function () {
         ->assertInertia(
             fn($page) => $page
                 ->where('timeFilter.mode', 'interval')
-                ->has('chartSeriesPerSensor.0.points', 400)
+                ->has('chartSeriesPerSensor.0.points', 120)
         );
 });

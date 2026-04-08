@@ -17,7 +17,17 @@ class ChartLogController extends Controller
 {
     private const DEFAULT_NONE_LIMIT = 120;
 
-    private const FILTERED_POINT_LIMIT = 400;
+    private const FILTERED_POINT_LIMIT_SHORT_RANGE = 400;
+
+    private const FILTERED_POINT_LIMIT_MEDIUM_RANGE = 180;
+
+    private const FILTERED_POINT_LIMIT_LONG_RANGE = 120;
+
+    private const MEDIUM_RANGE_THRESHOLD_MINUTES = 60;
+
+    private const LONG_RANGE_THRESHOLD_MINUTES = 360;
+
+    private const MIN_OVERVIEW_RECENT_MINUTES = 15;
 
     private const MAX_RECENT_MINUTES = 43200;
 
@@ -67,6 +77,17 @@ class ChartLogController extends Controller
         ?Carbon $endAt,
         int $recentMinutes,
     ): Response {
+        if ($timeFilterMode === 'recent') {
+            $recentMinutes = max($recentMinutes, self::MIN_OVERVIEW_RECENT_MINUTES);
+        }
+
+        $filteredPointLimit = $this->resolveFilteredPointLimit(
+            $timeFilterMode,
+            $startAt,
+            $endAt,
+            $recentMinutes,
+        );
+
         $latestTimestamp = $timeFilterMode === 'recent'
             ? SensorLog::query()->max('created_at')
             : null;
@@ -95,7 +116,7 @@ class ChartLogController extends Controller
                     ->pluck('created_at')
                     ->sort()
                     ->values(),
-                self::FILTERED_POINT_LIMIT,
+                $filteredPointLimit,
             );
 
         $logsByRoom = SensorLog::query()
@@ -174,6 +195,13 @@ class ChartLogController extends Controller
             $latestTimestamp,
         );
 
+        $filteredPointLimit = $this->resolveFilteredPointLimit(
+            $timeFilterMode,
+            $startAt,
+            $endAt,
+            $recentMinutes,
+        );
+
         $timestamps = $timeFilterMode === 'none'
             ? $timestampsQuery
             ->limit(self::DEFAULT_NONE_LIMIT)
@@ -185,7 +213,7 @@ class ChartLogController extends Controller
                     ->pluck('created_at')
                     ->sort()
                     ->values(),
-                self::FILTERED_POINT_LIMIT,
+                $filteredPointLimit,
             );
 
         $readings = SensorReading::query()
@@ -302,6 +330,35 @@ class ChartLogController extends Controller
         }
 
         $query->whereBetween('created_at', [$startAt, $endAt]);
+    }
+
+    private function resolveFilteredPointLimit(
+        string $mode,
+        ?Carbon $startAt,
+        ?Carbon $endAt,
+        int $recentMinutes,
+    ): int {
+        $rangeMinutes = match ($mode) {
+            'recent' => $recentMinutes,
+            'interval' => $startAt !== null && $endAt !== null
+                ? $startAt->diffInMinutes($endAt)
+                : null,
+            default => null,
+        };
+
+        if ($rangeMinutes === null) {
+            return self::FILTERED_POINT_LIMIT_SHORT_RANGE;
+        }
+
+        if ($rangeMinutes > self::LONG_RANGE_THRESHOLD_MINUTES) {
+            return self::FILTERED_POINT_LIMIT_LONG_RANGE;
+        }
+
+        if ($rangeMinutes > self::MEDIUM_RANGE_THRESHOLD_MINUTES) {
+            return self::FILTERED_POINT_LIMIT_MEDIUM_RANGE;
+        }
+
+        return self::FILTERED_POINT_LIMIT_SHORT_RANGE;
     }
 
     private function sampleTimestamps(Collection $timestamps, int $maxPoints): Collection
