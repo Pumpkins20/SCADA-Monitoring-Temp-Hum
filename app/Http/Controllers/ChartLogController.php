@@ -67,6 +67,10 @@ class ChartLogController extends Controller
         ?Carbon $endAt,
         int $recentMinutes,
     ): Response {
+        $latestTimestamp = $timeFilterMode === 'recent'
+            ? SensorLog::query()->max('created_at')
+            : null;
+
         $timestampsQuery = SensorLog::query()
             ->selectRaw('DISTINCT created_at')
             ->orderByDesc('created_at');
@@ -77,6 +81,7 @@ class ChartLogController extends Controller
             $startAt,
             $endAt,
             $recentMinutes,
+            $latestTimestamp,
         );
 
         $timestamps = $timeFilterMode === 'none'
@@ -149,6 +154,12 @@ class ChartLogController extends Controller
 
         $sensorIds = $sensors->pluck('id');
 
+        $latestTimestamp = $timeFilterMode === 'recent'
+            ? SensorReading::query()
+            ->whereIn('sensor_id', $sensorIds)
+            ->max('created_at')
+            : null;
+
         $timestampsQuery = SensorReading::query()
             ->whereIn('sensor_id', $sensorIds)
             ->selectRaw('DISTINCT created_at')
@@ -160,6 +171,7 @@ class ChartLogController extends Controller
             $startAt,
             $endAt,
             $recentMinutes,
+            $latestTimestamp,
         );
 
         $timestamps = $timeFilterMode === 'none'
@@ -273,9 +285,14 @@ class ChartLogController extends Controller
         ?Carbon $startAt,
         ?Carbon $endAt,
         int $recentMinutes,
+        mixed $latestTimestamp = null,
     ): void {
         if ($mode === 'recent') {
-            $query->where('created_at', '>=', now()->subMinutes($recentMinutes));
+            $referenceTimestamp = $latestTimestamp !== null
+                ? Carbon::parse((string) $latestTimestamp)
+                : now();
+
+            $query->where('created_at', '>=', $referenceTimestamp->subMinutes($recentMinutes));
 
             return;
         }

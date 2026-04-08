@@ -169,6 +169,37 @@ test('overview mode can filter logs by recent minutes', function () {
         );
 });
 
+test('overview recent filter is anchored to latest available timestamp', function () {
+    $room = Room::factory()->create();
+
+    SensorLog::factory()->create([
+        'room_id' => $room->id,
+        'avg_temperature' => 22.30,
+        'avg_humidity' => 57.10,
+        'created_at' => now()->subHours(3)->subMinutes(20),
+    ]);
+
+    SensorLog::factory()->create([
+        'room_id' => $room->id,
+        'avg_temperature' => 24.70,
+        'avg_humidity' => 62.40,
+        'created_at' => now()->subHours(3),
+    ]);
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('chart-logs.index', [
+            'time_filter' => 'recent',
+            'recent_minutes' => 5,
+        ]))
+        ->assertOk()
+        ->assertInertia(
+            fn($page) => $page
+                ->where('mode', 'overview')
+                ->where('timeFilter.mode', 'recent')
+                ->has('roomChartSeries.0.points', 1)
+        );
+});
+
 test('detail mode can filter logs by recent minutes', function () {
     $room = Room::factory()->create();
     $hmi = Hmi::factory()->create(['room_id' => $room->id]);
@@ -200,6 +231,40 @@ test('detail mode can filter logs by recent minutes', function () {
                 ->where('mode', 'detail')
                 ->where('timeFilter.mode', 'recent')
                 ->where('timeFilter.recent_minutes', 10)
+                ->has('chartSeriesPerSensor.0.points', 1)
+        );
+});
+
+test('detail recent filter is anchored to latest available timestamp', function () {
+    $room = Room::factory()->create();
+    $hmi = Hmi::factory()->create(['room_id' => $room->id]);
+    $sensor = Sensor::factory()->create(['hmi_id' => $hmi->id]);
+
+    SensorReading::factory()->create([
+        'sensor_id' => $sensor->id,
+        'avg_temp' => 21.80,
+        'avg_hum' => 51.70,
+        'created_at' => now()->subHours(2)->subMinutes(30),
+    ]);
+
+    SensorReading::factory()->create([
+        'sensor_id' => $sensor->id,
+        'avg_temp' => 23.90,
+        'avg_hum' => 55.90,
+        'created_at' => now()->subHours(2),
+    ]);
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('chart-logs.index', [
+            'room' => $room->id,
+            'time_filter' => 'recent',
+            'recent_minutes' => 5,
+        ]))
+        ->assertOk()
+        ->assertInertia(
+            fn($page) => $page
+                ->where('mode', 'detail')
+                ->where('timeFilter.mode', 'recent')
                 ->has('chartSeriesPerSensor.0.points', 1)
         );
 });
