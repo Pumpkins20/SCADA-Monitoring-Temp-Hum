@@ -25,7 +25,30 @@ test('admin can open settings general page', function () {
         ->withSession(['auth.password_confirmed_at' => time()])
         ->get(route('settings-general.index'))
         ->assertOk()
-        ->assertInertia(fn($page) => $page->component('settings-general/index'));
+        ->assertInertia(fn ($page) => $page->component('settings-general/index'));
+});
+
+test('guests are redirected to login from settings-session.logout', function () {
+    $this->post(route('settings-session.logout'))->assertRedirect(route('login'));
+});
+
+test('non-admin users are forbidden from settings-session.logout', function () {
+    $this->actingAs(User::factory()->create(['is_admin' => false]))
+        ->post(route('settings-session.logout'))
+        ->assertForbidden();
+});
+
+test('admin can manually end settings password session', function () {
+    $response = $this->actingAs(User::factory()->create(['is_admin' => true]))
+        ->withSession(['auth.password_confirmed_at' => time()])
+        ->post(route('settings-session.logout'));
+
+    $response
+        ->assertRedirect(route('dashboard'))
+        ->assertSessionMissing('auth.password_confirmed_at');
+
+    $this->get(route('gauge-settings.edit'))
+        ->assertRedirect(route('password.confirm'));
 });
 
 test('guests are redirected to login from gauge-settings.edit', function () {
@@ -50,7 +73,7 @@ test('admin can open gauge settings page', function () {
         ->withSession(['auth.password_confirmed_at' => time()])
         ->get(route('gauge-settings.edit'))
         ->assertOk()
-        ->assertInertia(fn($page) => $page->component('gauge-settings/index')->has('gaugeSettings'));
+        ->assertInertia(fn ($page) => $page->component('gauge-settings/index')->has('gaugeSettings'));
 });
 
 test('guests are redirected to login from gauge-settings.update', function () {

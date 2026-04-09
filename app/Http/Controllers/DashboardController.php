@@ -72,11 +72,16 @@ class DashboardController extends Controller
         $payload = $rooms->map(function (Room $room) {
             $sensors = $room->hmis->flatMap->sensors;
             $online = $sensors->filter(fn ($s) => $s->latestData !== null && $s->latestData->status !== 'OFFLINE');
+            $hmiIpAddresses = $room->hmis
+                ->pluck('ip_address')
+                ->filter()
+                ->implode(', ');
 
             return [
                 'id' => $room->id,
                 'name' => $room->name,
                 'location' => $room->location,
+                'ip_address' => $hmiIpAddresses !== '' ? $hmiIpAddresses : null,
                 'temp_max_limit' => $room->temp_max_limit,
                 'hum_max_limit' => $room->hum_max_limit,
                 'room_avg_temp' => $online->isNotEmpty()

@@ -1,5 +1,5 @@
 import { router, usePage } from '@inertiajs/react';
-import { ShieldCheck } from 'lucide-react';
+import { LogOut, ShieldCheck } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -23,6 +23,7 @@ export function PasswordSessionFloating({ className }: { className?: string }) {
     const redirectedRef = useRef(false);
 
     const [remainingSeconds, setRemainingSeconds] = useState(initialRemaining);
+    const [isEndingSession, setIsEndingSession] = useState(false);
 
     useEffect(() => {
         if (!isActive) {
@@ -77,6 +78,27 @@ export function PasswordSessionFloating({ className }: { className?: string }) {
         redirectedRef.current = false;
     }, [expiresAt]);
 
+    function endSettingsSession(): void {
+        if (isEndingSession) {
+            return;
+        }
+
+        redirectedRef.current = true;
+        setIsEndingSession(true);
+
+        router.post(
+            '/settings-session/logout',
+            {},
+            {
+                preserveScroll: true,
+                replace: true,
+                onFinish: () => {
+                    setIsEndingSession(false);
+                },
+            },
+        );
+    }
+
     const countdownLabel = useMemo(() => {
         const minutes = Math.floor(remainingSeconds / 60)
             .toString()
@@ -98,19 +120,31 @@ export function PasswordSessionFloating({ className }: { className?: string }) {
     return (
         <div
             className={cn(
-                'pointer-events-none fixed top-22 left-1/2 z-30 -translate-x-1/2 rounded-lg border border-cyan-500/30 bg-[#0f171f]/90 px-3 py-2 shadow-[0_0_18px_#22d3ee2a] backdrop-blur-sm',
+                'fixed top-22 left-1/2 z-30 -translate-x-1/2 rounded-lg border border-cyan-500/30 bg-[#0f171f]/90 px-3 py-2 shadow-[0_0_18px_#22d3ee2a] backdrop-blur-sm',
                 className,
             )}
         >
-            <div className="flex items-center gap-2">
-                <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-cyan-300" />
-                <p className="text-[10px] font-semibold tracking-wider text-cyan-200 uppercase">
-                    Verifikasi Aktif
-                </p>
-                <span className="text-[10px] text-slate-500">|</span>
-                <p className="text-sm font-bold tracking-wider text-white tabular-nums">
-                    {countdownLabel}
-                </p>
+            <div className="flex items-center gap-2 sm:gap-2.5">
+                <div className="flex items-center gap-2">
+                    <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-cyan-300" />
+                    <p className="text-[10px] font-semibold tracking-wider text-cyan-200 uppercase">
+                        Verifikasi Aktif
+                    </p>
+                    <span className="text-[10px] text-slate-500">|</span>
+                    <p className="text-sm font-bold tracking-wider text-white tabular-nums">
+                        {countdownLabel}
+                    </p>
+                </div>
+
+                <button
+                    type="button"
+                    onClick={endSettingsSession}
+                    disabled={isEndingSession}
+                    className="inline-flex h-6 items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-2 text-[9px] font-semibold tracking-wider text-amber-200 uppercase transition-colors hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                    <LogOut className="h-3 w-3" />
+                    {isEndingSession ? 'Mengakhiri...' : 'Akhiri Sesi Settings'}
+                </button>
             </div>
 
             <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-slate-700/80">

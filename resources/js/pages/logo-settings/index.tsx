@@ -1,6 +1,7 @@
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { ArrowLeft, ImageUp, Lock } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { PasswordSessionFloating } from '@/components/scada/password-session-floating';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
 import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
 import { ScadaHeaderTitle } from '@/components/scada/scada-header-title';
@@ -119,6 +120,8 @@ export default function LogoSettingsPage() {
             <Head title="Setting Header Dashboard" />
 
             <div className="flex h-screen flex-col overflow-hidden bg-[#151b1f] font-sans text-white">
+                <PasswordSessionFloating className="top-[92px]" />
+
                 <header className="flex shrink-0 flex-col border-b border-slate-700/50 bg-[#0f1316]">
                     <ScadaHeaderLogos />
 

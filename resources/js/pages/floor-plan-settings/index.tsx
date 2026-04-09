@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FloorPlanMap } from '@/components/scada/floor-plan-map';
+import { PasswordSessionFloating } from '@/components/scada/password-session-floating';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
 import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
 import { ScadaHeaderTitle } from '@/components/scada/scada-header-title';
@@ -933,6 +934,8 @@ export default function FloorPlanSettingsPage({
             <Head title="Konfigurasi Denah Sensor" />
 
             <div className="flex h-screen flex-col overflow-hidden bg-[#151b1f] font-sans text-white">
+                <PasswordSessionFloating className="top-[92px]" />
+
                 {/* ── HEADER ──────────────────────────────────────────── */}
                 <header className="flex shrink-0 flex-col border-b border-slate-700/50 bg-[#0f1316]">
                     <ScadaHeaderLogos />

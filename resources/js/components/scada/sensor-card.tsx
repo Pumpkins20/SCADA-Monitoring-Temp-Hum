@@ -24,7 +24,6 @@ export function SensorCard({
                         {sensor.name}
                     </span>
                 </div>
-                <span className="text-xs text-cyan-400 opacity-80">((·))</span>
             </div>
 
             <div className="mt-1 grid min-w-0 grid-cols-2 gap-1.5">
