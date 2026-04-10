@@ -66,6 +66,7 @@ interface PreviewSensor {
 
 type DialogPhase = 'form' | 'waiting' | 'preview';
 type TestStatus = 'idle' | 'loading' | 'success' | 'failed';
+const MAX_HMI_CONNECTIONS = 5;
 
 function ConnectHmiPreviewDialog({
     open,
@@ -267,14 +268,25 @@ function ConnectHmiPreviewDialog({
                 const nextErrors: Partial<
                     Record<'ip_address' | 'port', string>
                 > = {};
+                let globalError = '';
 
                 Object.entries(json.errors ?? {}).forEach(([key, messages]) => {
                     if (key === 'ip_address' || key === 'port') {
                         nextErrors[key] = messages[0] ?? 'Input tidak valid.';
+
+                        return;
+                    }
+
+                    if (!globalError && messages[0]) {
+                        globalError = messages[0];
                     }
                 });
 
                 setCreateErrors(nextErrors);
+
+                if (globalError) {
+                    setPhaseError(globalError);
+                }
 
                 return;
             }
@@ -812,12 +824,56 @@ function DeleteRoomDialog({
     );
 }
 
+function MaxConnectionAlertDialog({
+    open,
+    onOpenChange,
+}: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+}) {
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="border-slate-700 bg-[#1a2027] text-white sm:max-w-sm">
+                <DialogHeader>
+                    <DialogTitle className="text-white">
+                        Batas Koneksi Tercapai
+                    </DialogTitle>
+                    <DialogDescription className="text-slate-400">
+                        Maksimal 5 device
+                    </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                    <Button
+                        type="button"
+                        onClick={() => onOpenChange(false)}
+                        className="bg-cyan-600 text-white hover:bg-cyan-500"
+                    >
+                        OK
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function RoomsIndex({ rooms }: RoomsIndexProps) {
     const [showAddConnection, setShowAddConnection] = useState(false);
+    const [showMaxConnectionDialog, setShowMaxConnectionDialog] =
+        useState(false);
     const [showDeleteRoomDialog, setShowDeleteRoomDialog] = useState(false);
     const [roomToDelete, setRoomToDelete] = useState<RoomItem | null>(null);
+
+    function handleOpenAddConnection(): void {
+        if (rooms.length >= MAX_HMI_CONNECTIONS) {
+            setShowMaxConnectionDialog(true);
+
+            return;
+        }
+
+        setShowAddConnection(true);
+    }
 
     return (
         <>
@@ -867,7 +923,7 @@ export default function RoomsIndex({ rooms }: RoomsIndexProps) {
                         </div>
                         <Button
                             type="button"
-                            onClick={() => setShowAddConnection(true)}
+                            onClick={handleOpenAddConnection}
                             className="bg-cyan-600 text-white shadow-[0_0_12px_#22d3ee40] hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                             <Plus className="h-4 w-4" />
@@ -1014,6 +1070,11 @@ export default function RoomsIndex({ rooms }: RoomsIndexProps) {
                     }
                 }}
                 room={roomToDelete}
+            />
+
+            <MaxConnectionAlertDialog
+                open={showMaxConnectionDialog}
+                onOpenChange={setShowMaxConnectionDialog}
             />
         </>
     );

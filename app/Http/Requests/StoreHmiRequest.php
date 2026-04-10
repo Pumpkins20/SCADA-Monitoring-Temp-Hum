@@ -2,10 +2,14 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Hmi;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class StoreHmiRequest extends FormRequest
 {
+    private const MAX_HMI_CONNECTIONS = 5;
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -25,6 +29,20 @@ class StoreHmiRequest extends FormRequest
             'ip_address' => ['required', 'ip', 'unique:hmis,ip_address'],
             'port' => ['required', 'integer', 'min:1', 'max:65535'],
             'register_function' => ['sometimes', 'in:03,04'],
+        ];
+    }
+
+    /**
+     * @return array<int, callable(Validator): void>
+     */
+    public function after(): array
+    {
+        return [
+            function (Validator $validator): void {
+                if (Hmi::query()->count() >= self::MAX_HMI_CONNECTIONS) {
+                    $validator->errors()->add('hmi_limit', 'Maksimal 5 device');
+                }
+            },
         ];
     }
 

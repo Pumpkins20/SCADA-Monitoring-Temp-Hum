@@ -180,6 +180,20 @@ test('hmi store validation fails when ip_address is already registered', functio
         ->assertJsonPath('errors.ip_address.0', 'IP Address sudah terdaftar');
 });
 
+test('hmi store validation fails when maximum 5 device limit is reached', function () {
+    Hmi::factory()->count(5)->create();
+
+    $this->actingAs(User::factory()->create(['is_admin' => true]))
+        ->withSession(['auth.password_confirmed_at' => time()])
+        ->postJson(route('hmis.store'), [
+            'ip_address' => '192.168.1.250',
+            'port' => 502,
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('hmi_limit')
+        ->assertJsonPath('errors.hmi_limit.0', 'Maksimal 5 device');
+});
+
 // ─── hmis.preview-data ────────────────────────────────────────────────────────
 
 test('preview-data returns ready false when no latest data exists', function () {

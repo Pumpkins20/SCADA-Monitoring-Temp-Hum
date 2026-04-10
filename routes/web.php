@@ -11,6 +11,8 @@ use App\Http\Controllers\MirrorController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\SensorController;
 use App\Http\Controllers\SensorLogController;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
@@ -47,6 +49,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::middleware(['can:manage-devices'])->group(function () {
         Route::post('hmis/test-connection', [HmiController::class, 'testConnection'])->name('hmis.test-connection');
+
+        Route::post('settings-session/logout', function (Request $request): RedirectResponse {
+            $request->session()->forget('auth.password_confirmed_at');
+
+            return redirect()->route('dashboard');
+        })->name('settings-session.logout');
 
         Route::middleware(['password.confirm'])->group(function () {
             Route::get('rooms', [RoomController::class, 'index'])->name('rooms.index');

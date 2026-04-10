@@ -27,6 +27,7 @@ export interface RoomData {
     id: number;
     name: string;
     location: string | null;
+    ip_address?: string | null;
     temp_max_limit: number;
     hum_max_limit: number;
     floor_plan_image?: string | null;

@@ -213,9 +213,14 @@ function RoomCard({
             </div>
 
             <div className="mt-1 flex items-center justify-between">
-                <span className="text-[10px] text-slate-500">
-                    {onlineCount}/{totalCount} sensor online
-                </span>
+                <div className="flex min-w-0 flex-col gap-0.5">
+                    <span className="text-[10px] text-slate-500">
+                        {onlineCount}/{totalCount} sensor online
+                    </span>
+                    <span className="max-w-[200px] truncate text-[10px] text-slate-500">
+                        IP: {room.ip_address ?? '-'}
+                    </span>
+                </div>
                 <div className="flex items-center gap-1.5">
                     {activeAlarmCount > 0 && (
                         <span className="rounded border border-red-500/40 bg-red-500/10 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-red-300 uppercase">
