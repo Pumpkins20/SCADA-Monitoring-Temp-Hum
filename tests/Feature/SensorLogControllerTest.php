@@ -1,15 +1,21 @@
 <?php
 
+use App\Mail\SensorLogExportMail;
 use App\Models\Hmi;
 use App\Models\Room;
 use App\Models\Sensor;
 use App\Models\SensorReading;
 use App\Models\User;
+use Illuminate\Support\Facades\Mail;
 
 // ─── Auth guard ──────────────────────────────────────────────────────────────
 
 test('guests are redirected to login from logs.index', function () {
     $this->get(route('logs.index'))->assertRedirect(route('login'));
+});
+
+test('guests are redirected to login from logs.export-email', function () {
+    $this->post(route('logs.export-email'), ['room' => 1])->assertRedirect(route('login'));
 });
 
 test('authenticated users can visit logs.index', function () {
@@ -19,7 +25,7 @@ test('authenticated users can visit logs.index', function () {
         ->get(route('logs.index'))
         ->assertOk()
         ->assertInertia(
-            fn ($page) => $page
+            fn($page) => $page
                 ->component('logs/index')
                 ->has('rooms')
                 ->has('activeRoomId')
@@ -41,7 +47,7 @@ test('defaults to first room when no room param', function () {
         ->get(route('logs.index'))
         ->assertOk()
         ->assertInertia(
-            fn ($page) => $page->where('activeRoomId', $room1->id)
+            fn($page) => $page->where('activeRoomId', $room1->id)
         );
 });
 
@@ -53,7 +59,7 @@ test('can filter by room query param', function () {
         ->get(route('logs.index', ['room' => $room2->id]))
         ->assertOk()
         ->assertInertia(
-            fn ($page) => $page->where('activeRoomId', $room2->id)
+            fn($page) => $page->where('activeRoomId', $room2->id)
         );
 });
 
@@ -83,7 +89,7 @@ test('log rows contain pivoted sensor data', function () {
         ->get(route('logs.index', ['room' => $room->id]))
         ->assertOk()
         ->assertInertia(
-            fn ($page) => $page
+            fn($page) => $page
                 ->has('logs', 1)
                 ->has('logs.0.temp_1')
                 ->has('logs.0.temp_2')
@@ -91,7 +97,7 @@ test('log rows contain pivoted sensor data', function () {
                 ->has('logs.0.hum_2')
                 ->has('logs.0.avg_temp')
                 ->has('logs.0.avg_hum')
-                ->where('logs.0.time', fn ($time) => is_string($time))
+                ->where('logs.0.time', fn($time) => is_string($time))
         );
 });
 
@@ -102,7 +108,7 @@ test('chart series are returned with empty points when no readings exist', funct
         ->get(route('logs.index', ['room' => $room->id]))
         ->assertOk()
         ->assertInertia(
-            fn ($page) => $page
+            fn($page) => $page
                 ->has('logs', 0)
                 ->has('sensors')
         );
@@ -135,7 +141,7 @@ test('can filter logs by recent minutes', function () {
         ]))
         ->assertOk()
         ->assertInertia(
-            fn ($page) => $page
+            fn($page) => $page
                 ->where('timeFilter.mode', 'recent')
                 ->where('timeFilter.recent_minutes', 5)
                 ->has('logs', 1)
@@ -173,10 +179,47 @@ test('can filter logs by time interval', function () {
         ]))
         ->assertOk()
         ->assertInertia(
-            fn ($page) => $page
+            fn($page) => $page
                 ->where('timeFilter.mode', 'interval')
                 ->where('timeFilter.start_at', $start)
                 ->where('timeFilter.end_at', $end)
                 ->has('logs', 1)
         );
+});
+
+test('authenticated users can send log export to configured recipient email', function () {
+    Mail::fake();
+    config()->set('mail.export_recipient', 'scada1.edutic@gmail.com');
+
+    $room = Room::factory()->create();
+    $hmi = Hmi::factory()->create(['room_id' => $room->id]);
+    $sensor = Sensor::factory()->create(['hmi_id' => $hmi->id]);
+
+    SensorReading::factory()->create([
+        'sensor_id' => $sensor->id,
+        'avg_temp' => 25.50,
+        'avg_hum' => 58.70,
+        'created_at' => now(),
+    ]);
+
+    $response = $this->actingAs(User::factory()->create())
+        ->post(route('logs.export-email'), [
+            'room' => $room->id,
+            'time_filter' => 'recent',
+            'recent_minutes' => 30,
+            'page' => 1,
+        ]);
+
+    $response->assertRedirect(route('logs.index', [
+        'room' => $room->id,
+        'page' => 1,
+        'time_filter' => 'recent',
+        'recent_minutes' => 30,
+    ]));
+
+    $response->assertSessionHas('success');
+
+    Mail::assertSent(SensorLogExportMail::class, function (SensorLogExportMail $mail): bool {
+        return $mail->hasTo('scada1.edutic@gmail.com');
+    });
 });

@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\SensorLogExportMail;
 use App\Models\Room;
 use App\Models\Sensor;
 use App\Models\SensorReading;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -33,7 +37,7 @@ class SensorLogController extends Controller
 
         // Sensors for the active room, ordered consistently
         $sensors = Sensor::query()
-            ->whereHas('hmi', fn ($q) => $q->where('room_id', $activeRoomId))
+            ->whereHas('hmi', fn($q) => $q->where('room_id', $activeRoomId))
             ->orderBy('id')
             ->get(['id', 'name']);
 
@@ -84,7 +88,7 @@ class SensorLogController extends Controller
         // Pivot: group by timestamp, map sensor values to columns
         $sensorList = $sensors->values();
         $rows = $readings
-            ->groupBy(fn ($r) => $r->created_at->format('Y-m-d H:i:s'))
+            ->groupBy(fn($r) => $r->created_at->format('Y-m-d H:i:s'))
             ->sortKeysDesc()
             ->map(function ($group, $time) use ($sensorList) {
                 $row = ['time' => $time];
@@ -97,8 +101,8 @@ class SensorLogController extends Controller
                     $temp = $reading ? (float) $reading->avg_temp : null;
                     $hum = $reading ? (float) $reading->avg_hum : null;
 
-                    $row['temp_'.($i + 1)] = $temp;
-                    $row['hum_'.($i + 1)] = $hum;
+                    $row['temp_' . ($i + 1)] = $temp;
+                    $row['hum_' . ($i + 1)] = $hum;
 
                     if ($temp !== null) {
                         $tempSum += $temp;
@@ -116,9 +120,9 @@ class SensorLogController extends Controller
             ->all();
 
         return Inertia::render('logs/index', [
-            'rooms' => $rooms->map(fn (Room $r) => ['id' => $r->id, 'name' => $r->name])->all(),
+            'rooms' => $rooms->map(fn(Room $r) => ['id' => $r->id, 'name' => $r->name])->all(),
             'activeRoomId' => $activeRoomId,
-            'sensors' => $sensorList->map(fn (Sensor $s) => ['id' => $s->id, 'name' => $s->name])->all(),
+            'sensors' => $sensorList->map(fn(Sensor $s) => ['id' => $s->id, 'name' => $s->name])->all(),
             'logs' => $rows,
             'timeFilter' => [
                 'mode' => $timeFilterMode,
@@ -131,33 +135,163 @@ class SensorLogController extends Controller
                 'lastPage' => (int) ceil($totalRows / $perPage),
                 'total' => (int) $totalRows,
             ],
+            'flashSuccess' => $request->session()->get('success'),
+            'flashError' => $request->session()->get('error'),
+            'exportRecipientEmail' => config('mail.export_recipient'),
         ]);
     }
 
-    public function export(Request $request)
+    public function export(Request $request): void
     {
-        $activeRoomId = (int) $request->query('room');
+        $activeRoomId = (int) $request->input('room');
         $room = Room::findOrFail($activeRoomId);
         $timeFilterMode = $this->resolveTimeFilterMode(
-            (string) $request->query('time_filter', 'none')
+            (string) $request->input('time_filter', 'none')
         );
-        $startAt = $this->parseDateTime((string) $request->query('start_at', ''));
-        $endAt = $this->parseDateTime((string) $request->query('end_at', ''));
+        $startAt = $this->parseDateTime((string) $request->input('start_at', ''));
+        $endAt = $this->parseDateTime((string) $request->input('end_at', ''));
         $recentMinutes = $this->normalizeRecentMinutes(
-            (int) $request->query('recent_minutes', 5)
+            (int) $request->input('recent_minutes', 5)
         );
 
         $sensors = Sensor::query()
-            ->whereHas('hmi', fn ($q) => $q->where('room_id', $activeRoomId))
+            ->whereHas('hmi', fn($q) => $q->where('room_id', $activeRoomId))
             ->orderBy('id')
             ->get(['id', 'name']);
 
         $sensorIds = $sensors->pluck('id');
 
-        $fileName = 'Log_Sensor_'.Str::slug($room->name).'_'.now()->format('Ymd_His').'.xlsx';
+        $fileName = 'Log_Sensor_' . Str::slug($room->name) . '_' . now()->format('Ymd_His') . '.xlsx';
 
         $writer = new Writer;
         $writer->openToBrowser($fileName);
+        $this->writeExportRows(
+            $writer,
+            $sensors,
+            $sensorIds,
+            $timeFilterMode,
+            $startAt,
+            $endAt,
+            $recentMinutes,
+        );
+        $writer->close();
+    }
+
+    public function exportToEmail(Request $request): RedirectResponse
+    {
+        $activeRoomId = (int) $request->input('room');
+        $room = Room::findOrFail($activeRoomId);
+        $timeFilterMode = $this->resolveTimeFilterMode(
+            (string) $request->input('time_filter', 'none')
+        );
+        $startAt = $this->parseDateTime((string) $request->input('start_at', ''));
+        $endAt = $this->parseDateTime((string) $request->input('end_at', ''));
+        $recentMinutes = $this->normalizeRecentMinutes(
+            (int) $request->input('recent_minutes', 5)
+        );
+        $page = max(1, (int) $request->input('page', 1));
+
+        $recipientEmail = (string) config('mail.export_recipient', '');
+        if ($recipientEmail === '') {
+            return redirect()
+                ->route(
+                    'logs.index',
+                    $this->buildLogsIndexQuery(
+                        $activeRoomId,
+                        $timeFilterMode,
+                        $startAt,
+                        $endAt,
+                        $recentMinutes,
+                        $page,
+                    ),
+                )
+                ->with('error', 'Email recipient export log belum diatur.');
+        }
+
+        $sensors = Sensor::query()
+            ->whereHas('hmi', fn($q) => $q->where('room_id', $activeRoomId))
+            ->orderBy('id')
+            ->get(['id', 'name']);
+
+        $sensorIds = $sensors->pluck('id');
+        $fileName = 'Log_Sensor_' . Str::slug($room->name) . '_' . now()->format('Ymd_His') . '.xlsx';
+        $exportDirectory = storage_path('app/temp/exports');
+        $filePath = $exportDirectory . DIRECTORY_SEPARATOR . $fileName;
+
+        if (! is_dir($exportDirectory)) {
+            mkdir($exportDirectory, 0755, true);
+        }
+
+        try {
+            $writer = new Writer;
+            $writer->openToFile($filePath);
+            $this->writeExportRows(
+                $writer,
+                $sensors,
+                $sensorIds,
+                $timeFilterMode,
+                $startAt,
+                $endAt,
+                $recentMinutes,
+            );
+            $writer->close();
+
+            Mail::to($recipientEmail)->send(new SensorLogExportMail(
+                roomName: $room->name,
+                filePath: $filePath,
+                fileName: $fileName,
+                generatedAt: now()->format('Y-m-d H:i:s'),
+            ));
+        } catch (\Throwable $exception) {
+            if (is_file($filePath)) {
+                unlink($filePath);
+            }
+
+            report($exception);
+
+            return redirect()
+                ->route(
+                    'logs.index',
+                    $this->buildLogsIndexQuery(
+                        $activeRoomId,
+                        $timeFilterMode,
+                        $startAt,
+                        $endAt,
+                        $recentMinutes,
+                        $page,
+                    ),
+                )
+                ->with('error', 'Gagal mengirim export log ke email.');
+        }
+
+        if (is_file($filePath)) {
+            unlink($filePath);
+        }
+
+        return redirect()
+            ->route(
+                'logs.index',
+                $this->buildLogsIndexQuery(
+                    $activeRoomId,
+                    $timeFilterMode,
+                    $startAt,
+                    $endAt,
+                    $recentMinutes,
+                    $page,
+                ),
+            )
+            ->with('success', "Export log berhasil dikirim ke {$recipientEmail}.");
+    }
+
+    private function writeExportRows(
+        Writer $writer,
+        Collection $sensors,
+        Collection $sensorIds,
+        string $timeFilterMode,
+        ?Carbon $startAt,
+        ?Carbon $endAt,
+        int $recentMinutes,
+    ): void {
 
         // Header Style
         $headerStyle = (new Style)
@@ -219,7 +353,7 @@ class SensorLogController extends Controller
 
             $sensorList = $sensors->values();
             $rows = $readings
-                ->groupBy(fn ($r) => $r->created_at->format('Y-m-d H:i:s'))
+                ->groupBy(fn($r) => $r->created_at->format('Y-m-d H:i:s'))
                 ->sortKeysDesc()
                 ->map(function ($group, $time) use ($sensorList, $dataStyle) {
                     $rowData = [$time];
@@ -259,8 +393,40 @@ class SensorLogController extends Controller
 
             $page++;
         }
+    }
 
-        $writer->close();
+    private function buildLogsIndexQuery(
+        int $activeRoomId,
+        string $timeFilterMode,
+        ?Carbon $startAt,
+        ?Carbon $endAt,
+        int $recentMinutes,
+        int $page,
+    ): array {
+        $query = [
+            'room' => $activeRoomId,
+            'page' => $page,
+        ];
+
+        if ($timeFilterMode === 'recent') {
+            $query['time_filter'] = 'recent';
+            $query['recent_minutes'] = $recentMinutes;
+
+            return $query;
+        }
+
+        if ($timeFilterMode !== 'interval' || $startAt === null || $endAt === null) {
+            return $query;
+        }
+
+        $from = $startAt->lte($endAt) ? $startAt : $endAt;
+        $to = $startAt->lte($endAt) ? $endAt : $startAt;
+
+        $query['time_filter'] = 'interval';
+        $query['start_at'] = $from->format('Y-m-d H:i:s');
+        $query['end_at'] = $to->format('Y-m-d H:i:s');
+
+        return $query;
     }
 
     private function resolveTimeFilterMode(string $mode): string

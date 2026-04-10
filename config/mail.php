@@ -115,4 +115,6 @@ return [
         'name' => env('MAIL_FROM_NAME', 'Example'),
     ],
 
+    'export_recipient' => env('LOG_EXPORT_RECIPIENT_EMAIL'),
+
 ];

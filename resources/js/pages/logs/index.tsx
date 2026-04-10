@@ -10,6 +10,7 @@ import {
     Droplets,
     Download,
     RotateCcw,
+    Send,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
@@ -80,6 +81,9 @@ interface LogsIndexProps {
     logs: LogRow[];
     pagination: Pagination;
     timeFilter: TimeFilter;
+    flashSuccess: string | null;
+    flashError: string | null;
+    exportRecipientEmail: string | null;
 }
 
 function pad2(value: number): string {
@@ -381,8 +385,14 @@ export default function LogsIndex({
     logs,
     pagination,
     timeFilter,
+    flashSuccess,
+    flashError,
+    exportRecipientEmail,
 }: LogsIndexProps) {
     const [now, setNow] = useState(new Date());
+    const [isSendingEmail, setIsSendingEmail] = useState(false);
+    const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [showIntervalDialog, setShowIntervalDialog] = useState(false);
     const [showRecentDialog, setShowRecentDialog] = useState(false);
     const [intervalValidationError, setIntervalValidationError] = useState<
@@ -419,6 +429,15 @@ export default function LogsIndex({
         }, 60_000);
         return () => clearInterval(timer);
     }, []);
+
+    useEffect(() => {
+        if (!flashSuccess) {
+            return;
+        }
+
+        setSuccessMessage(flashSuccess);
+        setShowSuccessDialog(true);
+    }, [flashSuccess]);
 
     const timeStr = now.toLocaleTimeString('id-ID', {
         hour: '2-digit',
@@ -643,6 +662,38 @@ export default function LogsIndex({
         );
     }
 
+    function sendExportToEmail(): void {
+        if (!exportRecipientEmail) {
+            return;
+        }
+
+        setIsSendingEmail(true);
+
+        router.post(
+            '/logs/export/email',
+            {
+                room: activeRoomId,
+                page: pagination.currentPage,
+                ...(activeFilterQuery.time_filter
+                    ? { time_filter: activeFilterQuery.time_filter }
+                    : {}),
+                ...(activeFilterQuery.start_at
+                    ? { start_at: activeFilterQuery.start_at }
+                    : {}),
+                ...(activeFilterQuery.end_at
+                    ? { end_at: activeFilterQuery.end_at }
+                    : {}),
+                ...(activeFilterQuery.recent_minutes
+                    ? { recent_minutes: activeFilterQuery.recent_minutes }
+                    : {}),
+            },
+            {
+                preserveScroll: true,
+                onFinish: () => setIsSendingEmail(false),
+            },
+        );
+    }
+
     return (
         <>
             <Head title="Log Sensor — SCADA Monitoring" />
@@ -741,8 +792,25 @@ export default function LogsIndex({
                                 className="flex items-center gap-1.5 rounded-lg bg-emerald-600/20 px-3 py-1.5 text-[11px] font-semibold tracking-wider text-emerald-400 uppercase transition-colors hover:bg-emerald-600/40 hover:text-emerald-300"
                             >
                                 <Download className="h-3.5 w-3.5" />
-                                Export Excel
+                                Download Excel
                             </a>
+
+                            <button
+                                type="button"
+                                onClick={sendExportToEmail}
+                                disabled={
+                                    !exportRecipientEmail || isSendingEmail
+                                }
+                                title={
+                                    exportRecipientEmail
+                                        ? `Kirim ke ${exportRecipientEmail}`
+                                        : 'Email recipient belum diatur'
+                                }
+                                className="flex items-center gap-1.5 rounded-lg bg-cyan-600/20 px-3 py-1.5 text-[11px] font-semibold tracking-wider text-cyan-400 uppercase transition-colors hover:bg-cyan-600/40 hover:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                                <Send className="h-3.5 w-3.5" />
+                                {isSendingEmail ? 'Mengirim...' : 'Kirim Email'}
+                            </button>
 
                             <div className="h-5 w-px bg-slate-700/60" />
 
@@ -777,6 +845,12 @@ export default function LogsIndex({
                             </div>
                         </div>
                     </div>
+
+                    {flashError && (
+                        <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                            {flashError}
+                        </div>
+                    )}
 
                     {/* ── Table ── */}
                     <div className="flex-1 overflow-auto rounded-xl border border-slate-700/60 bg-slate-800/50 backdrop-blur-sm">
@@ -1016,6 +1090,32 @@ export default function LogsIndex({
                                 className="rounded-md bg-cyan-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-cyan-500"
                             >
                                 Confirm
+                            </button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                <Dialog
+                    open={showSuccessDialog}
+                    onOpenChange={setShowSuccessDialog}
+                >
+                    <DialogContent className="border-slate-700 bg-[#1a2027] text-white sm:max-w-sm">
+                        <DialogHeader>
+                            <DialogTitle className="text-emerald-400">
+                                Berhasil
+                            </DialogTitle>
+                            <DialogDescription className="text-slate-300">
+                                {successMessage}
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <DialogFooter>
+                            <button
+                                type="button"
+                                onClick={() => setShowSuccessDialog(false)}
+                                className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-500"
+                            >
+                                OK
                             </button>
                         </DialogFooter>
                     </DialogContent>
