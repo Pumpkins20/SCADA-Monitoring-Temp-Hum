@@ -187,6 +187,58 @@ test('can filter logs by time interval', function () {
         );
 });
 
+test('exported excel includes room metadata information', function () {
+    $room = Room::factory()->create([
+        'name' => 'RUANG UJI A',
+        'location' => 'LANTAI 2',
+    ]);
+    $hmi = Hmi::factory()->create([
+        'room_id' => $room->id,
+        'ip_address' => '10.10.10.20',
+    ]);
+    $sensor = Sensor::factory()->create(['hmi_id' => $hmi->id]);
+
+    SensorReading::factory()->create([
+        'sensor_id' => $sensor->id,
+        'avg_temp' => 25.40,
+        'avg_hum' => 59.20,
+        'created_at' => now(),
+    ]);
+
+    ob_start();
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('logs.export', ['room' => $room->id]));
+
+    $binaryContent = (string) ob_get_clean();
+
+    $response->assertSuccessful();
+    expect($binaryContent)->not->toBe('');
+
+    $temporaryFilePath = tempnam(sys_get_temp_dir(), 'logs_export_');
+    expect($temporaryFilePath)->not->toBeFalse();
+
+    file_put_contents($temporaryFilePath, $binaryContent);
+
+    $zipArchive = new \ZipArchive;
+    expect($zipArchive->open($temporaryFilePath))->toBeTrue();
+
+    $worksheetXml = (string) ($zipArchive->getFromName('xl/worksheets/sheet1.xml') ?: '');
+    $sharedStringsXml = (string) ($zipArchive->getFromName('xl/sharedStrings.xml') ?: '');
+    $zipArchive->close();
+
+    @unlink($temporaryFilePath);
+
+    $xmlContent = $worksheetXml . $sharedStringsXml;
+
+    expect($xmlContent)->toContain('Nama Ruangan');
+    expect($xmlContent)->toContain('RUANG UJI A');
+    expect($xmlContent)->toContain('Lokasi Ruangan');
+    expect($xmlContent)->toContain('LANTAI 2');
+    expect($xmlContent)->toContain('IP Address');
+    expect($xmlContent)->toContain('10.10.10.20');
+});
+
 test('authenticated users can send log export to configured recipient email', function () {
     Mail::fake();
     config()->set('mail.export_recipient', 'scada1.edutic@gmail.com');

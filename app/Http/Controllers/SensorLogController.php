@@ -167,6 +167,7 @@ class SensorLogController extends Controller
         $writer->openToBrowser($fileName);
         $this->writeExportRows(
             $writer,
+            $room,
             $sensors,
             $sensorIds,
             $timeFilterMode,
@@ -227,6 +228,7 @@ class SensorLogController extends Controller
             $writer->openToFile($filePath);
             $this->writeExportRows(
                 $writer,
+                $room,
                 $sensors,
                 $sensorIds,
                 $timeFilterMode,
@@ -285,6 +287,7 @@ class SensorLogController extends Controller
 
     private function writeExportRows(
         Writer $writer,
+        Room $room,
         Collection $sensors,
         Collection $sensorIds,
         string $timeFilterMode,
@@ -292,6 +295,22 @@ class SensorLogController extends Controller
         ?Carbon $endAt,
         int $recentMinutes,
     ): void {
+
+        $roomLocation = $room->location !== null && $room->location !== ''
+            ? $room->location
+            : '-';
+        $roomIpAddresses = $room->hmis()
+            ->whereNotNull('ip_address')
+            ->pluck('ip_address')
+            ->filter(fn($ipAddress) => $ipAddress !== null && $ipAddress !== '')
+            ->unique()
+            ->implode(', ');
+        $ipAddressSummary = $roomIpAddresses !== '' ? $roomIpAddresses : '-';
+
+        $writer->addRow(Row::fromValues(['Nama Ruangan', $room->name]));
+        $writer->addRow(Row::fromValues(['Lokasi Ruangan', $roomLocation]));
+        $writer->addRow(Row::fromValues(['IP Address', $ipAddressSummary]));
+        $writer->addRow(Row::fromValues(['']));
 
         // Header Style
         $headerStyle = (new Style)
