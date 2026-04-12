@@ -6,6 +6,7 @@ use App\Models\GaugeSetting;
 use App\Models\Room;
 use App\Models\Sensor;
 use App\Models\SensorLog;
+use App\Models\SensorReading;
 use Illuminate\Database\Eloquent\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -226,19 +227,27 @@ class DashboardController extends Controller
         $sensors = $room->hmis->flatMap->sensors;
         $online = $sensors->filter(fn ($s) => $s->latestData !== null && $s->latestData->status !== 'OFFLINE');
 
-        $chartLogs = SensorLog::query()
-            ->where('room_id', $room->id)
+        $chartSeriesBySensorId = SensorReading::query()
+            ->whereIn('sensor_id', $sensors->pluck('id'))
             ->orderBy('created_at', 'desc')
-            ->take(20)
             ->get()
-            ->reverse()
-            ->map(fn ($log) => [
-                'time' => $log->created_at->format('H:i'),
-                'avg_temperature' => round((float) $log->avg_temperature, 1),
-                'avg_humidity' => round((float) $log->avg_humidity, 1),
-            ])
-            ->values()
-            ->all();
+            ->groupBy('sensor_id')
+            ->map(fn ($readings) => $readings
+                ->take(20)
+                ->reverse()
+                ->map(fn ($reading) => [
+                    'time' => $reading->created_at->format('H:i'),
+                    'avg_temperature' => round((float) $reading->avg_temp, 1),
+                    'avg_humidity' => round((float) $reading->avg_hum, 1),
+                ])
+                ->values()
+                ->all());
+
+        $chartSeriesPerSensor = $sensors->map(fn ($sensor) => [
+            'sensorId' => $sensor->id,
+            'sensorName' => $sensor->name,
+            'points' => $chartSeriesBySensorId->get($sensor->id, []),
+        ])->values()->all();
 
         $roomPayload = [
             'id' => $room->id,
@@ -308,7 +317,7 @@ class DashboardController extends Controller
 
         return Inertia::render('rooms/show', [
             'room' => $roomPayload,
-            'chartLogs' => $chartLogs,
+            'chartSeriesPerSensor' => $chartSeriesPerSensor,
             'gaugeSettings' => [
                 'temperature' => [
                     'min' => $gaugeSetting?->temp_min ?? 0,

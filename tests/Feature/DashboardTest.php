@@ -6,6 +6,7 @@ use App\Models\Room;
 use App\Models\Sensor;
 use App\Models\SensorLatestData;
 use App\Models\SensorLog;
+use App\Models\SensorReading;
 use App\Models\User;
 
 test('guests are redirected to the login page', function () {
@@ -300,11 +301,19 @@ test('authenticated users can visit rooms.show', function () {
         ->assertOk();
 });
 
-test('rooms.show payload contains room data with sensors and chartLogs', function () {
+test('rooms.show payload contains room data with sensors and chartSeriesPerSensor', function () {
     $room = Room::factory()->create();
     $hmi = Hmi::factory()->create(['room_id' => $room->id]);
     $sensor = Sensor::factory()->create(['hmi_id' => $hmi->id]);
+    $readingAt = now()->subMinutes(2)->startOfMinute();
+
     SensorLatestData::factory()->normal()->create(['sensor_id' => $sensor->id]);
+    SensorReading::factory()->create([
+        'sensor_id' => $sensor->id,
+        'avg_temp' => 26.5,
+        'avg_hum' => 61.2,
+        'created_at' => $readingAt,
+    ]);
 
     $this->actingAs(User::factory()->create())
         ->get(route('rooms.show', $room))
@@ -336,7 +345,16 @@ test('rooms.show payload contains room data with sensors and chartLogs', functio
                         )
                         ->etc()
                 )
-                ->has('chartLogs')
+                ->has('chartSeriesPerSensor', 1)
+                ->where('chartSeriesPerSensor.0.sensorId', $sensor->id)
+                ->where('chartSeriesPerSensor.0.sensorName', $sensor->name)
+                ->has('chartSeriesPerSensor.0.points', 1)
+                ->where(
+                    'chartSeriesPerSensor.0.points.0.time',
+                    $readingAt->format('H:i')
+                )
+                ->where('chartSeriesPerSensor.0.points.0.avg_temperature', 26.5)
+                ->where('chartSeriesPerSensor.0.points.0.avg_humidity', 61.2)
         );
 });
 

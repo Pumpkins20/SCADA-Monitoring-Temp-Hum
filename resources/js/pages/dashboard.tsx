@@ -41,6 +41,12 @@ interface DashboardProps {
     gaugeSettings: GaugeSettings;
 }
 
+interface RoomChartSeries {
+    roomId: number;
+    roomName: string;
+    points: ChartPoint[];
+}
+
 // ─── Chart Configs ────────────────────────────────────────────────────────────
 
 const tempChartConfig = {
@@ -56,6 +62,17 @@ const humChartConfig = {
         color: '#60a5fa',
     },
 } satisfies ChartConfig;
+
+const lineColors = [
+    '#ef4444',
+    '#eab308',
+    '#22c55e',
+    '#06b6d4',
+    '#6366f1',
+    '#f97316',
+    '#a855f7',
+    '#ec4899',
+];
 
 const defaultGaugeSettings: GaugeSettings = {
     temperature: {
@@ -240,7 +257,7 @@ function RoomCard({
 
 export default function Dashboard({
     rooms,
-    globalChartLogs = [],
+    chartLogs = {},
     globalStats,
     gaugeSettings,
 }: DashboardProps) {
@@ -316,7 +333,65 @@ export default function Dashboard({
     const colMiddleRooms = rooms.slice(0, 3);
     const colRightRooms = rooms.slice(3, 5);
 
-    const chartData = globalChartLogs;
+    const roomChartSeries: RoomChartSeries[] = rooms.map((room) => ({
+        roomId: room.id,
+        roomName: room.name,
+        points: chartLogs[room.id] ?? [],
+    }));
+
+    const hasChartData = roomChartSeries.some((series) =>
+        series.points.some(
+            (point) =>
+                point.avg_temperature !== null || point.avg_humidity !== null,
+        ),
+    );
+
+    const maxChartPoints = roomChartSeries.reduce(
+        (maxPoints, series) => Math.max(maxPoints, series.points.length),
+        0,
+    );
+
+    const chartPointIndexes = Array.from(
+        { length: maxChartPoints },
+        (_, index) => index,
+    );
+
+    const roomSeriesKeys = roomChartSeries.map(
+        (_, roomIndex) => `room_${roomIndex + 1}`,
+    );
+    const roomSeriesNames = roomChartSeries.map((series) => series.roomName);
+
+    const tempChartData = chartPointIndexes.map((pointIndex) => {
+        const baseTime =
+            roomChartSeries.find((series) => series.points[pointIndex])
+                ?.points[pointIndex].time ?? '-';
+
+        return roomChartSeries.reduce(
+            (row, series, roomIndex) => {
+                row[`room_${roomIndex + 1}`] =
+                    series.points[pointIndex]?.avg_temperature ?? null;
+
+                return row;
+            },
+            { time: baseTime } as Record<string, string | number | null>,
+        );
+    });
+
+    const humChartData = chartPointIndexes.map((pointIndex) => {
+        const baseTime =
+            roomChartSeries.find((series) => series.points[pointIndex])
+                ?.points[pointIndex].time ?? '-';
+
+        return roomChartSeries.reduce(
+            (row, series, roomIndex) => {
+                row[`room_${roomIndex + 1}`] =
+                    series.points[pointIndex]?.avg_humidity ?? null;
+
+                return row;
+            },
+            { time: baseTime } as Record<string, string | number | null>,
+        );
+    });
 
     const hasAlarms = globalStats.active_alarms > 0;
 
@@ -335,6 +410,27 @@ export default function Dashboard({
             ? 'flex min-h-0 flex-1 flex-col rounded-xl border border-slate-700/60 bg-slate-800/60 px-4 pt-3 pb-2'
             : 'flex min-h-0 flex-1 flex-col rounded-xl border border-slate-700/60 bg-slate-800/50 px-3 pt-2 pb-1';
 
+        const roomLegend =
+            roomSeriesNames.length > 0 ? (
+                <div className="mb-1 flex flex-wrap items-center gap-2 rounded-md border border-slate-700/60 bg-slate-900/20 px-2 py-1.5">
+                    {roomSeriesNames.map((roomName, index) => (
+                        <div
+                            key={roomName}
+                            className="flex items-center gap-1.5 text-[10px] text-slate-300"
+                        >
+                            <span
+                                className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                                style={{
+                                    backgroundColor:
+                                        lineColors[index % lineColors.length],
+                                }}
+                            />
+                            <span className="uppercase">{roomName}</span>
+                        </div>
+                    ))}
+                </div>
+            ) : null;
+
         return (
             <>
                 <div className={chartCardClass}>
@@ -344,14 +440,15 @@ export default function Dashboard({
                             Avg Temp
                         </span>
                     </div>
+                    {roomLegend}
                     <div className="min-h-0 flex-1">
-                        {chartData.length > 0 ? (
+                        {hasChartData ? (
                             <ChartContainer
                                 config={tempChartConfig}
                                 className="h-full w-full"
                             >
                                 <LineChart
-                                    data={chartData}
+                                    data={tempChartData}
                                     margin={{
                                         top: 4,
                                         right: 8,
@@ -375,6 +472,9 @@ export default function Dashboard({
                                         }}
                                     />
                                     <YAxis
+                                        domain={[0, 99]}
+                                        ticks={[0, 20, 40, 60, 80, 99]}
+                                        allowDecimals={false}
                                         tick={{
                                             fontSize: 9,
                                             fill: '#475569',
@@ -389,23 +489,30 @@ export default function Dashboard({
                                             stroke: '#334155',
                                         }}
                                         content={
-                                            <ChartTooltipContent indicator="line" />
+                                            <ChartTooltipContent
+                                                indicator="line"
+                                                hideIndicator
+                                            />
                                         }
                                     />
-                                    <Line
-                                        dataKey="avg_temperature"
-                                        type="linear"
-                                        stroke="var(--color-avg_temperature)"
-                                        strokeWidth={2}
-                                        dot={{
-                                            r: 2,
-                                            fill: '#22d3ee',
-                                        }}
-                                        activeDot={{
-                                            r: 4,
-                                            fill: '#22d3ee',
-                                        }}
-                                    />
+                                    {roomSeriesKeys.map((seriesKey, index) => (
+                                        <Line
+                                            key={seriesKey}
+                                            dataKey={seriesKey}
+                                            name={roomSeriesNames[index]}
+                                            type="linear"
+                                            stroke={
+                                                lineColors[
+                                                    index % lineColors.length
+                                                ]
+                                            }
+                                            strokeWidth={2}
+                                            dot={false}
+                                            activeDot={{ r: 3 }}
+                                            isAnimationActive={false}
+                                            connectNulls
+                                        />
+                                    ))}
                                 </LineChart>
                             </ChartContainer>
                         ) : (
@@ -423,14 +530,15 @@ export default function Dashboard({
                             Avg Hum
                         </span>
                     </div>
+                    {roomLegend}
                     <div className="min-h-0 flex-1">
-                        {chartData.length > 0 ? (
+                        {hasChartData ? (
                             <ChartContainer
                                 config={humChartConfig}
                                 className="h-full w-full"
                             >
                                 <LineChart
-                                    data={chartData}
+                                    data={humChartData}
                                     margin={{
                                         top: 4,
                                         right: 8,
@@ -454,6 +562,9 @@ export default function Dashboard({
                                         }}
                                     />
                                     <YAxis
+                                        domain={[0, 99]}
+                                        ticks={[0, 20, 40, 60, 80, 99]}
+                                        allowDecimals={false}
                                         tick={{
                                             fontSize: 9,
                                             fill: '#475569',
@@ -468,23 +579,30 @@ export default function Dashboard({
                                             stroke: '#334155',
                                         }}
                                         content={
-                                            <ChartTooltipContent indicator="line" />
+                                            <ChartTooltipContent
+                                                indicator="line"
+                                                hideIndicator
+                                            />
                                         }
                                     />
-                                    <Line
-                                        dataKey="avg_humidity"
-                                        type="linear"
-                                        stroke="var(--color-avg_humidity)"
-                                        strokeWidth={2}
-                                        dot={{
-                                            r: 2,
-                                            fill: '#60a5fa',
-                                        }}
-                                        activeDot={{
-                                            r: 4,
-                                            fill: '#60a5fa',
-                                        }}
-                                    />
+                                    {roomSeriesKeys.map((seriesKey, index) => (
+                                        <Line
+                                            key={seriesKey}
+                                            dataKey={seriesKey}
+                                            name={roomSeriesNames[index]}
+                                            type="linear"
+                                            stroke={
+                                                lineColors[
+                                                    index % lineColors.length
+                                                ]
+                                            }
+                                            strokeWidth={2}
+                                            dot={false}
+                                            activeDot={{ r: 3 }}
+                                            isAnimationActive={false}
+                                            connectNulls
+                                        />
+                                    ))}
                                 </LineChart>
                             </ChartContainer>
                         ) : (

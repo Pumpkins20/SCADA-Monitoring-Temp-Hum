@@ -33,8 +33,14 @@ import type { ChartConfig } from '@/components/ui/chart';
 
 interface RoomShowProps {
     room: RoomData;
-    chartLogs: ChartPoint[];
+    chartSeriesPerSensor: SensorChartSeries[];
     gaugeSettings: GaugeSettings;
+}
+
+interface SensorChartSeries {
+    sensorId: number;
+    sensorName: string;
+    points: ChartPoint[];
 }
 
 const defaultGaugeSettings: GaugeSettings = {
@@ -105,11 +111,22 @@ const humChartConfig = {
     },
 } satisfies ChartConfig;
 
+const lineColors = [
+    '#ef4444',
+    '#eab308',
+    '#22c55e',
+    '#06b6d4',
+    '#6366f1',
+    '#f97316',
+    '#a855f7',
+    '#ec4899',
+];
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function RoomShow({
     room,
-    chartLogs,
+    chartSeriesPerSensor,
     gaugeSettings,
 }: RoomShowProps) {
     const [now, setNow] = useState(new Date());
@@ -136,7 +153,9 @@ export default function RoomShow({
 
     useEffect(() => {
         const timer = setInterval(() => {
-            router.reload({ only: ['room', 'chartLogs', 'gaugeSettings'] });
+            router.reload({
+                only: ['room', 'chartSeriesPerSensor', 'gaugeSettings'],
+            });
         }, 5_000);
         return () => clearInterval(timer);
     }, []);
@@ -188,6 +207,62 @@ export default function RoomShow({
         .map((s) => s.name)
         .join(', ');
 
+    const hasChartData = chartSeriesPerSensor.some((series) =>
+        series.points.some(
+            (point) =>
+                point.avg_temperature !== null || point.avg_humidity !== null,
+        ),
+    );
+
+    const maxChartPoints = chartSeriesPerSensor.reduce(
+        (maxPoints, series) => Math.max(maxPoints, series.points.length),
+        0,
+    );
+
+    const chartPointIndexes = Array.from(
+        { length: maxChartPoints },
+        (_, index) => index,
+    );
+
+    const sensorSeriesKeys = chartSeriesPerSensor.map(
+        (_, sensorIndex) => `sensor_${sensorIndex + 1}`,
+    );
+    const sensorSeriesNames = chartSeriesPerSensor.map(
+        (series) => series.sensorName,
+    );
+
+    const tempChartData = chartPointIndexes.map((pointIndex) => {
+        const baseTime =
+            chartSeriesPerSensor.find((series) => series.points[pointIndex])
+                ?.points[pointIndex].time ?? '-';
+
+        return chartSeriesPerSensor.reduce(
+            (row, series, sensorIndex) => {
+                row[`sensor_${sensorIndex + 1}`] =
+                    series.points[pointIndex]?.avg_temperature ?? null;
+
+                return row;
+            },
+            { time: baseTime } as Record<string, string | number | null>,
+        );
+    });
+
+    const humChartData = chartPointIndexes.map((pointIndex) => {
+        const baseTime =
+            chartSeriesPerSensor.find((series) => series.points[pointIndex])
+                ?.points[pointIndex].time ?? '-';
+
+        return chartSeriesPerSensor.reduce(
+            (row, series, sensorIndex) => {
+                row[`sensor_${sensorIndex + 1}`] =
+                    series.points[pointIndex]?.avg_humidity ?? null;
+
+                return row;
+            },
+            { time: baseTime } as Record<string, string | number | null>,
+        );
+    });
+
     function renderActivePanel(isFullscreen: boolean) {
         if (activePanel === 'floorplan') {
             return (
@@ -207,6 +282,27 @@ export default function RoomShow({
             ? 'flex min-h-0 flex-1 flex-col rounded-xl border border-slate-700/60 bg-slate-800/60 px-4 pt-3 pb-2'
             : 'flex min-h-0 flex-1 flex-col rounded-xl border border-slate-700/60 bg-slate-800/50 px-3 pt-2 pb-1';
 
+        const sensorLegend =
+            sensorSeriesNames.length > 0 ? (
+                <div className="mb-1 flex flex-wrap items-center gap-2 rounded-md border border-slate-700/60 bg-slate-900/20 px-2 py-1.5">
+                    {sensorSeriesNames.map((sensorName, index) => (
+                        <div
+                            key={sensorName}
+                            className="flex items-center gap-1.5 text-[10px] text-slate-300"
+                        >
+                            <span
+                                className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                                style={{
+                                    backgroundColor:
+                                        lineColors[index % lineColors.length],
+                                }}
+                            />
+                            <span className="uppercase">{sensorName}</span>
+                        </div>
+                    ))}
+                </div>
+            ) : null;
+
         return (
             <>
                 <div className={chartCardClass}>
@@ -216,14 +312,15 @@ export default function RoomShow({
                             Avg Temp
                         </span>
                     </div>
+                    {sensorLegend}
                     <div className="min-h-0 flex-1">
-                        {chartLogs.length > 0 ? (
+                        {hasChartData ? (
                             <ChartContainer
                                 config={tempChartConfig}
                                 className="h-full w-full"
                             >
                                 <LineChart
-                                    data={chartLogs}
+                                    data={tempChartData}
                                     margin={{
                                         top: 4,
                                         right: 8,
@@ -247,6 +344,9 @@ export default function RoomShow({
                                         }}
                                     />
                                     <YAxis
+                                        domain={[0, 99]}
+                                        ticks={[0, 20, 40, 60, 80, 99]}
+                                        allowDecimals={false}
                                         tick={{
                                             fontSize: 9,
                                             fill: '#475569',
@@ -261,23 +361,33 @@ export default function RoomShow({
                                             stroke: '#334155',
                                         }}
                                         content={
-                                            <ChartTooltipContent indicator="line" />
+                                            <ChartTooltipContent
+                                                indicator="line"
+                                                hideIndicator
+                                            />
                                         }
                                     />
-                                    <Line
-                                        dataKey="avg_temperature"
-                                        type="linear"
-                                        stroke="var(--color-avg_temperature)"
-                                        strokeWidth={2}
-                                        dot={{
-                                            r: 2,
-                                            fill: '#22d3ee',
-                                        }}
-                                        activeDot={{
-                                            r: 4,
-                                            fill: '#22d3ee',
-                                        }}
-                                    />
+                                    {sensorSeriesKeys.map(
+                                        (seriesKey, index) => (
+                                            <Line
+                                                key={seriesKey}
+                                                dataKey={seriesKey}
+                                                name={sensorSeriesNames[index]}
+                                                type="linear"
+                                                stroke={
+                                                    lineColors[
+                                                        index %
+                                                            lineColors.length
+                                                    ]
+                                                }
+                                                strokeWidth={2}
+                                                dot={false}
+                                                activeDot={{ r: 3 }}
+                                                isAnimationActive={false}
+                                                connectNulls
+                                            />
+                                        ),
+                                    )}
                                 </LineChart>
                             </ChartContainer>
                         ) : (
@@ -295,14 +405,15 @@ export default function RoomShow({
                             Avg Hum
                         </span>
                     </div>
+                    {sensorLegend}
                     <div className="min-h-0 flex-1">
-                        {chartLogs.length > 0 ? (
+                        {hasChartData ? (
                             <ChartContainer
                                 config={humChartConfig}
                                 className="h-full w-full"
                             >
                                 <LineChart
-                                    data={chartLogs}
+                                    data={humChartData}
                                     margin={{
                                         top: 4,
                                         right: 8,
@@ -326,6 +437,9 @@ export default function RoomShow({
                                         }}
                                     />
                                     <YAxis
+                                        domain={[0, 99]}
+                                        ticks={[0, 20, 40, 60, 80, 99]}
+                                        allowDecimals={false}
                                         tick={{
                                             fontSize: 9,
                                             fill: '#475569',
@@ -340,23 +454,33 @@ export default function RoomShow({
                                             stroke: '#334155',
                                         }}
                                         content={
-                                            <ChartTooltipContent indicator="line" />
+                                            <ChartTooltipContent
+                                                indicator="line"
+                                                hideIndicator
+                                            />
                                         }
                                     />
-                                    <Line
-                                        dataKey="avg_humidity"
-                                        type="linear"
-                                        stroke="var(--color-avg_humidity)"
-                                        strokeWidth={2}
-                                        dot={{
-                                            r: 2,
-                                            fill: '#60a5fa',
-                                        }}
-                                        activeDot={{
-                                            r: 4,
-                                            fill: '#60a5fa',
-                                        }}
-                                    />
+                                    {sensorSeriesKeys.map(
+                                        (seriesKey, index) => (
+                                            <Line
+                                                key={seriesKey}
+                                                dataKey={seriesKey}
+                                                name={sensorSeriesNames[index]}
+                                                type="linear"
+                                                stroke={
+                                                    lineColors[
+                                                        index %
+                                                            lineColors.length
+                                                    ]
+                                                }
+                                                strokeWidth={2}
+                                                dot={false}
+                                                activeDot={{ r: 3 }}
+                                                isAnimationActive={false}
+                                                connectNulls
+                                            />
+                                        ),
+                                    )}
                                 </LineChart>
                             </ChartContainer>
                         ) : (
