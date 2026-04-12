@@ -1,13 +1,31 @@
 <?php
 
+use App\Models\SensorLatestData;
 use App\Models\User;
 use Illuminate\Support\Facades\RateLimiter;
+use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Fortify\Features;
 
 test('login screen can be rendered', function () {
+    SensorLatestData::factory()->normal()->create([
+        'temperature' => 24.4,
+        'humidity' => 55.1,
+    ]);
+
+    SensorLatestData::factory()->offline()->create();
+
     $response = $this->get(route('login'));
 
-    $response->assertOk();
+    $response->assertOk()
+        ->assertInertia(
+            fn(Assert $page) => $page
+                ->component('auth/login')
+                ->where('liveReadings.avgTemperature', 24.4)
+                ->where('liveReadings.avgHumidity', 55.1)
+                ->where('liveReadings.onlineSensors', 1)
+                ->where('liveReadings.overallStatus', 'Optimal')
+                ->where('liveReadings.lastSyncLabel', fn(string $label) => $label !== '')
+        );
 });
 
 test('users can authenticate using the login screen', function () {
@@ -73,7 +91,7 @@ test('users can logout', function () {
 test('users are rate limited', function () {
     $user = User::factory()->create();
 
-    RateLimiter::increment(md5('login'.implode('|', [$user->email, '127.0.0.1'])), amount: 5);
+    RateLimiter::increment(md5('login' . implode('|', [$user->email, '127.0.0.1'])), amount: 5);
 
     $response = $this->post(route('login.store'), [
         'email' => $user->email,
