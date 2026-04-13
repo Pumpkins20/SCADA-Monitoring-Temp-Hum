@@ -15,10 +15,10 @@ class GaugeSetting extends Model
     public const FIXED_LOGO_RIGHT = '/images/logo/edutic.png';
 
     public const DEFAULT_HEADER_TITLE_LINE_1 =
-    'SCADA MONITORING AC PRESISI RUANG SERVER CCTV & FIDS';
+        'SCADA MONITORING AC PRESISI RUANG SERVER CCTV & FIDS';
 
     public const DEFAULT_HEADER_TITLE_LINE_2 =
-    'BANDARA SOEKARNO - HATTA';
+        'BANDARA SOEKARNO - HATTA';
 
     /** @use HasFactory<\Database\Factories\GaugeSettingFactory> */
     use HasFactory;
@@ -45,6 +45,7 @@ class GaugeSetting extends Model
         'logo_center_path',
         'header_title_line_1',
         'header_title_line_2',
+        'backup_email',
     ];
 
     protected function casts(): array

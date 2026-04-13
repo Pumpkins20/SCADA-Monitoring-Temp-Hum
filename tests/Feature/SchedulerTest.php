@@ -1,11 +1,14 @@
 <?php
 
+use App\Mail\OldLogsBackupMail;
+use App\Models\GaugeSetting;
 use App\Models\Hmi;
 use App\Models\Room;
 use App\Models\Sensor;
 use App\Models\SensorLatestData;
 use App\Models\SensorLog;
 use App\Models\SensorReading;
+use Illuminate\Support\Facades\Mail;
 
 // ─── aggregate:room-logs ──────────────────────────────────────────────────────
 
@@ -142,6 +145,72 @@ test('purge:old-logs keeps records exactly at 90 days boundary', function () {
 
     expect(SensorLog::count())->toBe(1)
         ->and(SensorReading::count())->toBe(1);
+});
+
+test('purge:old-logs sends automatic backup email when backup email is configured', function () {
+    Mail::fake();
+
+    GaugeSetting::query()->updateOrCreate(
+        ['id' => 1],
+        ['backup_email' => 'backup@example.com'],
+    );
+
+    SensorLog::factory()->create(['created_at' => now()->subDays(91)]);
+    SensorReading::factory()->create(['created_at' => now()->subDays(91)]);
+
+    $this->artisan('purge:old-logs')->assertSuccessful();
+
+    Mail::assertSent(OldLogsBackupMail::class, function (OldLogsBackupMail $mail): bool {
+        return $mail->hasTo('backup@example.com')
+            && $mail->sensorLogsCount === 1
+            && $mail->sensorReadingsCount === 1;
+    });
+
+    expect(SensorLog::count())->toBe(0)
+        ->and(SensorReading::count())->toBe(0);
+});
+
+test('purge:old-logs skips automatic backup email when backup email is empty', function () {
+    Mail::fake();
+
+    GaugeSetting::query()->updateOrCreate(
+        ['id' => 1],
+        ['backup_email' => null],
+    );
+
+    SensorLog::factory()->create(['created_at' => now()->subDays(91)]);
+
+    $this->artisan('purge:old-logs')->assertSuccessful();
+
+    Mail::assertNothingSent();
+
+    expect(SensorLog::count())->toBe(0);
+});
+
+test('purge:old-logs still deletes old data when backup email send fails', function () {
+    GaugeSetting::query()->updateOrCreate(
+        ['id' => 1],
+        ['backup_email' => 'backup@example.com'],
+    );
+
+    SensorLog::factory()->create(['created_at' => now()->subDays(91)]);
+    SensorReading::factory()->create(['created_at' => now()->subDays(91)]);
+
+    Mail::shouldReceive('to')
+        ->once()
+        ->with('backup@example.com')
+        ->andReturn(new class
+        {
+            public function send(mixed $mailable): void
+            {
+                throw new RuntimeException('SMTP gagal');
+            }
+        });
+
+    $this->artisan('purge:old-logs')->assertSuccessful();
+
+    expect(SensorLog::count())->toBe(0)
+        ->and(SensorReading::count())->toBe(0);
 });
 
 // ─── schedule registration ────────────────────────────────────────────────────
