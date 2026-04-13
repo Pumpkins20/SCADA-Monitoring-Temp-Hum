@@ -63,6 +63,13 @@ interface RoomChartSeries {
     points: ChartPoint[];
 }
 
+interface ChartSeriesDefinition {
+    key: string;
+    label: string;
+    color: string;
+    isAverage: boolean;
+}
+
 interface TimeFilter {
     mode: 'none' | 'interval' | 'recent';
     start_at: string | null;
@@ -107,6 +114,8 @@ const lineColors = [
     '#a855f7',
     '#ec4899',
 ];
+
+const averageLineColor = '#f8fafc';
 
 const overviewQuickRangeOptions = [
     { label: '15 Menit Terakhir', minutes: 15 },
@@ -225,6 +234,10 @@ function parseDateTimeParts(value: string | null): DateTimeParts {
         minute: match[5],
         second: match[6],
     };
+}
+
+function getDefaultSelectedSeriesKey(roomCount: number): string {
+    return roomCount > 0 ? 'room_1' : 'average';
 }
 
 function formatDateTimeParts(parts: DateTimeParts): string | null {
@@ -627,6 +640,7 @@ function RoomCard({
 export default function Dashboard({
     rooms,
     chartLogs = {},
+    globalChartLogs = [],
     globalStats,
     gaugeSettings,
     timeFilter,
@@ -646,6 +660,9 @@ export default function Dashboard({
     );
     const [endParts, setEndParts] = useState<DateTimeParts>(() =>
         parseDateTimeParts(timeFilter.end_at),
+    );
+    const [selectedSeriesKey, setSelectedSeriesKey] = useState<string>(() =>
+        getDefaultSelectedSeriesKey(rooms.length),
     );
     const shouldAutoRefresh =
         timeFilter.mode === 'none' ||
@@ -748,16 +765,55 @@ export default function Dashboard({
         points: chartLogs[room.id] ?? [],
     }));
 
-    const hasChartData = roomChartSeries.some((series) =>
-        series.points.some(
-            (point) =>
-                point.avg_temperature !== null || point.avg_humidity !== null,
-        ),
+    const roomSeriesKeys = roomChartSeries.map(
+        (_, roomIndex) => `room_${roomIndex + 1}`,
+    );
+    const roomSeriesNames = roomChartSeries.map((series) => series.roomName);
+
+    const chartSeriesDefinitions: ChartSeriesDefinition[] = [
+        ...roomSeriesKeys.map((seriesKey, index) => ({
+            key: seriesKey,
+            label: roomSeriesNames[index] ?? `Room ${index + 1}`,
+            color: lineColors[index % lineColors.length],
+            isAverage: false,
+        })),
+        {
+            key: 'average',
+            label: 'Average Semua Ruangan',
+            color: averageLineColor,
+            isAverage: true,
+        },
+    ];
+
+    const effectiveSelectedSeriesKey = chartSeriesDefinitions.some(
+        (series) => series.key === selectedSeriesKey,
+    )
+        ? selectedSeriesKey
+        : (chartSeriesDefinitions[0]?.key ?? 'average');
+
+    const visibleSeriesDefinitions = chartSeriesDefinitions.filter(
+        (series) => series.key === effectiveSelectedSeriesKey,
     );
 
-    const maxChartPoints = roomChartSeries.reduce(
-        (maxPoints, series) => Math.max(maxPoints, series.points.length),
-        0,
+    const hasChartData =
+        roomChartSeries.some((series) =>
+            series.points.some(
+                (point) =>
+                    point.avg_temperature !== null ||
+                    point.avg_humidity !== null,
+            ),
+        ) ||
+        globalChartLogs.some(
+            (point) =>
+                point.avg_temperature !== null || point.avg_humidity !== null,
+        );
+
+    const maxChartPoints = Math.max(
+        globalChartLogs.length,
+        roomChartSeries.reduce(
+            (maxPoints, series) => Math.max(maxPoints, series.points.length),
+            0,
+        ),
     );
 
     const chartPointIndexes = Array.from(
@@ -765,18 +821,15 @@ export default function Dashboard({
         (_, index) => index,
     );
 
-    const roomSeriesKeys = roomChartSeries.map(
-        (_, roomIndex) => `room_${roomIndex + 1}`,
-    );
-    const roomSeriesNames = roomChartSeries.map((series) => series.roomName);
-
     const tempChartData = chartPointIndexes.map((pointIndex) => {
         const baseTime =
             roomChartSeries.find((series) => series.points[pointIndex])?.points[
                 pointIndex
-            ].time ?? '-';
+            ].time ??
+            globalChartLogs[pointIndex]?.time ??
+            '-';
 
-        return roomChartSeries.reduce(
+        const row = roomChartSeries.reduce(
             (row, series, roomIndex) => {
                 row[`room_${roomIndex + 1}`] =
                     series.points[pointIndex]?.avg_temperature ?? null;
@@ -785,15 +838,21 @@ export default function Dashboard({
             },
             { time: baseTime } as Record<string, string | number | null>,
         );
+
+        row.average = globalChartLogs[pointIndex]?.avg_temperature ?? null;
+
+        return row;
     });
 
     const humChartData = chartPointIndexes.map((pointIndex) => {
         const baseTime =
             roomChartSeries.find((series) => series.points[pointIndex])?.points[
                 pointIndex
-            ].time ?? '-';
+            ].time ??
+            globalChartLogs[pointIndex]?.time ??
+            '-';
 
-        return roomChartSeries.reduce(
+        const row = roomChartSeries.reduce(
             (row, series, roomIndex) => {
                 row[`room_${roomIndex + 1}`] =
                     series.points[pointIndex]?.avg_humidity ?? null;
@@ -802,6 +861,10 @@ export default function Dashboard({
             },
             { time: baseTime } as Record<string, string | number | null>,
         );
+
+        row.average = globalChartLogs[pointIndex]?.avg_humidity ?? null;
+
+        return row;
     });
 
     const hasAlarms = globalStats.active_alarms > 0;
@@ -957,27 +1020,37 @@ export default function Dashboard({
         }
     }
 
+    function toggleSeriesVisibility(
+        seriesKey: string,
+        isChecked: boolean,
+    ): void {
+        if (!isChecked) {
+            return;
+        }
+
+        setSelectedSeriesKey(seriesKey);
+    }
+
     function renderChartPanels(isFullscreen: boolean) {
         const chartCardClass = isFullscreen
             ? 'flex min-h-0 flex-1 flex-col rounded-xl border border-slate-700/60 bg-slate-800/60 px-4 pt-3 pb-2'
             : 'flex min-h-0 flex-1 flex-col rounded-xl border border-slate-700/60 bg-slate-800/50 px-3 pt-2 pb-1';
 
-        const roomLegend =
-            roomSeriesNames.length > 0 ? (
+        const activeSeriesLegend =
+            visibleSeriesDefinitions.length > 0 ? (
                 <div className="mb-1 flex flex-wrap items-center gap-2 rounded-md border border-slate-700/60 bg-slate-900/20 px-2 py-1.5">
-                    {roomSeriesNames.map((roomName, index) => (
+                    {visibleSeriesDefinitions.map((series) => (
                         <div
-                            key={roomName}
+                            key={series.key}
                             className="flex items-center gap-1.5 text-[10px] text-slate-300"
                         >
                             <span
                                 className="h-2.5 w-2.5 shrink-0 rounded-sm"
                                 style={{
-                                    backgroundColor:
-                                        lineColors[index % lineColors.length],
+                                    backgroundColor: series.color,
                                 }}
                             />
-                            <span className="uppercase">{roomName}</span>
+                            <span className="uppercase">{series.label}</span>
                         </div>
                     ))}
                 </div>
@@ -992,7 +1065,7 @@ export default function Dashboard({
                             Avg Temp
                         </span>
                     </div>
-                    {roomLegend}
+                    {activeSeriesLegend}
                     <div className="min-h-0 flex-1">
                         {hasChartData ? (
                             <ChartContainer
@@ -1047,18 +1120,21 @@ export default function Dashboard({
                                             />
                                         }
                                     />
-                                    {roomSeriesKeys.map((seriesKey, index) => (
+                                    {visibleSeriesDefinitions.map((series) => (
                                         <Line
-                                            key={seriesKey}
-                                            dataKey={seriesKey}
-                                            name={roomSeriesNames[index]}
+                                            key={series.key}
+                                            dataKey={series.key}
+                                            name={series.label}
                                             type="linear"
-                                            stroke={
-                                                lineColors[
-                                                    index % lineColors.length
-                                                ]
+                                            stroke={series.color}
+                                            strokeWidth={
+                                                series.isAverage ? 2.5 : 2
                                             }
-                                            strokeWidth={2}
+                                            strokeDasharray={
+                                                series.isAverage
+                                                    ? '6 4'
+                                                    : undefined
+                                            }
                                             dot={false}
                                             activeDot={{ r: 3 }}
                                             isAnimationActive={false}
@@ -1082,7 +1158,7 @@ export default function Dashboard({
                             Avg Hum
                         </span>
                     </div>
-                    {roomLegend}
+                    {activeSeriesLegend}
                     <div className="min-h-0 flex-1">
                         {hasChartData ? (
                             <ChartContainer
@@ -1137,18 +1213,21 @@ export default function Dashboard({
                                             />
                                         }
                                     />
-                                    {roomSeriesKeys.map((seriesKey, index) => (
+                                    {visibleSeriesDefinitions.map((series) => (
                                         <Line
-                                            key={seriesKey}
-                                            dataKey={seriesKey}
-                                            name={roomSeriesNames[index]}
+                                            key={series.key}
+                                            dataKey={series.key}
+                                            name={series.label}
                                             type="linear"
-                                            stroke={
-                                                lineColors[
-                                                    index % lineColors.length
-                                                ]
+                                            stroke={series.color}
+                                            strokeWidth={
+                                                series.isAverage ? 2.5 : 2
                                             }
-                                            strokeWidth={2}
+                                            strokeDasharray={
+                                                series.isAverage
+                                                    ? '6 4'
+                                                    : undefined
+                                            }
                                             dot={false}
                                             activeDot={{ r: 3 }}
                                             isAnimationActive={false}
@@ -1282,7 +1361,7 @@ export default function Dashboard({
 
                         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
                             <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-xl border border-slate-700/60 bg-slate-900/35 p-2">
-                                <div className="w-full sm:w-[320px]">
+                                <div className="w-full sm:w-xs">
                                     <Select
                                         value={selectedFilterOptionValue}
                                         onValueChange={handleFilterOptionChange}
@@ -1340,6 +1419,59 @@ export default function Dashboard({
                                     )}
                                     Fullscreen
                                 </button>
+
+                                <div className="w-full rounded-lg border border-slate-700/60 bg-slate-900/30 p-2">
+                                    <p className="text-[10px] font-semibold tracking-wider text-slate-300 uppercase">
+                                        Seri Chart
+                                    </p>
+                                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                        {chartSeriesDefinitions.map(
+                                            (series) => {
+                                                const isChecked =
+                                                    effectiveSelectedSeriesKey ===
+                                                    series.key;
+
+                                                return (
+                                                    <label
+                                                        key={series.key}
+                                                        className={`flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1 text-[10px] font-medium transition-colors ${
+                                                            isChecked
+                                                                ? 'border-cyan-500/40 bg-cyan-500/10 text-slate-100'
+                                                                : 'border-slate-700/70 bg-slate-800/60 text-slate-400'
+                                                        }`}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isChecked}
+                                                            onChange={(event) =>
+                                                                toggleSeriesVisibility(
+                                                                    series.key,
+                                                                    event.target
+                                                                        .checked,
+                                                                )
+                                                            }
+                                                            className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900 text-cyan-500 focus:ring-cyan-500"
+                                                        />
+                                                        <span
+                                                            className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                                                            style={{
+                                                                backgroundColor:
+                                                                    series.color,
+                                                            }}
+                                                        />
+                                                        <span>
+                                                            {series.label}
+                                                        </span>
+                                                    </label>
+                                                );
+                                            },
+                                        )}
+                                    </div>
+                                    <p className="mt-1 text-[10px] text-slate-500">
+                                        Hanya satu seri yang bisa aktif dalam
+                                        satu waktu.
+                                    </p>
+                                </div>
                             </div>
 
                             {renderChartPanels(false)}
