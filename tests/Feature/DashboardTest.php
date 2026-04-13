@@ -113,6 +113,91 @@ test('dashboard response contains globalChartLogs as global averages', function 
         );
 });
 
+test('dashboard response contains default timeFilter payload', function () {
+    $this->actingAs(User::factory()->create())
+        ->get(route('dashboard'))
+        ->assertInertia(
+            fn ($page) => $page
+                ->where('timeFilter.mode', 'none')
+                ->where('timeFilter.start_at', null)
+                ->where('timeFilter.end_at', null)
+                ->where('timeFilter.recent_minutes', 15)
+        );
+});
+
+test('dashboard can filter chart logs by recent minutes', function () {
+    $room = Room::factory()->create();
+
+    SensorLog::factory()->create([
+        'room_id' => $room->id,
+        'avg_temperature' => 23.1,
+        'avg_humidity' => 60.5,
+        'created_at' => now()->subMinutes(2),
+        'updated_at' => now()->subMinutes(2),
+    ]);
+
+    SensorLog::factory()->create([
+        'room_id' => $room->id,
+        'avg_temperature' => 21.9,
+        'avg_humidity' => 57.4,
+        'created_at' => now()->subMinutes(50),
+        'updated_at' => now()->subMinutes(50),
+    ]);
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('dashboard', [
+            'time_filter' => 'recent',
+            'recent_minutes' => 15,
+        ]))
+        ->assertInertia(
+            fn ($page) => $page
+                ->where('timeFilter.mode', 'recent')
+                ->where('timeFilter.recent_minutes', 15)
+                ->has('chartLogs.'.$room->id, 1)
+                ->has('globalChartLogs', 1)
+        );
+});
+
+test('dashboard can filter chart logs by custom interval', function () {
+    $room = Room::factory()->create();
+
+    $outsideRangeAt = now()->subHours(3)->startOfMinute();
+    $insideRangeAt = now()->subMinutes(20)->startOfMinute();
+    $startAt = now()->subHour()->startOfMinute();
+    $endAt = now()->startOfMinute();
+
+    SensorLog::factory()->create([
+        'room_id' => $room->id,
+        'avg_temperature' => 20.4,
+        'avg_humidity' => 55.3,
+        'created_at' => $outsideRangeAt,
+        'updated_at' => $outsideRangeAt,
+    ]);
+
+    SensorLog::factory()->create([
+        'room_id' => $room->id,
+        'avg_temperature' => 24.8,
+        'avg_humidity' => 61.1,
+        'created_at' => $insideRangeAt,
+        'updated_at' => $insideRangeAt,
+    ]);
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('dashboard', [
+            'time_filter' => 'interval',
+            'start_at' => $startAt->format('Y-m-d H:i:s'),
+            'end_at' => $endAt->format('Y-m-d H:i:s'),
+        ]))
+        ->assertInertia(
+            fn ($page) => $page
+                ->where('timeFilter.mode', 'interval')
+                ->where('timeFilter.start_at', $startAt->format('Y-m-d H:i:s'))
+                ->where('timeFilter.end_at', $endAt->format('Y-m-d H:i:s'))
+                ->has('chartLogs.'.$room->id, 1)
+                ->has('globalChartLogs', 1)
+        );
+});
+
 // ─── Room payload structure ───────────────────────────────────────────────────
 
 test('each room in payload has required keys', function () {

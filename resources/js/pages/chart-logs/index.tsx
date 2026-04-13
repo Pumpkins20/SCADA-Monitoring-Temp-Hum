@@ -880,15 +880,6 @@ export default function ChartLogsIndex(props: ChartLogsIndexProps) {
                 ? `recent:${activeQuickRange.minutes}`
                 : 'recent-custom';
 
-    const activeFilterLabel =
-        props.timeFilter.mode === 'recent'
-            ? `Menampilkan data ${props.timeFilter.recent_minutes} menit terakhir.`
-            : props.timeFilter.mode === 'interval' &&
-                props.timeFilter.start_at &&
-                props.timeFilter.end_at
-              ? `Menampilkan data dari ${props.timeFilter.start_at} sampai ${props.timeFilter.end_at}.`
-              : 'Menampilkan data terbaru tanpa filter waktu.';
-
     function visitChart(
         query: Record<string, string | number | undefined>,
     ): void {
@@ -1156,10 +1147,6 @@ export default function ChartLogsIndex(props: ChartLogsIndexProps) {
                                     </SelectContent>
                                 </Select>
                             </div>
-
-                            <span className="min-w-0 grow truncate rounded-md border border-slate-700/70 bg-slate-900/50 px-2.5 py-1 text-[11px] text-slate-300">
-                                {activeFilterLabel}
-                            </span>
                         </div>
                     </div>
 

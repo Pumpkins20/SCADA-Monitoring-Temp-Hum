@@ -7,15 +7,53 @@ use App\Models\Room;
 use App\Models\Sensor;
 use App\Models\SensorLog;
 use App\Models\SensorReading;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection as SupportCollection;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function index(): Response
+    private const DEFAULT_NONE_LIMIT = 20;
+
+    private const FILTERED_POINT_LIMIT_SHORT_RANGE = 400;
+
+    private const FILTERED_POINT_LIMIT_MEDIUM_RANGE = 180;
+
+    private const FILTERED_POINT_LIMIT_LONG_RANGE = 120;
+
+    private const MEDIUM_RANGE_THRESHOLD_MINUTES = 60;
+
+    private const LONG_RANGE_THRESHOLD_MINUTES = 360;
+
+    private const MIN_RECENT_MINUTES = 15;
+
+    private const MAX_RECENT_MINUTES = 43200;
+
+    private const MAX_INTERVAL_DAYS = 30;
+
+    public function index(Request $request): Response
     {
         $gaugeSetting = GaugeSetting::query()->first();
+        $timeFilterMode = $this->resolveTimeFilterMode((string) $request->query('time_filter', 'none'));
+        $startAt = $this->parseDateTime((string) $request->query('start_at', ''));
+        $endAt = $this->parseDateTime((string) $request->query('end_at', ''));
+        $recentMinutes = $this->normalizeRecentMinutes((int) $request->query('recent_minutes', self::MIN_RECENT_MINUTES));
+
+        if ($timeFilterMode === 'interval') {
+            if ($startAt === null || $endAt === null) {
+                $timeFilterMode = 'none';
+            } else {
+                [$startAt, $endAt] = $this->normalizeIntervalRange($startAt, $endAt);
+            }
+        }
+
+        if ($timeFilterMode === 'recent') {
+            $recentMinutes = max($recentMinutes, self::MIN_RECENT_MINUTES);
+        }
 
         $rooms = Room::with([
             'hmis' => fn ($q) => $q
@@ -43,32 +81,16 @@ class DashboardController extends Controller
             ->orderBy('name')
             ->get();
 
-        $chartlogs = SensorLog::query()
-            ->whereIn('room_id', $rooms->pluck('id'))
-            ->orderBy('created_at', 'desc')
-            ->get()
-            ->groupBy('room_id')
-            ->map(fn ($logs) => $logs->take(20)->reverse()->map(fn ($log) => [
-                'time' => $log->created_at->format('H:i'),
-                'avg_temperature' => round((float) $log->avg_temperature, 1),
-                'avg_humidity' => round((float) $log->avg_humidity, 1),
-            ])->values()->all());
+        $chartData = $this->buildDashboardChartData(
+            $rooms->pluck('id'),
+            $timeFilterMode,
+            $startAt,
+            $endAt,
+            $recentMinutes,
+        );
 
-        $globalChartLogs = SensorLog::query()
-            ->whereIn('room_id', $rooms->pluck('id'))
-            ->selectRaw('created_at, AVG(avg_temperature) as avg_temperature, AVG(avg_humidity) as avg_humidity')
-            ->groupBy('created_at')
-            ->orderBy('created_at', 'desc')
-            ->limit(20)
-            ->get()
-            ->reverse()
-            ->map(fn ($log) => [
-                'time' => $log->created_at->format('H:i'),
-                'avg_temperature' => round((float) $log->avg_temperature, 1),
-                'avg_humidity' => round((float) $log->avg_humidity, 1),
-            ])
-            ->values()
-            ->all();
+        $chartLogs = $chartData['chartLogs'];
+        $globalChartLogs = $chartData['globalChartLogs'];
 
         $payload = $rooms->map(function (Room $room) {
             $sensors = $room->hmis->flatMap->sensors;
@@ -185,8 +207,14 @@ class DashboardController extends Controller
                 ],
             ],
             'rooms' => $payload->values()->all(),
-            'chartLogs' => $chartlogs,
+            'chartLogs' => $chartLogs,
             'globalChartLogs' => $globalChartLogs,
+            'timeFilter' => $this->makeTimeFilterPayload(
+                $timeFilterMode,
+                $startAt,
+                $endAt,
+                $recentMinutes,
+            ),
         ]);
     }
 
@@ -339,6 +367,344 @@ class DashboardController extends Controller
                 ],
             ],
         ]);
+    }
+
+    /**
+     * @param  SupportCollection<int, int>  $roomIds
+     * @return array{chartLogs: array<int, array<int, array{time: string, avg_temperature: float|null, avg_humidity: float|null}>>, globalChartLogs: array<int, array{time: string, avg_temperature: float|null, avg_humidity: float|null}>}
+     */
+    private function buildDashboardChartData(
+        SupportCollection $roomIds,
+        string $timeFilterMode,
+        ?Carbon $startAt,
+        ?Carbon $endAt,
+        int $recentMinutes,
+    ): array {
+        if ($roomIds->isEmpty()) {
+            return [
+                'chartLogs' => [],
+                'globalChartLogs' => [],
+            ];
+        }
+
+        $latestTimestamp = $timeFilterMode === 'recent'
+            ? SensorLog::query()
+                ->whereIn('room_id', $roomIds)
+                ->max('created_at')
+            : null;
+
+        $timestampsQuery = SensorLog::query()
+            ->whereIn('room_id', $roomIds)
+            ->selectRaw('DISTINCT created_at')
+            ->orderByDesc('created_at');
+
+        $this->applyTimeFilter(
+            $timestampsQuery,
+            $timeFilterMode,
+            $startAt,
+            $endAt,
+            $recentMinutes,
+            $latestTimestamp,
+        );
+
+        $bucketMinutes = $timeFilterMode === 'none'
+            ? null
+            : $this->resolveBucketMinutes($timeFilterMode, $startAt, $endAt, $recentMinutes);
+
+        $filteredPointLimit = $this->resolveFilteredPointLimit(
+            $timeFilterMode,
+            $startAt,
+            $endAt,
+            $recentMinutes,
+        );
+
+        $timestamps = $timeFilterMode === 'none'
+            ? $timestampsQuery
+                ->limit(self::DEFAULT_NONE_LIMIT)
+                ->pluck('created_at')
+                ->sort()
+                ->values()
+            : $this->sampleTimestamps(
+                $this->bucketTimestamps(
+                    $timestampsQuery
+                        ->pluck('created_at')
+                        ->sort()
+                        ->values(),
+                    $bucketMinutes ?? 1,
+                ),
+                $filteredPointLimit,
+            );
+
+        $timestampKeys = $timestamps->map(fn ($timestamp) => Carbon::parse((string) $timestamp)->format('Y-m-d H:i:s'));
+        $timeLabelsByTimestamp = $this->buildTimeLabels($timestampKeys, $bucketMinutes);
+
+        $logsByRoom = SensorLog::query()
+            ->whereIn('room_id', $roomIds)
+            ->whereIn('created_at', $timestamps)
+            ->get()
+            ->groupBy('room_id')
+            ->map(fn ($items) => $items->keyBy(fn ($log) => $log->created_at->format('Y-m-d H:i:s')));
+
+        $chartLogs = $roomIds->mapWithKeys(function (int $roomId) use ($timestampKeys, $logsByRoom, $timeLabelsByTimestamp): array {
+            $roomLogs = $logsByRoom->get($roomId, collect());
+
+            return [
+                $roomId => $timestampKeys->map(function (string $timestampKey) use ($roomLogs, $timeLabelsByTimestamp): array {
+                    $log = $roomLogs->get($timestampKey);
+
+                    return [
+                        'time' => $timeLabelsByTimestamp->get($timestampKey, Carbon::parse($timestampKey)->format('H:i')),
+                        'avg_temperature' => $log ? round((float) $log->avg_temperature, 1) : null,
+                        'avg_humidity' => $log ? round((float) $log->avg_humidity, 1) : null,
+                    ];
+                })->all(),
+            ];
+        })->all();
+
+        $globalLogsByTimestamp = SensorLog::query()
+            ->whereIn('room_id', $roomIds)
+            ->whereIn('created_at', $timestamps)
+            ->selectRaw('created_at, AVG(avg_temperature) as avg_temperature, AVG(avg_humidity) as avg_humidity')
+            ->groupBy('created_at')
+            ->get()
+            ->keyBy(fn ($log) => $log->created_at->format('Y-m-d H:i:s'));
+
+        $globalChartLogs = $timestampKeys->map(function (string $timestampKey) use ($globalLogsByTimestamp, $timeLabelsByTimestamp): array {
+            $log = $globalLogsByTimestamp->get($timestampKey);
+
+            return [
+                'time' => $timeLabelsByTimestamp->get($timestampKey, Carbon::parse($timestampKey)->format('H:i')),
+                'avg_temperature' => $log ? round((float) $log->avg_temperature, 1) : null,
+                'avg_humidity' => $log ? round((float) $log->avg_humidity, 1) : null,
+            ];
+        })->values()->all();
+
+        return [
+            'chartLogs' => $chartLogs,
+            'globalChartLogs' => $globalChartLogs,
+        ];
+    }
+
+    private function resolveTimeFilterMode(string $mode): string
+    {
+        $allowed = ['none', 'interval', 'recent'];
+
+        return in_array($mode, $allowed, true) ? $mode : 'none';
+    }
+
+    private function parseDateTime(string $value): ?Carbon
+    {
+        if ($value === '') {
+            return null;
+        }
+
+        try {
+            return Carbon::createFromFormat('Y-m-d H:i:s', $value);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function normalizeRecentMinutes(int $minutes): int
+    {
+        if ($minutes < 1) {
+            return self::MIN_RECENT_MINUTES;
+        }
+
+        return min($minutes, self::MAX_RECENT_MINUTES);
+    }
+
+    /**
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    private function normalizeIntervalRange(Carbon $startAt, Carbon $endAt): array
+    {
+        $from = $startAt->lte($endAt) ? $startAt->copy() : $endAt->copy();
+        $to = $startAt->lte($endAt) ? $endAt->copy() : $startAt->copy();
+        $maxFrom = $to->copy()->subDays(self::MAX_INTERVAL_DAYS);
+
+        if ($from->lt($maxFrom)) {
+            $from = $maxFrom;
+        }
+
+        return [$from, $to];
+    }
+
+    private function applyTimeFilter(
+        Builder $query,
+        string $mode,
+        ?Carbon $startAt,
+        ?Carbon $endAt,
+        int $recentMinutes,
+        mixed $latestTimestamp = null,
+    ): void {
+        if ($mode === 'recent') {
+            $referenceTimestamp = $latestTimestamp !== null
+                ? Carbon::parse((string) $latestTimestamp)
+                : now();
+
+            $query->where('created_at', '>=', $referenceTimestamp->subMinutes($recentMinutes));
+
+            return;
+        }
+
+        if ($mode !== 'interval' || $startAt === null || $endAt === null) {
+            return;
+        }
+
+        $query->whereBetween('created_at', [$startAt, $endAt]);
+    }
+
+    private function resolveFilteredPointLimit(
+        string $mode,
+        ?Carbon $startAt,
+        ?Carbon $endAt,
+        int $recentMinutes,
+    ): int {
+        $rangeMinutes = match ($mode) {
+            'recent' => $recentMinutes,
+            'interval' => $startAt !== null && $endAt !== null
+                ? $startAt->diffInMinutes($endAt)
+                : null,
+            default => null,
+        };
+
+        if ($rangeMinutes === null) {
+            return self::FILTERED_POINT_LIMIT_SHORT_RANGE;
+        }
+
+        if ($rangeMinutes > self::LONG_RANGE_THRESHOLD_MINUTES) {
+            return self::FILTERED_POINT_LIMIT_LONG_RANGE;
+        }
+
+        if ($rangeMinutes > self::MEDIUM_RANGE_THRESHOLD_MINUTES) {
+            return self::FILTERED_POINT_LIMIT_MEDIUM_RANGE;
+        }
+
+        return self::FILTERED_POINT_LIMIT_SHORT_RANGE;
+    }
+
+    private function resolveBucketMinutes(
+        string $mode,
+        ?Carbon $startAt,
+        ?Carbon $endAt,
+        int $recentMinutes,
+    ): int {
+        $rangeMinutes = match ($mode) {
+            'recent' => $recentMinutes,
+            'interval' => $startAt !== null && $endAt !== null
+                ? $startAt->diffInMinutes($endAt)
+                : null,
+            default => null,
+        };
+
+        if ($rangeMinutes === null || $rangeMinutes <= 60) {
+            return 1;
+        }
+
+        if ($rangeMinutes <= 180) {
+            return 2;
+        }
+
+        if ($rangeMinutes <= 360) {
+            return 5;
+        }
+
+        if ($rangeMinutes <= 720) {
+            return 10;
+        }
+
+        if ($rangeMinutes <= 1440) {
+            return 30;
+        }
+
+        if ($rangeMinutes <= 2880) {
+            return 60;
+        }
+
+        if ($rangeMinutes <= 10080) {
+            return 360;
+        }
+
+        return 1440;
+    }
+
+    private function bucketTimestamps(SupportCollection $timestamps, int $bucketMinutes): SupportCollection
+    {
+        if ($bucketMinutes <= 1) {
+            return $timestamps->values();
+        }
+
+        $bucketed = collect();
+        $lastSelected = null;
+
+        foreach ($timestamps as $timestamp) {
+            $current = Carbon::parse((string) $timestamp);
+
+            if ($lastSelected === null || $lastSelected->diffInMinutes($current) >= $bucketMinutes) {
+                $bucketed->push($timestamp);
+                $lastSelected = $current;
+            }
+        }
+
+        return $bucketed->values();
+    }
+
+    private function sampleTimestamps(SupportCollection $timestamps, int $maxPoints): SupportCollection
+    {
+        $count = $timestamps->count();
+
+        if ($count <= $maxPoints) {
+            return $timestamps->values();
+        }
+
+        $sampled = collect();
+        $lastIndex = $count - 1;
+
+        for ($index = 0; $index < $maxPoints; $index++) {
+            $resolvedIndex = (int) floor(($index * $lastIndex) / ($maxPoints - 1));
+            $sampled->push($timestamps->get($resolvedIndex));
+        }
+
+        return $sampled->values();
+    }
+
+    private function buildTimeLabels(SupportCollection $timestampKeys, ?int $bucketMinutes): SupportCollection
+    {
+        $labels = collect();
+        $previousDate = null;
+
+        foreach ($timestampKeys as $timestampKey) {
+            $current = Carbon::parse((string) $timestampKey);
+            $currentDate = $current->format('Y-m-d');
+
+            if ($bucketMinutes !== null && $bucketMinutes >= 1440) {
+                $label = $current->format('d/m');
+            } elseif ($previousDate !== null && $previousDate !== $currentDate) {
+                $label = $current->format('d/m H:i');
+            } else {
+                $label = $current->format('H:i');
+            }
+
+            $labels->put((string) $timestampKey, $label);
+            $previousDate = $currentDate;
+        }
+
+        return $labels;
+    }
+
+    private function makeTimeFilterPayload(
+        string $mode,
+        ?Carbon $startAt,
+        ?Carbon $endAt,
+        int $recentMinutes,
+    ): array {
+        return [
+            'mode' => $mode,
+            'start_at' => $mode === 'interval' ? $startAt?->format('Y-m-d H:i:s') : null,
+            'end_at' => $mode === 'interval' ? $endAt?->format('Y-m-d H:i:s') : null,
+            'recent_minutes' => $recentMinutes,
+        ];
     }
 
     /**
