@@ -1034,6 +1034,56 @@ export default function Dashboard({
         });
     }
 
+    function renderSeriesFilterControls() {
+        return (
+            <div className="w-full rounded-lg border border-slate-700/60 bg-slate-900/30 p-2">
+                <p className="text-[10px] font-semibold tracking-wider text-slate-300 uppercase">
+                    Seri Chart
+                </p>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                    {chartSeriesDefinitions.map((series) => {
+                        const isChecked = selectedSeriesKeys.includes(
+                            series.key,
+                        );
+
+                        return (
+                            <label
+                                key={series.key}
+                                className={`flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1 text-[10px] font-medium transition-colors ${
+                                    isChecked
+                                        ? 'border-cyan-500/40 bg-cyan-500/10 text-slate-100'
+                                        : 'border-slate-700/70 bg-slate-800/60 text-slate-400'
+                                }`}
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={(event) =>
+                                        toggleSeriesVisibility(
+                                            series.key,
+                                            event.target.checked,
+                                        )
+                                    }
+                                    className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900 text-cyan-500 focus:ring-cyan-500"
+                                />
+                                <span
+                                    className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                                    style={{
+                                        backgroundColor: series.color,
+                                    }}
+                                />
+                                <span>{series.label}</span>
+                            </label>
+                        );
+                    })}
+                </div>
+                <p className="mt-1 text-[10px] text-slate-500">
+                    Centang seri yang ingin ditampilkan. Minimal 1 garis aktif.
+                </p>
+            </div>
+        );
+    }
+
     function renderChartPanels(isFullscreen: boolean) {
         const chartCardClass = isFullscreen
             ? 'flex min-h-0 flex-1 flex-col rounded-xl border border-slate-700/60 bg-slate-800/60 px-4 pt-3 pb-2'
@@ -1422,60 +1472,7 @@ export default function Dashboard({
                                     )}
                                     Fullscreen
                                 </button>
-
-                                <div className="w-full rounded-lg border border-slate-700/60 bg-slate-900/30 p-2">
-                                    <p className="text-[10px] font-semibold tracking-wider text-slate-300 uppercase">
-                                        Seri Chart
-                                    </p>
-                                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                                        {chartSeriesDefinitions.map(
-                                            (series) => {
-                                                const isChecked =
-                                                    selectedSeriesKeys.includes(
-                                                        series.key,
-                                                    );
-
-                                                return (
-                                                    <label
-                                                        key={series.key}
-                                                        className={`flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1 text-[10px] font-medium transition-colors ${
-                                                            isChecked
-                                                                ? 'border-cyan-500/40 bg-cyan-500/10 text-slate-100'
-                                                                : 'border-slate-700/70 bg-slate-800/60 text-slate-400'
-                                                        }`}
-                                                    >
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={isChecked}
-                                                            onChange={(event) =>
-                                                                toggleSeriesVisibility(
-                                                                    series.key,
-                                                                    event.target
-                                                                        .checked,
-                                                                )
-                                                            }
-                                                            className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900 text-cyan-500 focus:ring-cyan-500"
-                                                        />
-                                                        <span
-                                                            className="h-2.5 w-2.5 shrink-0 rounded-sm"
-                                                            style={{
-                                                                backgroundColor:
-                                                                    series.color,
-                                                            }}
-                                                        />
-                                                        <span>
-                                                            {series.label}
-                                                        </span>
-                                                    </label>
-                                                );
-                                            },
-                                        )}
-                                    </div>
-                                    <p className="mt-1 text-[10px] text-slate-500">
-                                        Centang seri yang ingin ditampilkan.
-                                        Minimal 1 garis aktif.
-                                    </p>
-                                </div>
+                                {renderSeriesFilterControls()}
                             </div>
 
                             {renderChartPanels(false)}
@@ -1501,6 +1498,10 @@ export default function Dashboard({
                                 <Minimize2 className="h-3.5 w-3.5" />
                                 Tutup
                             </button>
+                        </div>
+
+                        <div className="mb-2 shrink-0">
+                            {renderSeriesFilterControls()}
                         </div>
 
                         <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-slate-700/60 bg-[#151b1f] p-2 xl:p-3">
