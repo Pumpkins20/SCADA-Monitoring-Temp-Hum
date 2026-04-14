@@ -786,15 +786,6 @@ export default function LogsIndex({
                                 <RotateCcw className="h-4 w-4" />
                             </button>
 
-                            <a
-                                href={`/logs/export?${exportQuery.toString()}`}
-                                download={`Log_Sensor_Ruangan_${activeRoomId}.xlsx`}
-                                className="flex items-center gap-1.5 rounded-lg bg-emerald-600/20 px-3 py-1.5 text-[11px] font-semibold tracking-wider text-emerald-400 uppercase transition-colors hover:bg-emerald-600/40 hover:text-emerald-300"
-                            >
-                                <Download className="h-3.5 w-3.5" />
-                                Download Excel
-                            </a>
-
                             <button
                                 type="button"
                                 onClick={sendExportToEmail}
@@ -806,10 +797,12 @@ export default function LogsIndex({
                                         ? `Kirim ke ${exportRecipientEmail}`
                                         : 'Email recipient belum diatur'
                                 }
-                                className="flex items-center gap-1.5 rounded-lg bg-cyan-600/20 px-3 py-1.5 text-[11px] font-semibold tracking-wider text-cyan-400 uppercase transition-colors hover:bg-cyan-600/40 hover:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
+                                className="flex items-center gap-1.5 rounded-lg bg-emerald-600/20 px-3 py-1.5 text-[11px] font-semibold tracking-wider text-emerald-400 uppercase transition-colors hover:bg-emerald-600/40 hover:text-emerald-300 disabled:cursor-not-allowed disabled:opacity-40"
                             >
                                 <Send className="h-3.5 w-3.5" />
-                                {isSendingEmail ? 'Mengirim...' : 'Kirim Email'}
+                                {isSendingEmail 
+                                ? 'Mengirim excel...' 
+                                : 'EXPORT EXCEL EMAIL'}
                             </button>
 
                             <div className="h-5 w-px bg-slate-700/60" />
