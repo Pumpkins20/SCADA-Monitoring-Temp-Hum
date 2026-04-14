@@ -56,13 +56,13 @@ class DashboardController extends Controller
         }
 
         $rooms = Room::with([
-            'hmis' => fn ($q) => $q
+            'hmis' => fn($q) => $q
                 ->where('is_active', true)
                 ->where('is_preview', false)
                 ->with([
                     'latestData',
-                    'sensors' => fn ($sq) => $sq->select(['id', 'hmi_id', 'name', 'unit_id', 'pos_x', 'pos_y']),
-                    'sensors.latestData' => fn ($sq) => $sq->select([
+                    'sensors' => fn($sq) => $sq->select(['id', 'hmi_id', 'name', 'unit_id', 'pos_x', 'pos_y']),
+                    'sensors.latestData' => fn($sq) => $sq->select([
                         'id',
                         'sensor_id',
                         'temperature',
@@ -94,7 +94,7 @@ class DashboardController extends Controller
 
         $payload = $rooms->map(function (Room $room) {
             $sensors = $room->hmis->flatMap->sensors;
-            $online = $sensors->filter(fn ($s) => $s->latestData !== null && $s->latestData->status !== 'OFFLINE');
+            $online = $sensors->filter(fn($s) => $s->latestData !== null && $s->latestData->status !== 'OFFLINE');
             $hmiIpAddresses = $room->hmis
                 ->pluck('ip_address')
                 ->filter()
@@ -108,28 +108,28 @@ class DashboardController extends Controller
                 'temp_max_limit' => $room->temp_max_limit,
                 'hum_max_limit' => $room->hum_max_limit,
                 'room_avg_temp' => $online->isNotEmpty()
-                    ? round((float) $online->avg(fn ($s) => $s->latestData->temperature), 1)
+                    ? round((float) $online->avg(fn($s) => $s->latestData->temperature), 1)
                     : null,
                 'room_avg_hum' => $online->isNotEmpty()
-                    ? round((float) $online->avg(fn ($s) => $s->latestData->humidity), 1)
+                    ? round((float) $online->avg(fn($s) => $s->latestData->humidity), 1)
                     : null,
                 'hmi_avg_temp' => $room->hmis
-                    ->filter(fn ($h) => $h->latestData?->avg_temp !== null)
+                    ->filter(fn($h) => $h->latestData?->avg_temp !== null)
                     ->isNotEmpty()
                     ? round((float) $room->hmis
-                        ->filter(fn ($h) => $h->latestData?->avg_temp !== null)
-                        ->avg(fn ($h) => (float) $h->latestData->avg_temp), 1)
+                        ->filter(fn($h) => $h->latestData?->avg_temp !== null)
+                        ->avg(fn($h) => (float) $h->latestData->avg_temp), 1)
                     : null,
                 'hmi_avg_hum' => $room->hmis
-                    ->filter(fn ($h) => $h->latestData?->avg_hum !== null)
+                    ->filter(fn($h) => $h->latestData?->avg_hum !== null)
                     ->isNotEmpty()
                     ? round((float) $room->hmis
-                        ->filter(fn ($h) => $h->latestData?->avg_hum !== null)
-                        ->avg(fn ($h) => (float) $h->latestData->avg_hum), 1)
+                        ->filter(fn($h) => $h->latestData?->avg_hum !== null)
+                        ->avg(fn($h) => (float) $h->latestData->avg_hum), 1)
                     : null,
                 'status' => $this->resolveRoomStatus($sensors),
-                'last_update' => $online->max(fn ($s) => $s->latestData?->last_read_at)?->format('Y-m-d H:i:s'),
-                'sensors' => $sensors->map(fn ($s) => [
+                'last_update' => $online->max(fn($s) => $s->latestData?->last_read_at)?->format('Y-m-d H:i:s'),
+                'sensors' => $sensors->map(fn($s) => [
                     'id' => $s->id,
                     'name' => $s->name,
                     'temperature' => $s->latestData?->temperature !== null
@@ -221,18 +221,34 @@ class DashboardController extends Controller
     /**
      * @param  \Illuminate\Support\Collection<int, Sensor>  $sensors
      */
-    public function show(Room $room): Response
+    public function show(Request $request, Room $room): Response
     {
         $gaugeSetting = GaugeSetting::query()->first();
+        $timeFilterMode = $this->resolveTimeFilterMode((string) $request->query('time_filter', 'none'));
+        $startAt = $this->parseDateTime((string) $request->query('start_at', ''));
+        $endAt = $this->parseDateTime((string) $request->query('end_at', ''));
+        $recentMinutes = $this->normalizeRecentMinutes((int) $request->query('recent_minutes', self::MIN_RECENT_MINUTES));
+
+        if ($timeFilterMode === 'interval') {
+            if ($startAt === null || $endAt === null) {
+                $timeFilterMode = 'none';
+            } else {
+                [$startAt, $endAt] = $this->normalizeIntervalRange($startAt, $endAt);
+            }
+        }
+
+        if ($timeFilterMode === 'recent') {
+            $recentMinutes = max($recentMinutes, self::MIN_RECENT_MINUTES);
+        }
 
         $room->load([
-            'hmis' => fn ($q) => $q
+            'hmis' => fn($q) => $q
                 ->where('is_active', true)
                 ->where('is_preview', false)
                 ->with([
                     'latestData',
-                    'sensors' => fn ($sq) => $sq->select(['id', 'hmi_id', 'name', 'unit_id', 'pos_x', 'pos_y']),
-                    'sensors.latestData' => fn ($sq) => $sq->select([
+                    'sensors' => fn($sq) => $sq->select(['id', 'hmi_id', 'name', 'unit_id', 'pos_x', 'pos_y']),
+                    'sensors.latestData' => fn($sq) => $sq->select([
                         'id',
                         'sensor_id',
                         'temperature',
@@ -245,7 +261,7 @@ class DashboardController extends Controller
                         'calibrate_hum',
                         'last_read_at',
                     ]),
-                    'sensors.alarmEvents' => fn ($sq) => $sq
+                    'sensors.alarmEvents' => fn($sq) => $sq
                         ->whereNull('cleared_at')
                         ->orderByDesc('occurred_at')
                         ->select(['id', 'sensor_id', 'alarm_type', 'occurred_at', 'cleared_at']),
@@ -253,29 +269,15 @@ class DashboardController extends Controller
         ]);
 
         $sensors = $room->hmis->flatMap->sensors;
-        $online = $sensors->filter(fn ($s) => $s->latestData !== null && $s->latestData->status !== 'OFFLINE');
+        $online = $sensors->filter(fn($s) => $s->latestData !== null && $s->latestData->status !== 'OFFLINE');
 
-        $chartSeriesBySensorId = SensorReading::query()
-            ->whereIn('sensor_id', $sensors->pluck('id'))
-            ->orderBy('created_at', 'desc')
-            ->get()
-            ->groupBy('sensor_id')
-            ->map(fn ($readings) => $readings
-                ->take(20)
-                ->reverse()
-                ->map(fn ($reading) => [
-                    'time' => $reading->created_at->format('H:i'),
-                    'avg_temperature' => round((float) $reading->avg_temp, 1),
-                    'avg_humidity' => round((float) $reading->avg_hum, 1),
-                ])
-                ->values()
-                ->all());
-
-        $chartSeriesPerSensor = $sensors->map(fn ($sensor) => [
-            'sensorId' => $sensor->id,
-            'sensorName' => $sensor->name,
-            'points' => $chartSeriesBySensorId->get($sensor->id, []),
-        ])->values()->all();
+        $roomChartData = $this->buildRoomDetailChartData(
+            $sensors,
+            $timeFilterMode,
+            $startAt,
+            $endAt,
+            $recentMinutes,
+        );
 
         $roomPayload = [
             'id' => $room->id,
@@ -284,29 +286,29 @@ class DashboardController extends Controller
             'temp_max_limit' => $room->temp_max_limit,
             'hum_max_limit' => $room->hum_max_limit,
             'floor_plan_image' => $room->floor_plan_image
-                ? asset('storage/'.$room->floor_plan_image)
+                ? asset('storage/' . $room->floor_plan_image)
                 : null,
             'floor_plan_width' => $room->floor_plan_width ?? 9000,
             'floor_plan_height' => $room->floor_plan_height ?? 9000,
             'room_avg_temp' => $online->isNotEmpty()
-                ? round((float) $online->avg(fn ($s) => $s->latestData->temperature), 1)
+                ? round((float) $online->avg(fn($s) => $s->latestData->temperature), 1)
                 : null,
             'room_avg_hum' => $online->isNotEmpty()
-                ? round((float) $online->avg(fn ($s) => $s->latestData->humidity), 1)
+                ? round((float) $online->avg(fn($s) => $s->latestData->humidity), 1)
                 : null,
             'hmi_avg_temp' => $room->hmis
-                ->filter(fn ($h) => $h->latestData?->avg_temp !== null)
+                ->filter(fn($h) => $h->latestData?->avg_temp !== null)
                 ->isNotEmpty()
                 ? round((float) $room->hmis
-                    ->filter(fn ($h) => $h->latestData?->avg_temp !== null)
-                    ->avg(fn ($h) => (float) $h->latestData->avg_temp), 1)
+                    ->filter(fn($h) => $h->latestData?->avg_temp !== null)
+                    ->avg(fn($h) => (float) $h->latestData->avg_temp), 1)
                 : null,
             'hmi_avg_hum' => $room->hmis
-                ->filter(fn ($h) => $h->latestData?->avg_hum !== null)
+                ->filter(fn($h) => $h->latestData?->avg_hum !== null)
                 ->isNotEmpty()
                 ? round((float) $room->hmis
-                    ->filter(fn ($h) => $h->latestData?->avg_hum !== null)
-                    ->avg(fn ($h) => (float) $h->latestData->avg_hum), 1)
+                    ->filter(fn($h) => $h->latestData?->avg_hum !== null)
+                    ->avg(fn($h) => (float) $h->latestData->avg_hum), 1)
                 : null,
             'status' => $this->resolveRoomStatus($sensors),
             'sensors' => $sensors->map(function ($s): array {
@@ -345,7 +347,8 @@ class DashboardController extends Controller
 
         return Inertia::render('rooms/show', [
             'room' => $roomPayload,
-            'chartSeriesPerSensor' => $chartSeriesPerSensor,
+            'chartSeriesPerSensor' => $roomChartData['chartSeriesPerSensor'],
+            'roomAverageChartSeries' => $roomChartData['roomAverageChartSeries'],
             'gaugeSettings' => [
                 'temperature' => [
                     'min' => $gaugeSetting?->temp_min ?? 0,
@@ -366,6 +369,12 @@ class DashboardController extends Controller
                     ],
                 ],
             ],
+            'timeFilter' => $this->makeTimeFilterPayload(
+                $timeFilterMode,
+                $startAt,
+                $endAt,
+                $recentMinutes,
+            ),
         ]);
     }
 
@@ -389,8 +398,8 @@ class DashboardController extends Controller
 
         $latestTimestamp = $timeFilterMode === 'recent'
             ? SensorLog::query()
-                ->whereIn('room_id', $roomIds)
-                ->max('created_at')
+            ->whereIn('room_id', $roomIds)
+            ->max('created_at')
             : null;
 
         $timestampsQuery = SensorLog::query()
@@ -420,10 +429,10 @@ class DashboardController extends Controller
 
         $timestamps = $timeFilterMode === 'none'
             ? $timestampsQuery
-                ->limit(self::DEFAULT_NONE_LIMIT)
-                ->pluck('created_at')
-                ->sort()
-                ->values()
+            ->limit(self::DEFAULT_NONE_LIMIT)
+            ->pluck('created_at')
+            ->sort()
+            ->values()
             : $this->sampleTimestamps(
                 $this->bucketTimestamps(
                     $timestampsQuery
@@ -435,7 +444,7 @@ class DashboardController extends Controller
                 $filteredPointLimit,
             );
 
-        $timestampKeys = $timestamps->map(fn ($timestamp) => Carbon::parse((string) $timestamp)->format('Y-m-d H:i:s'));
+        $timestampKeys = $timestamps->map(fn($timestamp) => Carbon::parse((string) $timestamp)->format('Y-m-d H:i:s'));
         $timeLabelsByTimestamp = $this->buildTimeLabels($timestampKeys, $bucketMinutes);
 
         $logsByRoom = SensorLog::query()
@@ -443,7 +452,7 @@ class DashboardController extends Controller
             ->whereIn('created_at', $timestamps)
             ->get()
             ->groupBy('room_id')
-            ->map(fn ($items) => $items->keyBy(fn ($log) => $log->created_at->format('Y-m-d H:i:s')));
+            ->map(fn($items) => $items->keyBy(fn($log) => $log->created_at->format('Y-m-d H:i:s')));
 
         $chartLogs = $roomIds->mapWithKeys(function (int $roomId) use ($timestampKeys, $logsByRoom, $timeLabelsByTimestamp): array {
             $roomLogs = $logsByRoom->get($roomId, collect());
@@ -467,7 +476,7 @@ class DashboardController extends Controller
             ->selectRaw('created_at, AVG(avg_temperature) as avg_temperature, AVG(avg_humidity) as avg_humidity')
             ->groupBy('created_at')
             ->get()
-            ->keyBy(fn ($log) => $log->created_at->format('Y-m-d H:i:s'));
+            ->keyBy(fn($log) => $log->created_at->format('Y-m-d H:i:s'));
 
         $globalChartLogs = $timestampKeys->map(function (string $timestampKey) use ($globalLogsByTimestamp, $timeLabelsByTimestamp): array {
             $log = $globalLogsByTimestamp->get($timestampKey);
@@ -482,6 +491,126 @@ class DashboardController extends Controller
         return [
             'chartLogs' => $chartLogs,
             'globalChartLogs' => $globalChartLogs,
+        ];
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Sensor>  $sensors
+     * @return array{chartSeriesPerSensor: array<int, array{sensorId: int, sensorName: string, points: array<int, array{time: string, avg_temperature: float|null, avg_humidity: float|null}>}>, roomAverageChartSeries: array<int, array{time: string, avg_temperature: float|null, avg_humidity: float|null}>}
+     */
+    private function buildRoomDetailChartData(
+        SupportCollection $sensors,
+        string $timeFilterMode,
+        ?Carbon $startAt,
+        ?Carbon $endAt,
+        int $recentMinutes,
+    ): array {
+        if ($sensors->isEmpty()) {
+            return [
+                'chartSeriesPerSensor' => [],
+                'roomAverageChartSeries' => [],
+            ];
+        }
+
+        $sensorIds = $sensors->pluck('id');
+
+        $latestTimestamp = $timeFilterMode === 'recent'
+            ? SensorReading::query()
+            ->whereIn('sensor_id', $sensorIds)
+            ->max('created_at')
+            : null;
+
+        $timestampsQuery = SensorReading::query()
+            ->whereIn('sensor_id', $sensorIds)
+            ->selectRaw('DISTINCT created_at')
+            ->orderByDesc('created_at');
+
+        $this->applyTimeFilter(
+            $timestampsQuery,
+            $timeFilterMode,
+            $startAt,
+            $endAt,
+            $recentMinutes,
+            $latestTimestamp,
+        );
+
+        $bucketMinutes = $timeFilterMode === 'none'
+            ? null
+            : $this->resolveBucketMinutes($timeFilterMode, $startAt, $endAt, $recentMinutes);
+
+        $filteredPointLimit = $this->resolveFilteredPointLimit(
+            $timeFilterMode,
+            $startAt,
+            $endAt,
+            $recentMinutes,
+        );
+
+        $timestamps = $timeFilterMode === 'none'
+            ? $timestampsQuery
+            ->limit(self::DEFAULT_NONE_LIMIT)
+            ->pluck('created_at')
+            ->sort()
+            ->values()
+            : $this->sampleTimestamps(
+                $this->bucketTimestamps(
+                    $timestampsQuery
+                        ->pluck('created_at')
+                        ->sort()
+                        ->values(),
+                    $bucketMinutes ?? 1,
+                ),
+                $filteredPointLimit,
+            );
+
+        $timestampKeys = $timestamps->map(fn($timestamp) => Carbon::parse((string) $timestamp)->format('Y-m-d H:i:s'));
+        $timeLabelsByTimestamp = $this->buildTimeLabels($timestampKeys, $bucketMinutes);
+
+        $readingsBySensor = SensorReading::query()
+            ->whereIn('sensor_id', $sensorIds)
+            ->whereIn('created_at', $timestamps)
+            ->get()
+            ->groupBy('sensor_id')
+            ->map(fn($items) => $items->keyBy(fn($reading) => $reading->created_at->format('Y-m-d H:i:s')));
+
+        $chartSeriesPerSensor = $sensors->map(function (Sensor $sensor) use ($timestampKeys, $readingsBySensor, $timeLabelsByTimestamp): array {
+            $sensorReadings = $readingsBySensor->get($sensor->id, collect());
+
+            return [
+                'sensorId' => $sensor->id,
+                'sensorName' => $sensor->name,
+                'points' => $timestampKeys->map(function (string $timestampKey) use ($sensorReadings, $timeLabelsByTimestamp): array {
+                    $reading = $sensorReadings->get($timestampKey);
+
+                    return [
+                        'time' => $timeLabelsByTimestamp->get($timestampKey, Carbon::parse($timestampKey)->format('H:i')),
+                        'avg_temperature' => $reading ? round((float) $reading->avg_temp, 1) : null,
+                        'avg_humidity' => $reading ? round((float) $reading->avg_hum, 1) : null,
+                    ];
+                })->values()->all(),
+            ];
+        })->values()->all();
+
+        $averageReadingsByTimestamp = SensorReading::query()
+            ->whereIn('sensor_id', $sensorIds)
+            ->whereIn('created_at', $timestamps)
+            ->selectRaw('created_at, AVG(avg_temp) as avg_temperature, AVG(avg_hum) as avg_humidity')
+            ->groupBy('created_at')
+            ->get()
+            ->keyBy(fn($reading) => $reading->created_at->format('Y-m-d H:i:s'));
+
+        $roomAverageChartSeries = $timestampKeys->map(function (string $timestampKey) use ($averageReadingsByTimestamp, $timeLabelsByTimestamp): array {
+            $reading = $averageReadingsByTimestamp->get($timestampKey);
+
+            return [
+                'time' => $timeLabelsByTimestamp->get($timestampKey, Carbon::parse($timestampKey)->format('H:i')),
+                'avg_temperature' => $reading ? round((float) $reading->avg_temperature, 1) : null,
+                'avg_humidity' => $reading ? round((float) $reading->avg_humidity, 1) : null,
+            ];
+        })->values()->all();
+
+        return [
+            'chartSeriesPerSensor' => $chartSeriesPerSensor,
+            'roomAverageChartSeries' => $roomAverageChartSeries,
         ];
     }
 
@@ -716,7 +845,7 @@ class DashboardController extends Controller
             return 'OFFLINE';
         }
 
-        $statuses = $sensors->map(fn ($s) => $s->latestData?->status ?? 'OFFLINE')->unique();
+        $statuses = $sensors->map(fn($s) => $s->latestData?->status ?? 'OFFLINE')->unique();
 
         if ($statuses->contains('CRITICAL')) {
             return 'CRITICAL';
@@ -726,7 +855,7 @@ class DashboardController extends Controller
             return 'WARNING';
         }
 
-        if ($statuses->every(fn ($s) => $s === 'OFFLINE')) {
+        if ($statuses->every(fn($s) => $s === 'OFFLINE')) {
             return 'OFFLINE';
         }
 
@@ -751,10 +880,10 @@ class DashboardController extends Controller
         if ($activeAlarmTypes !== []) {
             return [
                 'temp' => $eventAlarmTypes->contains(
-                    fn (string $type): bool => in_array($type, ['temp', 'temp_high', 'temp_low'], true)
+                    fn(string $type): bool => in_array($type, ['temp', 'temp_high', 'temp_low'], true)
                 ) || (bool) ($latestTemp ?? false),
                 'hum' => $eventAlarmTypes->contains(
-                    fn (string $type): bool => in_array($type, ['hum', 'hum_high', 'hum_low'], true)
+                    fn(string $type): bool => in_array($type, ['hum', 'hum_high', 'hum_low'], true)
                 ) || (bool) ($latestHum ?? false),
                 'disconnect' => $latestDisconnectResolved
                     || ($latestIsOffline && $eventAlarmTypes->contains('disconnect')),
