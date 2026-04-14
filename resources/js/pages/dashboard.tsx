@@ -236,10 +236,6 @@ function parseDateTimeParts(value: string | null): DateTimeParts {
     };
 }
 
-function getDefaultSelectedSeriesKey(roomCount: number): string {
-    return roomCount > 0 ? 'room_1' : 'average';
-}
-
 function formatDateTimeParts(parts: DateTimeParts): string | null {
     const year = Number(parts.year);
     const month = Number(parts.month);
@@ -661,8 +657,11 @@ export default function Dashboard({
     const [endParts, setEndParts] = useState<DateTimeParts>(() =>
         parseDateTimeParts(timeFilter.end_at),
     );
-    const [selectedSeriesKey, setSelectedSeriesKey] = useState<string>(() =>
-        getDefaultSelectedSeriesKey(rooms.length),
+    const [selectedSeriesKeys, setSelectedSeriesKeys] = useState<string[]>(
+        () => [
+            ...rooms.map((_, roomIndex) => `room_${roomIndex + 1}`),
+            'average',
+        ],
     );
     const shouldAutoRefresh =
         timeFilter.mode === 'none' ||
@@ -785,14 +784,8 @@ export default function Dashboard({
         },
     ];
 
-    const effectiveSelectedSeriesKey = chartSeriesDefinitions.some(
-        (series) => series.key === selectedSeriesKey,
-    )
-        ? selectedSeriesKey
-        : (chartSeriesDefinitions[0]?.key ?? 'average');
-
-    const visibleSeriesDefinitions = chartSeriesDefinitions.filter(
-        (series) => series.key === effectiveSelectedSeriesKey,
+    const visibleSeriesDefinitions = chartSeriesDefinitions.filter((series) =>
+        selectedSeriesKeys.includes(series.key),
     );
 
     const hasChartData =
@@ -1024,11 +1017,21 @@ export default function Dashboard({
         seriesKey: string,
         isChecked: boolean,
     ): void {
-        if (!isChecked) {
-            return;
-        }
+        setSelectedSeriesKeys((previous) => {
+            if (isChecked) {
+                if (previous.includes(seriesKey)) {
+                    return previous;
+                }
 
-        setSelectedSeriesKey(seriesKey);
+                return [...previous, seriesKey];
+            }
+
+            if (!previous.includes(seriesKey) || previous.length === 1) {
+                return previous;
+            }
+
+            return previous.filter((key) => key !== seriesKey);
+        });
     }
 
     function renderChartPanels(isFullscreen: boolean) {
@@ -1428,8 +1431,9 @@ export default function Dashboard({
                                         {chartSeriesDefinitions.map(
                                             (series) => {
                                                 const isChecked =
-                                                    effectiveSelectedSeriesKey ===
-                                                    series.key;
+                                                    selectedSeriesKeys.includes(
+                                                        series.key,
+                                                    );
 
                                                 return (
                                                     <label
@@ -1468,8 +1472,8 @@ export default function Dashboard({
                                         )}
                                     </div>
                                     <p className="mt-1 text-[10px] text-slate-500">
-                                        Hanya satu seri yang bisa aktif dalam
-                                        satu waktu.
+                                        Centang seri yang ingin ditampilkan.
+                                        Minimal 1 garis aktif.
                                     </p>
                                 </div>
                             </div>
