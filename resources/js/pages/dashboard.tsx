@@ -1034,12 +1034,51 @@ export default function Dashboard({
         });
     }
 
+    function renderDurationFilterControl(className = 'w-full sm:w-xs') {
+        return (
+            <div className={className}>
+                <Select
+                    value={selectedFilterOptionValue}
+                    onValueChange={handleFilterOptionChange}
+                >
+                    <SelectTrigger className="h-8 border-slate-700 bg-slate-800/70 text-xs text-slate-100">
+                        <SelectValue placeholder="Pilih Opsi Filter Waktu" />
+                    </SelectTrigger>
+                    <SelectContent className="z-120 border-slate-700 bg-slate-900 text-slate-100">
+                        <SelectItem value="none">
+                            Tampilkan Semua Data Terbaru
+                        </SelectItem>
+                        {overviewQuickRangeOptions.map((option) => (
+                            <SelectItem
+                                key={option.minutes}
+                                value={`recent:${option.minutes}`}
+                            >
+                                {option.label}
+                            </SelectItem>
+                        ))}
+                        {timeFilter.mode === 'recent' && !activeQuickRange && (
+                            <SelectItem value="recent-custom">
+                                {`${timeFilter.recent_minutes} Menit Terakhir`}
+                            </SelectItem>
+                        )}
+                        <SelectItem value="custom">
+                            Pilih Rentang Waktu Kustom
+                        </SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+        );
+    }
+
     function renderSeriesFilterControls() {
         return (
             <div className="w-full rounded-lg border border-slate-700/60 bg-slate-900/30 p-2">
-                <p className="text-[10px] font-semibold tracking-wider text-slate-300 uppercase">
-                    Seri Chart
-                </p>
+                <div className="flex flex-wrap items-start gap-2">
+                    <p className="text-[10px] font-semibold tracking-wider text-slate-300 uppercase">
+                        Seri Chart
+                    </p>
+                    {renderDurationFilterControl('ml-auto w-full sm:w-xs')}
+                </div>
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
                     {chartSeriesDefinitions.map((series) => {
                         const isChecked = selectedSeriesKeys.includes(
@@ -1414,41 +1453,6 @@ export default function Dashboard({
 
                         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
                             <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-xl border border-slate-700/60 bg-slate-900/35 p-2">
-                                <div className="w-full sm:w-xs">
-                                    <Select
-                                        value={selectedFilterOptionValue}
-                                        onValueChange={handleFilterOptionChange}
-                                    >
-                                        <SelectTrigger className="h-8 border-slate-700 bg-slate-800/70 text-xs text-slate-100">
-                                            <SelectValue placeholder="Pilih Opsi Filter Waktu" />
-                                        </SelectTrigger>
-                                        <SelectContent className="border-slate-700 bg-slate-900 text-slate-100">
-                                            <SelectItem value="none">
-                                                Tampilkan Semua Data Terbaru
-                                            </SelectItem>
-                                            {overviewQuickRangeOptions.map(
-                                                (option) => (
-                                                    <SelectItem
-                                                        key={option.minutes}
-                                                        value={`recent:${option.minutes}`}
-                                                    >
-                                                        {option.label}
-                                                    </SelectItem>
-                                                ),
-                                            )}
-                                            {timeFilter.mode === 'recent' &&
-                                                !activeQuickRange && (
-                                                    <SelectItem value="recent-custom">
-                                                        {`${timeFilter.recent_minutes} Menit Terakhir`}
-                                                    </SelectItem>
-                                                )}
-                                            <SelectItem value="custom">
-                                                Pilih Rentang Waktu Kustom
-                                            </SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
                                 <button
                                     type="button"
                                     onClick={() =>
