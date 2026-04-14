@@ -4,7 +4,7 @@ import {
     ArrowLeft,
     ChevronLeft,
     ChevronRight,
-    Download,
+    Send,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
@@ -60,6 +60,9 @@ interface AlarmIndexProps {
     pagination: Pagination;
     filters: Filters;
     tabInfo: TabInfo;
+    flashSuccess: string | null;
+    flashError: string | null;
+    exportRecipientEmail: string | null;
 }
 
 const TAB_OPTIONS: Array<{ key: Filters['tab']; label: string }> = [
@@ -75,8 +78,12 @@ export default function AlarmIndex({
     pagination,
     filters,
     tabInfo,
+    flashSuccess,
+    flashError,
+    exportRecipientEmail,
 }: AlarmIndexProps) {
     const [now, setNow] = useState(new Date());
+    const [isSendingEmail, setIsSendingEmail] = useState(false);
 
     useEffect(() => {
         const timer = setInterval(() => setNow(new Date()), 60_000);
@@ -167,12 +174,28 @@ export default function AlarmIndex({
         );
     }
 
-    const exportQuery = new URLSearchParams({
-        tab: filters.tab,
-        ...(filters.room ? { room: String(filters.room) } : {}),
-        ...(startDateInput ? { start_date: startDateInput } : {}),
-        ...(endDateInput ? { end_date: endDateInput } : {}),
-    });
+    function sendExportToEmail(): void {
+        if (!exportRecipientEmail) {
+            return;
+        }
+
+        setIsSendingEmail(true);
+
+        router.post(
+            '/alarms/export/email',
+            {
+                tab: filters.tab,
+                room: filters.room ?? undefined,
+                start_date: startDateInput || undefined,
+                end_date: endDateInput || undefined,
+                page: pagination.currentPage,
+            },
+            {
+                preserveScroll: true,
+                onFinish: () => setIsSendingEmail(false),
+            },
+        );
+    }
 
     const activeAlarmRoomNames =
         Array.from(
@@ -309,13 +332,22 @@ export default function AlarmIndex({
                                 Apply
                             </button>
 
-                            <a
-                                href={`/alarms/export?${exportQuery.toString()}`}
-                                className="flex items-center gap-1.5 rounded-md bg-emerald-600/20 px-3 py-1.5 text-[11px] font-semibold tracking-wider text-emerald-400 uppercase transition-colors hover:bg-emerald-600/40 hover:text-emerald-300"
+                            <button
+                                type="button"
+                                onClick={sendExportToEmail}
+                                disabled={!exportRecipientEmail || isSendingEmail}
+                                title={
+                                    exportRecipientEmail
+                                        ? `Kirim ke ${exportRecipientEmail}`
+                                        : 'Email recipient belum diatur'
+                                }
+                                className="flex items-center gap-1.5 rounded-md bg-emerald-600/20 px-3 py-1.5 text-[11px] font-semibold tracking-wider text-emerald-400 uppercase transition-colors hover:bg-emerald-600/40 hover:text-emerald-300 disabled:cursor-not-allowed disabled:opacity-40"
                             >
-                                <Download className="h-3.5 w-3.5" />
-                                Export CSV
-                            </a>
+                                <Send className="h-3.5 w-3.5" />
+                                {isSendingEmail
+                                    ? 'Mengirim Excel...'
+                                    : 'Export Excel Email'}
+                            </button>
                         </div>
                     </div>
 
@@ -331,6 +363,18 @@ export default function AlarmIndex({
                         <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200">
                             Data alarm bersifat view-only dari hasil baca HMI
                             oleh poller.
+                        </div>
+                    )}
+
+                    {flashSuccess && (
+                        <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
+                            {flashSuccess}
+                        </div>
+                    )}
+
+                    {flashError && (
+                        <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                            {flashError}
                         </div>
                     )}
 

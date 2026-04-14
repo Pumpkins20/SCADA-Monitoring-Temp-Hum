@@ -45,6 +45,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('logs/export/email', [SensorLogController::class, 'exportToEmail'])->name('logs.export-email');
     Route::get('alarms', [AlarmController::class, 'index'])->name('alarms.index');
     Route::get('alarms/export', [AlarmController::class, 'export'])->name('alarms.export');
+    Route::post('alarms/export/email', [AlarmController::class, 'exportToEmail'])->name('alarms.export-email');
 
     Route::get('chart-logs', [ChartLogController::class, 'index'])->name('chart-logs.index');
 

@@ -117,4 +117,6 @@ return [
 
     'export_recipient' => env('LOG_EXPORT_RECIPIENT_EMAIL'),
 
+    'alarm_export_recipient' => env('ALARM_EXPORT_RECIPIENT_EMAIL', env('LOG_EXPORT_RECIPIENT_EMAIL')),
+
 ];

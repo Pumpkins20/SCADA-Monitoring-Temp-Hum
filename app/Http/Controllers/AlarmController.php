@@ -2,14 +2,22 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\AlarmLogExportMail;
 use App\Models\AlarmEvent;
 use App\Models\Room;
 use App\Models\SensorLatestData;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
+use OpenSpout\Common\Entity\Row;
+use OpenSpout\Common\Entity\Style\Color;
+use OpenSpout\Common\Entity\Style\Style;
+use OpenSpout\Writer\XLSX\Writer;
 
 class AlarmController extends Controller
 {
@@ -72,75 +80,236 @@ class AlarmController extends Controller
                 'isViewOnly' => true,
                 'confirmedAvailableFromHmi' => false,
             ],
+            'flashSuccess' => $request->session()->get('success'),
+            'flashError' => $request->session()->get('error'),
+            'exportRecipientEmail' => config('mail.alarm_export_recipient'),
         ]);
     }
 
-    public function export(Request $request)
+    public function export(Request $request): void
     {
-        $tab = $this->resolveTab($request->string('tab', 'realtime')->toString());
-        $activeRoomId = $request->integer('room');
-        $startDate = $this->parseDate((string) $request->query('start_date', ''), false);
-        $endDate = $this->parseDate((string) $request->query('end_date', ''), true);
+        $tab = $this->resolveTab((string) $request->input('tab', 'realtime'));
+        $activeRoomId = (int) $request->input('room', 0);
+        $startDate = $this->parseDate((string) $request->input('start_date', ''), false);
+        $endDate = $this->parseDate((string) $request->input('end_date', ''), true);
 
         $query = $this->buildAlarmQuery($tab, $activeRoomId, $startDate, $endDate);
-        $filename = 'alarm_export_'.now()->format('Ymd_His').'.csv';
+        $hasPersistedRows = (clone $query)->exists();
+        $fallbackRows = ! $hasPersistedRows && $this->isRealtimeTab($tab)
+            ? $this->buildRealtimeFallbackRows($activeRoomId, $startDate, $endDate)
+            : [];
+        $filename = 'Alarm_Logs_'.Str::slug($this->formatTabLabel($tab)).'_'.now()->format('Ymd_His').'.xlsx';
+
+        $writer = new Writer;
+        $writer->openToBrowser($filename);
+        $this->writeExportRows(
+            $writer,
+            $query,
+            $fallbackRows,
+            $tab,
+            $activeRoomId,
+            $startDate,
+            $endDate,
+        );
+        $writer->close();
+    }
+
+    public function exportToEmail(Request $request): RedirectResponse
+    {
+        $tab = $this->resolveTab((string) $request->input('tab', 'realtime'));
+        $activeRoomId = (int) $request->input('room', 0);
+        $startDate = $this->parseDate((string) $request->input('start_date', ''), false);
+        $endDate = $this->parseDate((string) $request->input('end_date', ''), true);
+        $page = max(1, (int) $request->input('page', 1));
+
+        $recipientEmail = (string) config('mail.alarm_export_recipient', '');
+        if ($recipientEmail === '') {
+            return redirect()
+                ->route(
+                    'alarms.index',
+                    $this->buildAlarmIndexQuery($tab, $activeRoomId, $startDate, $endDate, $page),
+                )
+                ->with('error', 'Email recipient export alarm belum diatur.');
+        }
+
+        $query = $this->buildAlarmQuery($tab, $activeRoomId, $startDate, $endDate);
         $hasPersistedRows = (clone $query)->exists();
         $fallbackRows = ! $hasPersistedRows && $this->isRealtimeTab($tab)
             ? $this->buildRealtimeFallbackRows($activeRoomId, $startDate, $endDate)
             : [];
 
-        return response()->streamDownload(function () use ($query, $fallbackRows): void {
-            $handle = fopen('php://output', 'w');
+        $fileName = 'Alarm_Logs_'.Str::slug($this->formatTabLabel($tab)).'_'.now()->format('Ymd_His').'.xlsx';
+        $exportDirectory = storage_path('app/temp/exports');
+        $filePath = $exportDirectory.DIRECTORY_SEPARATOR.$fileName;
+        $generatedAt = now()->format('Y-m-d H:i:s');
+        $subjectExportLabel = 'EXPORT_DATA_ALARM_LOGS_('.now()->format('d_m_Y_H_i').')';
 
-            if ($handle === false) {
-                return;
+        if (! is_dir($exportDirectory)) {
+            mkdir($exportDirectory, 0755, true);
+        }
+
+        try {
+            $writer = new Writer;
+            $writer->openToFile($filePath);
+            $this->writeExportRows(
+                $writer,
+                $query,
+                $fallbackRows,
+                $tab,
+                $activeRoomId,
+                $startDate,
+                $endDate,
+            );
+            $writer->close();
+
+            Mail::to($recipientEmail)->send(new AlarmLogExportMail(
+                filePath: $filePath,
+                fileName: $fileName,
+                generatedAt: $generatedAt,
+                subjectExportLabel: $subjectExportLabel,
+            ));
+        } catch (\Throwable $exception) {
+            if (is_file($filePath)) {
+                unlink($filePath);
             }
 
-            fputcsv($handle, [
-                'Alarm time',
-                'Current value',
-                'Alarm text',
-                'Alarm type',
-                'Variable name',
-                'Confirmed time',
-                'Room name',
-                'Room detail',
-            ]);
+            report($exception);
 
-            if ($fallbackRows !== []) {
-                foreach ($fallbackRows as $row) {
-                    fputcsv($handle, [
-                        $row['alarm_time'],
-                        $row['current_value'],
-                        $row['alarm_text'],
-                        $row['alarm_type'],
-                        $row['variable_name'],
-                        $row['confirmed_time'],
-                        $row['room_name'],
-                        $row['room_detail'],
-                    ]);
-                }
-            } else {
-                foreach ($query->cursor() as $event) {
-                    $row = $this->mapRow($event);
+            return redirect()
+                ->route(
+                    'alarms.index',
+                    $this->buildAlarmIndexQuery($tab, $activeRoomId, $startDate, $endDate, $page),
+                )
+                ->with('error', 'Gagal mengirim export alarm ke email.');
+        }
 
-                    fputcsv($handle, [
-                        $row['alarm_time'],
-                        $row['current_value'],
-                        $row['alarm_text'],
-                        $row['alarm_type'],
-                        $row['variable_name'],
-                        $row['confirmed_time'],
-                        $row['room_name'],
-                        $row['room_detail'],
-                    ]);
-                }
-            }
+        if (is_file($filePath)) {
+            unlink($filePath);
+        }
 
-            fclose($handle);
-        }, $filename, [
-            'Content-Type' => 'text/csv',
-        ]);
+        return redirect()
+            ->route(
+                'alarms.index',
+                $this->buildAlarmIndexQuery($tab, $activeRoomId, $startDate, $endDate, $page),
+            )
+            ->with('success', "Export alarm berhasil dikirim ke {$recipientEmail}.");
+    }
+
+    private function writeExportRows(
+        Writer $writer,
+        Builder $query,
+        array $fallbackRows,
+        string $tab,
+        int $activeRoomId,
+        ?Carbon $startDate,
+        ?Carbon $endDate,
+    ): void {
+        $roomName = 'Semua Ruang';
+
+        if ($activeRoomId > 0) {
+            $roomName = Room::query()->whereKey($activeRoomId)->value('name') ?? "Room {$activeRoomId}";
+        }
+
+        $writer->addRow(Row::fromValues(['Jenis Data', 'Alarm Logs']));
+        $writer->addRow(Row::fromValues(['Tab', $this->formatTabLabel($tab)]));
+        $writer->addRow(Row::fromValues(['Ruangan', $roomName]));
+        $writer->addRow(Row::fromValues(['Start Date', $startDate?->format('Y-m-d H:i:s') ?? '-']));
+        $writer->addRow(Row::fromValues(['End Date', $endDate?->format('Y-m-d H:i:s') ?? '-']));
+        $writer->addRow(Row::fromValues(['Generated At', now()->format('Y-m-d H:i:s')]));
+        $writer->addRow(Row::fromValues(['']));
+
+        $headerStyle = (new Style)
+            ->withFontBold(true)
+            ->withFontColor(Color::WHITE)
+            ->withBackgroundColor('0891B2')
+            ->withShouldWrapText(false);
+
+        $dataStyle = (new Style)
+            ->withShouldWrapText(false);
+
+        $headers = [
+            'Alarm time',
+            'Current value',
+            'Alarm text',
+            'Alarm type',
+            'Variable name',
+            'Confirmed time',
+            'Room name',
+            'Room detail',
+        ];
+
+        $writer->addRow(Row::fromValuesWithStyle($headers, $headerStyle));
+
+        if ($fallbackRows !== []) {
+            $rows = collect($fallbackRows)
+                ->map(fn (array $row) => Row::fromValuesWithStyle([
+                    $row['alarm_time'],
+                    $row['current_value'],
+                    $row['alarm_text'],
+                    $row['alarm_type'],
+                    $row['variable_name'],
+                    $row['confirmed_time'],
+                    $row['room_name'],
+                    $row['room_detail'],
+                ], $dataStyle))
+                ->all();
+
+            $writer->addRows($rows);
+
+            return;
+        }
+
+        foreach ($query->cursor() as $event) {
+            $row = $this->mapRow($event);
+
+            $writer->addRow(Row::fromValuesWithStyle([
+                $row['alarm_time'],
+                $row['current_value'],
+                $row['alarm_text'],
+                $row['alarm_type'],
+                $row['variable_name'],
+                $row['confirmed_time'],
+                $row['room_name'],
+                $row['room_detail'],
+            ], $dataStyle));
+        }
+    }
+
+    private function buildAlarmIndexQuery(
+        string $tab,
+        int $activeRoomId,
+        ?Carbon $startDate,
+        ?Carbon $endDate,
+        int $page,
+    ): array {
+        $query = [
+            'tab' => $tab,
+            'page' => $page,
+        ];
+
+        if ($activeRoomId > 0) {
+            $query['room'] = $activeRoomId;
+        }
+
+        if ($startDate !== null) {
+            $query['start_date'] = $startDate->format('Y-m-d');
+        }
+
+        if ($endDate !== null) {
+            $query['end_date'] = $endDate->format('Y-m-d');
+        }
+
+        return $query;
+    }
+
+    private function formatTabLabel(string $tab): string
+    {
+        return match ($tab) {
+            'history' => 'History Alarm',
+            'no-confirmed' => 'No Confirmed Alarm',
+            'been-confirmed' => 'Been Confirmed Alarm',
+            default => 'Real Time Alarm',
+        };
     }
 
     private function buildAlarmQuery(

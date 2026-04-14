@@ -1,5 +1,6 @@
 <?php
 
+use App\Mail\AlarmLogExportMail;
 use App\Models\AlarmEvent;
 use App\Models\Hmi;
 use App\Models\Room;
@@ -7,9 +8,14 @@ use App\Models\Sensor;
 use App\Models\SensorLatestData;
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Mail;
 
 test('guests are redirected to login from alarms.index', function () {
     $this->get(route('alarms.index'))->assertRedirect(route('login'));
+});
+
+test('guests are redirected to login from alarms.export-email', function () {
+    $this->post(route('alarms.export-email'), ['tab' => 'history'])->assertRedirect(route('login'));
 });
 
 test('authenticated users can visit alarms.index', function () {
@@ -89,7 +95,7 @@ test('been-confirmed tab returns empty rows in view-only mode', function () {
             ->where('tabInfo.confirmedAvailableFromHmi', false));
 });
 
-test('can export alarms as csv with selected filters', function () {
+test('can export alarms as excel with selected filters', function () {
     $room = Room::factory()->create(['name' => 'RUANG EXPORT']);
     $hmi = Hmi::factory()->create(['room_id' => $room->id]);
     $sensor = Sensor::factory()->create(['hmi_id' => $hmi->id, 'unit_id' => 4, 'name' => 'T/H 4']);
@@ -101,14 +107,76 @@ test('can export alarms as csv with selected filters', function () {
         'occurred_at' => now(),
     ]);
 
+    ob_start();
+
     $response = $this->actingAs(User::factory()->create())
         ->get(route('alarms.export', [
             'tab' => 'history',
             'room' => $room->id,
         ]));
 
-    $response->assertOk();
-    $response->assertHeader('content-type', 'text/csv; charset=UTF-8');
+    $binaryContent = (string) ob_get_clean();
+
+    $response->assertSuccessful();
+    expect($binaryContent)->not->toBe('');
+
+    $temporaryFilePath = tempnam(sys_get_temp_dir(), 'alarms_export_');
+    expect($temporaryFilePath)->not->toBeFalse();
+
+    file_put_contents($temporaryFilePath, $binaryContent);
+
+    $zipArchive = new ZipArchive;
+    expect($zipArchive->open($temporaryFilePath))->toBeTrue();
+
+    $worksheetXml = (string) ($zipArchive->getFromName('xl/worksheets/sheet1.xml') ?: '');
+    $sharedStringsXml = (string) ($zipArchive->getFromName('xl/sharedStrings.xml') ?: '');
+    $zipArchive->close();
+
+    @unlink($temporaryFilePath);
+
+    $xmlContent = $worksheetXml.$sharedStringsXml;
+
+    expect($xmlContent)->toContain('Alarm Logs');
+    expect($xmlContent)->toContain('History Alarm');
+    expect($xmlContent)->toContain('RUANG EXPORT');
+    expect($xmlContent)->toContain('Alarm time');
+    expect($xmlContent)->toContain('Room name');
+});
+
+test('authenticated users can send alarm export to configured recipient email', function () {
+    Mail::fake();
+    config()->set('mail.alarm_export_recipient', 'scada1.edutic@gmail.com');
+
+    $room = Room::factory()->create(['name' => 'RUANG EMAIL']);
+    $hmi = Hmi::factory()->create(['room_id' => $room->id]);
+    $sensor = Sensor::factory()->create(['hmi_id' => $hmi->id, 'unit_id' => 2]);
+
+    AlarmEvent::query()->create([
+        'sensor_id' => $sensor->id,
+        'alarm_type' => 'temp',
+        'current_value' => 33.7,
+        'occurred_at' => now(),
+    ]);
+
+    $response = $this->actingAs(User::factory()->create())
+        ->post(route('alarms.export-email'), [
+            'tab' => 'history',
+            'room' => $room->id,
+            'page' => 1,
+        ]);
+
+    $response->assertRedirect(route('alarms.index', [
+        'tab' => 'history',
+        'page' => 1,
+        'room' => $room->id,
+    ]));
+
+    $response->assertSessionHas('success');
+
+    Mail::assertSent(AlarmLogExportMail::class, function (AlarmLogExportMail $mail): bool {
+        return $mail->hasTo('scada1.edutic@gmail.com')
+            && str_starts_with($mail->subjectExportLabel, 'EXPORT_DATA_ALARM_LOGS_(');
+    });
 });
 
 test('realtime tab falls back to sensor latest alarms when alarm events are empty', function () {
