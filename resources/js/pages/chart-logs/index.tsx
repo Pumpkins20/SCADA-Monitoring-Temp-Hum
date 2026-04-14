@@ -4,9 +4,11 @@ import {
     BarChart2,
     ChevronRight,
     Droplets,
+    Expand,
+    Minimize2,
     Thermometer,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
 import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
@@ -16,6 +18,7 @@ import {
     ChartTooltip,
     ChartTooltipContent,
 } from '@/components/ui/chart';
+import type { ChartConfig } from '@/components/ui/chart';
 import {
     Dialog,
     DialogContent,
@@ -31,7 +34,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import type { ChartConfig } from '@/components/ui/chart';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -80,6 +82,12 @@ interface DateTimeParts {
 }
 
 type DateTimeField = keyof DateTimeParts;
+
+interface ChartSeriesDefinition {
+    key: string;
+    label: string;
+    color: string;
+}
 
 type ChartLogsIndexProps =
     | {
@@ -531,14 +539,12 @@ function ChartPanel({
     label,
     labelColor,
     data,
-    seriesKeys,
-    seriesNames,
+    seriesDefinitions,
 }: {
     label: string;
     labelColor: string;
     data: Record<string, string | number | null>[];
-    seriesKeys: string[];
-    seriesNames: string[];
+    seriesDefinitions: ChartSeriesDefinition[];
 }) {
     return (
         <div className="rounded-lg border border-slate-700/60 bg-slate-900/40 p-3">
@@ -578,13 +584,13 @@ function ChartPanel({
                                 />
                             }
                         />
-                        {seriesKeys.map((key, idx) => (
+                        {seriesDefinitions.map((series) => (
                             <Line
-                                key={key}
-                                dataKey={key}
-                                name={seriesNames[idx]}
+                                key={series.key}
+                                dataKey={series.key}
+                                name={series.label}
                                 type="linear"
-                                stroke={lineColors[idx % lineColors.length]}
+                                stroke={series.color}
                                 strokeWidth={2}
                                 dot={false}
                                 activeDot={{ r: 3 }}
@@ -596,19 +602,16 @@ function ChartPanel({
                 </ChartContainer>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-3 rounded-md border border-slate-700/60 bg-slate-900/20 px-3 py-2">
-                {seriesNames.map((name, idx) => (
+                {seriesDefinitions.map((series) => (
                     <div
-                        key={name}
+                        key={series.key}
                         className="flex items-center gap-1.5 text-[11px] text-slate-300"
                     >
                         <span
                             className="h-2.5 w-2.5 shrink-0 rounded-sm"
-                            style={{
-                                backgroundColor:
-                                    lineColors[idx % lineColors.length],
-                            }}
+                            style={{ backgroundColor: series.color }}
                         />
-                        <span className="uppercase">{name}</span>
+                        <span className="uppercase">{series.label}</span>
                     </div>
                 ))}
             </div>
@@ -620,14 +623,25 @@ function ChartPanel({
 
 function OverviewCharts({
     roomChartSeries,
+    visibleSeriesDefinitions,
 }: {
     roomChartSeries: RoomChartSeries[];
+    visibleSeriesDefinitions: ChartSeriesDefinition[];
 }) {
-    const hasData = roomChartSeries.some((s) =>
-        s.points.some(
-            (p) => p.avg_temperature !== null || p.avg_humidity !== null,
-        ),
+    const visibleSeriesKeys = new Set(
+        visibleSeriesDefinitions.map((series) => series.key),
     );
+
+    const hasData = roomChartSeries.some((series, index) => {
+        if (!visibleSeriesKeys.has(`room_${index + 1}`)) {
+            return false;
+        }
+
+        return series.points.some(
+            (point) =>
+                point.avg_temperature !== null || point.avg_humidity !== null,
+        );
+    });
 
     const maxLen = roomChartSeries.reduce(
         (m, s) => Math.max(m, s.points.length),
@@ -661,13 +675,18 @@ function OverviewCharts({
         );
     });
 
-    const seriesKeys = roomChartSeries.map((_, ri) => `room_${ri + 1}`);
-    const seriesNames = roomChartSeries.map((s) => s.roomName);
-
     if (roomChartSeries.length === 0) {
         return (
             <div className="rounded-lg border border-slate-700/60 bg-slate-900/40 px-4 py-10 text-center text-sm text-slate-500">
                 Belum ada ruangan yang terdaftar.
+            </div>
+        );
+    }
+
+    if (visibleSeriesDefinitions.length === 0) {
+        return (
+            <div className="rounded-lg border border-slate-700/60 bg-slate-900/40 px-4 py-10 text-center text-sm text-slate-500">
+                Pilih minimal 1 seri chart untuk ditampilkan.
             </div>
         );
     }
@@ -686,15 +705,13 @@ function OverviewCharts({
                 label="Temperature — Rata-rata per Ruangan"
                 labelColor="#67e8f9"
                 data={tempData}
-                seriesKeys={seriesKeys}
-                seriesNames={seriesNames}
+                seriesDefinitions={visibleSeriesDefinitions}
             />
             <ChartPanel
                 label="Humidity — Rata-rata per Ruangan"
                 labelColor="#93c5fd"
                 data={humData}
-                seriesKeys={seriesKeys}
-                seriesNames={seriesNames}
+                seriesDefinitions={visibleSeriesDefinitions}
             />
         </div>
     );
@@ -704,14 +721,25 @@ function OverviewCharts({
 
 function DetailCharts({
     chartSeriesPerSensor,
+    visibleSeriesDefinitions,
 }: {
     chartSeriesPerSensor: SensorChartSeries[];
+    visibleSeriesDefinitions: ChartSeriesDefinition[];
 }) {
-    const hasData = chartSeriesPerSensor.some((s) =>
-        s.points.some(
-            (p) => p.avg_temperature !== null || p.avg_humidity !== null,
-        ),
+    const visibleSeriesKeys = new Set(
+        visibleSeriesDefinitions.map((series) => series.key),
     );
+
+    const hasData = chartSeriesPerSensor.some((series, index) => {
+        if (!visibleSeriesKeys.has(`sensor_${index + 1}`)) {
+            return false;
+        }
+
+        return series.points.some(
+            (point) =>
+                point.avg_temperature !== null || point.avg_humidity !== null,
+        );
+    });
 
     const maxLen = chartSeriesPerSensor.reduce(
         (m, s) => Math.max(m, s.points.length),
@@ -748,13 +776,18 @@ function DetailCharts({
         );
     });
 
-    const seriesKeys = chartSeriesPerSensor.map((_, si) => `sensor_${si + 1}`);
-    const seriesNames = chartSeriesPerSensor.map((s) => s.sensorName);
-
     if (chartSeriesPerSensor.length === 0) {
         return (
             <div className="rounded-lg border border-slate-700/60 bg-slate-900/40 px-4 py-10 text-center text-sm text-slate-500">
                 Belum ada sensor di ruangan ini.
+            </div>
+        );
+    }
+
+    if (visibleSeriesDefinitions.length === 0) {
+        return (
+            <div className="rounded-lg border border-slate-700/60 bg-slate-900/40 px-4 py-10 text-center text-sm text-slate-500">
+                Pilih minimal 1 seri chart untuk ditampilkan.
             </div>
         );
     }
@@ -773,15 +806,13 @@ function DetailCharts({
                 label="Temperature — Per Sensor"
                 labelColor="#67e8f9"
                 data={tempData}
-                seriesKeys={seriesKeys}
-                seriesNames={seriesNames}
+                seriesDefinitions={visibleSeriesDefinitions}
             />
             <ChartPanel
                 label="Humidity — Per Sensor"
                 labelColor="#93c5fd"
                 data={humData}
-                seriesKeys={seriesKeys}
-                seriesNames={seriesNames}
+                seriesDefinitions={visibleSeriesDefinitions}
             />
         </div>
     );
@@ -791,6 +822,7 @@ function DetailCharts({
 
 export default function ChartLogsIndex(props: ChartLogsIndexProps) {
     const [now, setNow] = useState(new Date());
+    const [isChartsFullscreen, setIsChartsFullscreen] = useState(false);
     const [showCustomRangeDialog, setShowCustomRangeDialog] = useState(false);
     const [intervalValidationError, setIntervalValidationError] = useState<
         string | null
@@ -804,6 +836,19 @@ export default function ChartLogsIndex(props: ChartLogsIndexProps) {
     );
     const [endParts, setEndParts] = useState<DateTimeParts>(() =>
         parseDateTimeParts(props.timeFilter.end_at),
+    );
+    const [selectedSeriesKeys, setSelectedSeriesKeys] = useState<string[]>(
+        () => {
+            if (props.mode === 'overview') {
+                return props.roomChartSeries.map(
+                    (_, roomIndex) => `room_${roomIndex + 1}`,
+                );
+            }
+
+            return props.chartSeriesPerSensor.map(
+                (_, sensorIndex) => `sensor_${sensorIndex + 1}`,
+            );
+        },
     );
     const shouldAutoRefresh =
         props.timeFilter.mode === 'none' ||
@@ -831,6 +876,28 @@ export default function ChartLogsIndex(props: ChartLogsIndexProps) {
         return () => clearInterval(timer);
     }, [props.mode, shouldAutoRefresh]);
 
+    useEffect(() => {
+        if (!isChartsFullscreen) {
+            return;
+        }
+
+        function handleKeyDown(event: KeyboardEvent): void {
+            if (event.key === 'Escape') {
+                setIsChartsFullscreen(false);
+            }
+        }
+
+        const previousBodyOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+
+        window.addEventListener('keydown', handleKeyDown);
+
+        return () => {
+            document.body.style.overflow = previousBodyOverflow;
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isChartsFullscreen]);
+
     const timeStr = now.toLocaleTimeString('id-ID', {
         hour: '2-digit',
         minute: '2-digit',
@@ -848,6 +915,48 @@ export default function ChartLogsIndex(props: ChartLogsIndexProps) {
     const quickRangeOptions = isOverview
         ? overviewQuickRangeOptions
         : detailQuickRangeOptions;
+    const chartSeriesDefinitions = useMemo<ChartSeriesDefinition[]>(() => {
+        if (props.mode === 'overview') {
+            return props.roomChartSeries.map((series, roomIndex) => ({
+                key: `room_${roomIndex + 1}`,
+                label: series.roomName,
+                color: lineColors[roomIndex % lineColors.length],
+            }));
+        }
+
+        return props.chartSeriesPerSensor.map((series, sensorIndex) => ({
+            key: `sensor_${sensorIndex + 1}`,
+            label: series.sensorName,
+            color: lineColors[sensorIndex % lineColors.length],
+        }));
+    }, [props]);
+    const availableSeriesKeys = useMemo(
+        () => chartSeriesDefinitions.map((series) => series.key),
+        [chartSeriesDefinitions],
+    );
+    const normalizedSelectedSeriesKeys = useMemo(() => {
+        const retainedKeys = selectedSeriesKeys.filter((key) =>
+            availableSeriesKeys.includes(key),
+        );
+
+        if (retainedKeys.length === 0) {
+            return availableSeriesKeys;
+        }
+
+        const missingKeys = availableSeriesKeys.filter(
+            (key) => !retainedKeys.includes(key),
+        );
+
+        return [...retainedKeys, ...missingKeys];
+    }, [availableSeriesKeys, selectedSeriesKeys]);
+    const visibleSeriesDefinitions = useMemo(
+        () =>
+            chartSeriesDefinitions.filter((series) =>
+                normalizedSelectedSeriesKeys.includes(series.key),
+            ),
+        [chartSeriesDefinitions, normalizedSelectedSeriesKeys],
+    );
+
     const activeFilterQuery = {
         ...(props.timeFilter.mode !== 'none'
             ? { time_filter: props.timeFilter.mode }
@@ -1027,6 +1136,187 @@ export default function ChartLogsIndex(props: ChartLogsIndexProps) {
         visitChart({ ...baseRoomQuery });
     }
 
+    function toggleSeriesVisibility(
+        seriesKey: string,
+        isChecked: boolean,
+    ): void {
+        const currentSelectedKeys = normalizedSelectedSeriesKeys;
+
+        if (isChecked) {
+            if (currentSelectedKeys.includes(seriesKey)) {
+                return;
+            }
+
+            setSelectedSeriesKeys([...currentSelectedKeys, seriesKey]);
+
+            return;
+        }
+
+        if (
+            !currentSelectedKeys.includes(seriesKey) ||
+            currentSelectedKeys.length === 1
+        ) {
+            return;
+        }
+
+        setSelectedSeriesKeys(
+            currentSelectedKeys.filter((key) => key !== seriesKey),
+        );
+    }
+
+    function renderDurationFilterControl(className = 'w-full sm:w-[360px]') {
+        return (
+            <div className={className}>
+                <Select
+                    value={selectedFilterOptionValue}
+                    onValueChange={handleFilterOptionChange}
+                >
+                    <SelectTrigger className="h-8 border-slate-700 bg-slate-800/70 text-xs text-slate-100">
+                        <SelectValue placeholder="Pilih Opsi Filter Waktu" />
+                    </SelectTrigger>
+                    <SelectContent className="z-120 border-slate-700 bg-slate-900 text-slate-100">
+                        <SelectItem value="none">
+                            Tampilkan Semua Data Terbaru
+                        </SelectItem>
+                        {quickRangeOptions.map((option) => (
+                            <SelectItem
+                                key={option.minutes}
+                                value={`recent:${option.minutes}`}
+                            >
+                                {option.label}
+                            </SelectItem>
+                        ))}
+                        {props.timeFilter.mode === 'recent' &&
+                            !activeQuickRange && (
+                                <SelectItem value="recent-custom">
+                                    {`${props.timeFilter.recent_minutes} Menit Terakhir`}
+                                </SelectItem>
+                            )}
+                        <SelectItem value="custom">
+                            Pilih Rentang Waktu Kustom
+                        </SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+        );
+    }
+
+    function renderSeriesFilterControls(showFullscreenButton = false) {
+        return (
+            <div className="w-full rounded-xl border border-slate-700/60 bg-slate-900/30 p-2">
+                <div className="flex flex-wrap items-start gap-2">
+                    <p className="text-[10px] font-semibold tracking-wider text-slate-300 uppercase">
+                        Seri Chart
+                    </p>
+
+                    <div className="ml-auto flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
+                        {renderDurationFilterControl('w-full sm:w-[320px]')}
+
+                        {showFullscreenButton && (
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setIsChartsFullscreen(
+                                        (previous) => !previous,
+                                    )
+                                }
+                                aria-label={
+                                    isChartsFullscreen
+                                        ? 'Tutup fullscreen chart logs'
+                                        : 'Buka fullscreen chart logs'
+                                }
+                                className={`flex h-8 items-center justify-center gap-1.5 rounded-md px-2.5 text-[10px] font-semibold tracking-wider uppercase transition-colors ${
+                                    isChartsFullscreen
+                                        ? 'border border-cyan-500/40 bg-cyan-500/20 text-cyan-300'
+                                        : 'border border-slate-700/40 bg-slate-700/40 text-slate-400 hover:text-slate-200'
+                                }`}
+                            >
+                                {isChartsFullscreen ? (
+                                    <Minimize2 className="h-3 w-3" />
+                                ) : (
+                                    <Expand className="h-3 w-3" />
+                                )}
+                                Fullscreen
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                {chartSeriesDefinitions.length > 0 && (
+                    <>
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                            {chartSeriesDefinitions.map((series) => {
+                                const isChecked =
+                                    normalizedSelectedSeriesKeys.includes(
+                                        series.key,
+                                    );
+
+                                return (
+                                    <label
+                                        key={series.key}
+                                        className={`flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1 text-[10px] font-medium transition-colors ${
+                                            isChecked
+                                                ? 'border-cyan-500/40 bg-cyan-500/10 text-slate-100'
+                                                : 'border-slate-700/70 bg-slate-800/60 text-slate-400'
+                                        }`}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={isChecked}
+                                            onChange={(event) =>
+                                                toggleSeriesVisibility(
+                                                    series.key,
+                                                    event.target.checked,
+                                                )
+                                            }
+                                            className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900 text-cyan-500 focus:ring-cyan-500"
+                                        />
+                                        <span
+                                            className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                                            style={{
+                                                backgroundColor: series.color,
+                                            }}
+                                        />
+                                        <span>{series.label}</span>
+                                    </label>
+                                );
+                            })}
+                        </div>
+
+                        <p className="mt-1 text-[10px] text-slate-500">
+                            Centang seri yang ingin ditampilkan. Minimal 1 garis
+                            aktif.
+                        </p>
+                    </>
+                )}
+            </div>
+        );
+    }
+
+    function renderChartsSection(isFullscreen: boolean) {
+        const charts = isOverview ? (
+            <OverviewCharts
+                roomChartSeries={props.roomChartSeries}
+                visibleSeriesDefinitions={visibleSeriesDefinitions}
+            />
+        ) : (
+            <DetailCharts
+                chartSeriesPerSensor={props.chartSeriesPerSensor}
+                visibleSeriesDefinitions={visibleSeriesDefinitions}
+            />
+        );
+
+        if (isFullscreen) {
+            return <div className="h-full overflow-auto">{charts}</div>;
+        }
+
+        return (
+            <section className="flex-1 overflow-auto rounded-xl border border-slate-700/60 bg-slate-800/50 p-3 backdrop-blur-sm">
+                {charts}
+            </section>
+        );
+    }
+
     return (
         <>
             <Head
@@ -1112,43 +1402,7 @@ export default function ChartLogsIndex(props: ChartLogsIndexProps) {
                         </div>
                     )}
 
-                    {/* ── Filter controls ── */}
-                    <div className="rounded-lg border border-slate-700/60 bg-slate-900/30 px-3 py-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <div className="w-full sm:w-[360px]">
-                                <Select
-                                    value={selectedFilterOptionValue}
-                                    onValueChange={handleFilterOptionChange}
-                                >
-                                    <SelectTrigger className="h-8 border-slate-700 bg-slate-800/70 text-xs text-slate-100">
-                                        <SelectValue placeholder="Pilih Opsi Filter Waktu" />
-                                    </SelectTrigger>
-                                    <SelectContent className="border-slate-700 bg-slate-900 text-slate-100">
-                                        <SelectItem value="none">
-                                            Tampilkan Semua Data Terbaru
-                                        </SelectItem>
-                                        {quickRangeOptions.map((option) => (
-                                            <SelectItem
-                                                key={option.minutes}
-                                                value={`recent:${option.minutes}`}
-                                            >
-                                                {option.label}
-                                            </SelectItem>
-                                        ))}
-                                        {props.timeFilter.mode === 'recent' &&
-                                            !activeQuickRange && (
-                                                <SelectItem value="recent-custom">
-                                                    {`${props.timeFilter.recent_minutes} Menit Terakhir`}
-                                                </SelectItem>
-                                            )}
-                                        <SelectItem value="custom">
-                                            Pilih Rentang Waktu Kustom
-                                        </SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-                    </div>
+                    {renderSeriesFilterControls(true)}
 
                     {/* ── Chart heading ── */}
                     <div className="flex items-center gap-1.5">
@@ -1164,21 +1418,20 @@ export default function ChartLogsIndex(props: ChartLogsIndexProps) {
                         </span>
                     </div>
 
-                    {/* ── Charts ── */}
-                    <section className="flex-1 overflow-auto rounded-xl border border-slate-700/60 bg-slate-800/50 p-3 backdrop-blur-sm">
-                        {isOverview ? (
-                            <OverviewCharts
-                                roomChartSeries={props.roomChartSeries}
-                            />
-                        ) : (
-                            <DetailCharts
-                                chartSeriesPerSensor={
-                                    props.chartSeriesPerSensor
-                                }
-                            />
-                        )}
-                    </section>
+                    {renderChartsSection(false)}
                 </main>
+
+                {isChartsFullscreen && (
+                    <div className="fixed inset-0 z-90 flex flex-col bg-[#0f1316] p-3 xl:p-4">
+                        <div className="mb-2 shrink-0">
+                            {renderSeriesFilterControls(true)}
+                        </div>
+
+                        <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-slate-700/60 bg-[#151b1f] p-2 xl:p-3">
+                            {renderChartsSection(true)}
+                        </div>
+                    </div>
+                )}
 
                 {/* ── FOOTER ──────────────────────────────────────── */}
                 <ScadaFooterNav
