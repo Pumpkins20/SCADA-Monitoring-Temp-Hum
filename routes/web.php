@@ -25,14 +25,14 @@ Route::inertia('/welcome', 'welcome', [
 ])->name('welcome');
 
 Route::middleware(['auth'])->group(function () {
-    Route::get('user/confirm-password', fn () => Inertia::render('auth/confirm-password', [
+    Route::get('user/confirm-password', fn() => Inertia::render('auth/confirm-password', [
         'timeoutSeconds' => (int) config('auth.password_timeout', 900),
     ]))
         ->name('password.confirm');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('dashboard', DashboardController::class.'@index')->name('dashboard');
+    Route::get('dashboard', DashboardController::class . '@index')->name('dashboard');
     Route::get('mirror', [MirrorController::class, 'index'])->name('mirror.index');
     Route::post('mirror/test-connection', [MirrorController::class, 'testConnection'])
         ->middleware('throttle:30,1')
@@ -42,6 +42,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('logs', [SensorLogController::class, 'index'])->name('logs.index');
     Route::get('logs/export', [SensorLogController::class, 'export'])->name('logs.export');
+    Route::get('logs/export/pdf', [SensorLogController::class, 'exportPdf'])->name('logs.export-pdf');
     Route::post('logs/export/email', [SensorLogController::class, 'exportToEmail'])->name('logs.export-email');
     Route::get('alarms', [AlarmController::class, 'index'])->name('alarms.index');
     Route::get('alarms/export', [AlarmController::class, 'export'])->name('alarms.export');
@@ -91,4 +92,4 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 });
 
-require __DIR__.'/settings.php';
+require __DIR__ . '/settings.php';

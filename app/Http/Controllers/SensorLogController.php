@@ -2,10 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ExportSensorLogsRequest;
 use App\Mail\SensorLogExportMail;
+use App\Models\GaugeSetting;
 use App\Models\Room;
 use App\Models\Sensor;
 use App\Models\SensorReading;
+use Dompdf\Dompdf;
+use Dompdf\Options;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,6 +23,7 @@ use OpenSpout\Common\Entity\Row;
 use OpenSpout\Common\Entity\Style\Color;
 use OpenSpout\Common\Entity\Style\Style;
 use OpenSpout\Writer\XLSX\Writer;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class SensorLogController extends Controller
 {
@@ -137,11 +142,11 @@ class SensorLogController extends Controller
             ],
             'flashSuccess' => $request->session()->get('success'),
             'flashError' => $request->session()->get('error'),
-            'exportRecipientEmail' => config('mail.export_recipient'),
+            'exportRecipientEmail' => $this->resolveExportRecipientEmail(),
         ]);
     }
 
-    public function export(Request $request): void
+    public function export(ExportSensorLogsRequest $request): void
     {
         $activeRoomId = (int) $request->input('room');
         $room = Room::findOrFail($activeRoomId);
@@ -178,7 +183,69 @@ class SensorLogController extends Controller
         $writer->close();
     }
 
-    public function exportToEmail(Request $request): RedirectResponse
+    public function exportPdf(ExportSensorLogsRequest $request): SymfonyResponse
+    {
+        $activeRoomId = (int) $request->input('room');
+        $room = Room::findOrFail($activeRoomId);
+        $timeFilterMode = $this->resolveTimeFilterMode(
+            (string) $request->input('time_filter', 'none')
+        );
+        $startAt = $this->parseDateTime((string) $request->input('start_at', ''));
+        $endAt = $this->parseDateTime((string) $request->input('end_at', ''));
+        $recentMinutes = $this->normalizeRecentMinutes(
+            (int) $request->input('recent_minutes', 5)
+        );
+
+        $sensors = Sensor::query()
+            ->whereHas('hmi', fn($q) => $q->where('room_id', $activeRoomId))
+            ->orderBy('id')
+            ->get(['id', 'name']);
+
+        $sensorIds = $sensors->pluck('id');
+        $metadata = $this->buildRoomExportMetadata($room);
+        $headers = $this->buildExportHeaders($sensors->count());
+        $rows = $this->buildChunkedExportRows(
+            $sensors,
+            $sensorIds,
+            $timeFilterMode,
+            $startAt,
+            $endAt,
+            $recentMinutes,
+        );
+
+        $fileName = 'Log_Sensor_' . Str::slug($room->name) . '_' . now()->format('Ymd_His') . '.pdf';
+
+        $html = view('exports.sensor-log-pdf', [
+            'roomName' => $room->name,
+            'roomMetadata' => $metadata,
+            'headers' => $headers,
+            'rows' => $rows,
+            'generatedAt' => now()->format('Y-m-d H:i:s'),
+            'timeFilterMode' => $timeFilterMode,
+            'startAt' => $startAt?->format('Y-m-d H:i:s'),
+            'endAt' => $endAt?->format('Y-m-d H:i:s'),
+            'recentMinutes' => $recentMinutes,
+        ])->render();
+
+        $options = new Options;
+        $options->set('isRemoteEnabled', false);
+
+        $dompdf = new Dompdf($options);
+        $dompdf->setPaper('A4', 'landscape');
+        $dompdf->loadHtml($html);
+        $dompdf->render();
+
+        return response(
+            $dompdf->output(),
+            200,
+            [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
+            ],
+        );
+    }
+
+    public function exportToEmail(ExportSensorLogsRequest $request): RedirectResponse
     {
         $activeRoomId = (int) $request->input('room');
         $room = Room::findOrFail($activeRoomId);
@@ -192,8 +259,8 @@ class SensorLogController extends Controller
         );
         $page = max(1, (int) $request->input('page', 1));
 
-        $recipientEmail = (string) config('mail.export_recipient', '');
-        if ($recipientEmail === '') {
+        $recipientEmail = $this->resolveExportRecipientEmail();
+        if ($recipientEmail === null) {
             return redirect()
                 ->route(
                     'logs.index',
@@ -206,7 +273,7 @@ class SensorLogController extends Controller
                         $page,
                     ),
                 )
-                ->with('error', 'Email recipient export log belum diatur.');
+                ->with('error', 'Email backup otomatis belum diatur.');
         }
 
         $sensors = Sensor::query()
@@ -295,21 +362,11 @@ class SensorLogController extends Controller
         ?Carbon $endAt,
         int $recentMinutes,
     ): void {
+        $metadata = $this->buildRoomExportMetadata($room);
 
-        $roomLocation = $room->location !== null && $room->location !== ''
-            ? $room->location
-            : '-';
-        $roomIpAddresses = $room->hmis()
-            ->whereNotNull('ip_address')
-            ->pluck('ip_address')
-            ->filter(fn($ipAddress) => $ipAddress !== null && $ipAddress !== '')
-            ->unique()
-            ->implode(', ');
-        $ipAddressSummary = $roomIpAddresses !== '' ? $roomIpAddresses : '-';
-
-        $writer->addRow(Row::fromValues(['Nama Ruangan', $room->name]));
-        $writer->addRow(Row::fromValues(['Lokasi Ruangan', $roomLocation]));
-        $writer->addRow(Row::fromValues(['IP Address', $ipAddressSummary]));
+        $writer->addRow(Row::fromValues(['Nama Ruangan', $metadata['room_location_name']]));
+        $writer->addRow(Row::fromValues(['Lokasi Ruangan', $metadata['room_location']]));
+        $writer->addRow(Row::fromValues(['IP Address', $metadata['ip_address_summary']]));
         $writer->addRow(Row::fromValues(['']));
 
         // Header Style
@@ -324,16 +381,7 @@ class SensorLogController extends Controller
             ->withShouldWrapText(false);
 
         // Header Row
-        $headers = ['Waktu'];
-        $sensorCount = $sensors->count();
-        for ($i = 1; $i <= $sensorCount; $i++) {
-            $headers[] = "Suhu $i (°C)";
-        }
-        for ($i = 1; $i <= $sensorCount; $i++) {
-            $headers[] = "Kelembapan $i (%)";
-        }
-        $headers[] = 'Rata-rata Suhu (°C)';
-        $headers[] = 'Rata-rata Kelembapan (%)';
+        $headers = $this->buildExportHeaders($sensors->count());
 
         $headerRow = Row::fromValuesWithStyle($headers, $headerStyle);
         $writer->addRow($headerRow);
@@ -342,6 +390,7 @@ class SensorLogController extends Controller
         $perPage = 1000;
         $page = 1;
         $baseTimestampsQuery = SensorReading::query()->whereIn('sensor_id', $sensorIds);
+        $sensorList = $sensors->values();
 
         $this->applyTimeFilter(
             $baseTimestampsQuery,
@@ -370,41 +419,8 @@ class SensorLogController extends Controller
                 ->whereIn('created_at', $timestamps)
                 ->get();
 
-            $sensorList = $sensors->values();
-            $rows = $readings
-                ->groupBy(fn($r) => $r->created_at->format('Y-m-d H:i:s'))
-                ->sortKeysDesc()
-                ->map(function ($group, $time) use ($sensorList, $dataStyle) {
-                    $rowData = [$time];
-                    $tempSum = 0;
-                    $humSum = 0;
-                    $count = 0;
-
-                    $temps = [];
-                    $hums = [];
-
-                    foreach ($sensorList as $sensor) {
-                        $reading = $group->firstWhere('sensor_id', $sensor->id);
-                        $temp = $reading ? (float) $reading->avg_temp : null;
-                        $hum = $reading ? (float) $reading->avg_hum : null;
-
-                        // We can insert integer/float or empty string. Spout auto-detects type.
-                        $temps[] = $temp !== null ? $temp : '';
-                        $hums[] = $hum !== null ? $hum : '';
-
-                        if ($temp !== null) {
-                            $tempSum += $temp;
-                            $humSum += $hum;
-                            $count++;
-                        }
-                    }
-
-                    $rowData = array_merge($rowData, $temps, $hums);
-                    $rowData[] = $count > 0 ? round($tempSum / $count, 1) : '';
-                    $rowData[] = $count > 0 ? round($humSum / $count, 1) : '';
-
-                    return Row::fromValuesWithStyle($rowData, $dataStyle);
-                })
+            $rows = $this->mapReadingsToExportRows($readings, $sensorList)
+                ->map(fn(array $rowData) => Row::fromValuesWithStyle($rowData, $dataStyle))
                 ->values()
                 ->all();
 
@@ -412,6 +428,157 @@ class SensorLogController extends Controller
 
             $page++;
         }
+    }
+
+    /**
+     * @return array{room_location_name: string, room_location: string, ip_address_summary: string}
+     */
+    private function buildRoomExportMetadata(Room $room): array
+    {
+        $roomLocation = $room->location !== null && $room->location !== ''
+            ? $room->location
+            : '-';
+        $roomIpAddresses = $room->hmis()
+            ->whereNotNull('ip_address')
+            ->pluck('ip_address')
+            ->filter(fn($ipAddress) => $ipAddress !== null && $ipAddress !== '')
+            ->unique()
+            ->implode(', ');
+
+        return [
+            'room_location_name' => $room->name,
+            'room_location' => $roomLocation,
+            'ip_address_summary' => $roomIpAddresses !== '' ? $roomIpAddresses : '-',
+        ];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function buildExportHeaders(int $sensorCount): array
+    {
+        $headers = ['Waktu'];
+
+        for ($i = 1; $i <= $sensorCount; $i++) {
+            $headers[] = "Suhu $i (°C)";
+        }
+
+        for ($i = 1; $i <= $sensorCount; $i++) {
+            $headers[] = "Kelembapan $i (%)";
+        }
+
+        $headers[] = 'Rata-rata Suhu (°C)';
+        $headers[] = 'Rata-rata Kelembapan (%)';
+
+        return $headers;
+    }
+
+    /**
+     * @return Collection<int, array<int, float|string>>
+     */
+    private function mapReadingsToExportRows(Collection $readings, Collection $sensorList): Collection
+    {
+        return $readings
+            ->groupBy(fn($reading) => $reading->created_at->format('Y-m-d H:i:s'))
+            ->sortKeysDesc()
+            ->map(function ($group, $time) use ($sensorList) {
+                $tempSum = 0;
+                $humSum = 0;
+                $count = 0;
+                $temps = [];
+                $hums = [];
+
+                foreach ($sensorList as $sensor) {
+                    $reading = $group->firstWhere('sensor_id', $sensor->id);
+                    $temp = $reading ? (float) $reading->avg_temp : null;
+                    $hum = $reading ? (float) $reading->avg_hum : null;
+
+                    $temps[] = $temp !== null ? $temp : '';
+                    $hums[] = $hum !== null ? $hum : '';
+
+                    if ($temp !== null) {
+                        $tempSum += $temp;
+                        $humSum += $hum;
+                        $count++;
+                    }
+                }
+
+                return array_merge(
+                    [$time],
+                    $temps,
+                    $hums,
+                    [
+                        $count > 0 ? round($tempSum / $count, 1) : '',
+                        $count > 0 ? round($humSum / $count, 1) : '',
+                    ],
+                );
+            })
+            ->values();
+    }
+
+    /**
+     * @return array<int, array<int, float|string>>
+     */
+    private function buildChunkedExportRows(
+        Collection $sensors,
+        Collection $sensorIds,
+        string $timeFilterMode,
+        ?Carbon $startAt,
+        ?Carbon $endAt,
+        int $recentMinutes,
+    ): array {
+        $rows = [];
+        $perPage = 1000;
+        $page = 1;
+        $sensorList = $sensors->values();
+
+        $baseTimestampsQuery = SensorReading::query()->whereIn('sensor_id', $sensorIds);
+
+        $this->applyTimeFilter(
+            $baseTimestampsQuery,
+            $timeFilterMode,
+            $startAt,
+            $endAt,
+            $recentMinutes,
+        );
+
+        while (true) {
+            $timestamps = (clone $baseTimestampsQuery)
+                ->selectRaw('DISTINCT created_at')
+                ->orderByDesc('created_at')
+                ->offset(($page - 1) * $perPage)
+                ->limit($perPage)
+                ->pluck('created_at');
+
+            if ($timestamps->isEmpty()) {
+                break;
+            }
+
+            $readings = SensorReading::query()
+                ->whereIn('sensor_id', $sensorIds)
+                ->whereIn('created_at', $timestamps)
+                ->get();
+
+            $chunkRows = $this->mapReadingsToExportRows($readings, $sensorList)->all();
+            $rows = [...$rows, ...$chunkRows];
+
+            $page++;
+        }
+
+        return $rows;
+    }
+
+    private function resolveExportRecipientEmail(): ?string
+    {
+        $backupEmail = GaugeSetting::query()->value('backup_email');
+
+        if (! is_string($backupEmail)) {
+            return null;
+        }
+
+        $normalized = trim($backupEmail);
+
+        return $normalized !== '' ? $normalized : null;
     }
 
     private function buildLogsIndexQuery(

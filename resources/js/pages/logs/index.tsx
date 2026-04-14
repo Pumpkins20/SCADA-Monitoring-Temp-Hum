@@ -9,6 +9,7 @@ import {
     Thermometer,
     Droplets,
     Download,
+    FileText,
     RotateCcw,
     Send,
 } from 'lucide-react';
@@ -16,6 +17,13 @@ import { useEffect, useState } from 'react';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
 import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
 import { ScadaHeaderTitle } from '@/components/scada/scada-header-title';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
     Dialog,
     DialogContent,
@@ -395,6 +403,7 @@ export default function LogsIndex({
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [showIntervalDialog, setShowIntervalDialog] = useState(false);
     const [showRecentDialog, setShowRecentDialog] = useState(false);
+    const [showEmailConfirmDialog, setShowEmailConfirmDialog] = useState(false);
     const [intervalValidationError, setIntervalValidationError] = useState<
         string | null
     >(null);
@@ -694,6 +703,24 @@ export default function LogsIndex({
         );
     }
 
+    function triggerDownload(type: 'excel' | 'pdf'): void {
+        const baseUrl = type === 'pdf' ? '/logs/export/pdf' : '/logs/export';
+        window.location.href = `${baseUrl}?${exportQuery.toString()}`;
+    }
+
+    function openEmailConfirmDialog(): void {
+        if (!exportRecipientEmail || isSendingEmail) {
+            return;
+        }
+
+        setShowEmailConfirmDialog(true);
+    }
+
+    function confirmSendExportToEmail(): void {
+        setShowEmailConfirmDialog(false);
+        sendExportToEmail();
+    }
+
     return (
         <>
             <Head title="Log Sensor — SCADA Monitoring" />
@@ -786,24 +813,64 @@ export default function LogsIndex({
                                 <RotateCcw className="h-4 w-4" />
                             </button>
 
-                            <button
-                                type="button"
-                                onClick={sendExportToEmail}
-                                disabled={
-                                    !exportRecipientEmail || isSendingEmail
-                                }
-                                title={
-                                    exportRecipientEmail
-                                        ? `Kirim ke ${exportRecipientEmail}`
-                                        : 'Email recipient belum diatur'
-                                }
-                                className="flex items-center gap-1.5 rounded-lg bg-emerald-600/20 px-3 py-1.5 text-[11px] font-semibold tracking-wider text-emerald-400 uppercase transition-colors hover:bg-emerald-600/40 hover:text-emerald-300 disabled:cursor-not-allowed disabled:opacity-40"
-                            >
-                                <Send className="h-3.5 w-3.5" />
-                                {isSendingEmail 
-                                ? 'Mengirim excel...' 
-                                : 'EXPORT EXCEL EMAIL'}
-                            </button>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <button
+                                        type="button"
+                                        className="flex items-center gap-1.5 rounded-lg bg-emerald-600/20 px-3 py-1.5 text-[11px] font-semibold tracking-wider text-emerald-400 uppercase transition-colors hover:bg-emerald-600/40 hover:text-emerald-300"
+                                    >
+                                        <Download className="h-3.5 w-3.5" />
+                                        EXPORT
+                                    </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent
+                                    align="end"
+                                    className="w-56 border-slate-700 bg-[#1a2027] text-slate-100"
+                                >
+                                    <DropdownMenuItem
+                                        onSelect={(event) => {
+                                            event.preventDefault();
+                                            triggerDownload('excel');
+                                        }}
+                                        className="cursor-pointer text-slate-100 focus:bg-slate-800 focus:text-white"
+                                    >
+                                        <Download className="h-4 w-4 text-cyan-400" />
+                                        Download Excel
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        onSelect={(event) => {
+                                            event.preventDefault();
+                                            triggerDownload('pdf');
+                                        }}
+                                        className="cursor-pointer text-slate-100 focus:bg-slate-800 focus:text-white"
+                                    >
+                                        <FileText className="h-4 w-4 text-orange-300" />
+                                        Download PDF
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator className="bg-slate-700" />
+                                    <DropdownMenuItem
+                                        disabled={
+                                            !exportRecipientEmail ||
+                                            isSendingEmail
+                                        }
+                                        onSelect={(event) => {
+                                            event.preventDefault();
+                                            openEmailConfirmDialog();
+                                        }}
+                                        className="cursor-pointer text-slate-100 focus:bg-slate-800 focus:text-white"
+                                    >
+                                        <Send className="h-4 w-4 text-emerald-400" />
+                                        {isSendingEmail
+                                            ? 'Mengirim Excel...'
+                                            : 'Kirim Excel ke Email'}
+                                    </DropdownMenuItem>
+                                    {!exportRecipientEmail && (
+                                        <p className="px-2 py-1 text-[11px] text-amber-300">
+                                            Email backup otomatis belum diatur.
+                                        </p>
+                                    )}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
 
                             <div className="h-5 w-px bg-slate-700/60" />
 
@@ -1083,6 +1150,46 @@ export default function LogsIndex({
                                 className="rounded-md bg-cyan-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-cyan-500"
                             >
                                 Confirm
+                            </button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                <Dialog
+                    open={showEmailConfirmDialog}
+                    onOpenChange={setShowEmailConfirmDialog}
+                >
+                    <DialogContent className="border-slate-700 bg-[#1a2027] text-white sm:max-w-sm">
+                        <DialogHeader>
+                            <DialogTitle className="text-white">
+                                Konfirmasi Kirim Export
+                            </DialogTitle>
+                            <DialogDescription className="text-slate-300">
+                                Export log Excel akan dikirim ke email berikut:
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300">
+                            {exportRecipientEmail || '-'}
+                        </div>
+
+                        <DialogFooter>
+                            <button
+                                type="button"
+                                onClick={() => setShowEmailConfirmDialog(false)}
+                                className="rounded-md border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300 transition-colors hover:bg-slate-800"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                type="button"
+                                onClick={confirmSendExportToEmail}
+                                disabled={
+                                    !exportRecipientEmail || isSendingEmail
+                                }
+                                className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {isSendingEmail ? 'Mengirim...' : 'Kirim'}
                             </button>
                         </DialogFooter>
                     </DialogContent>
