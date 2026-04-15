@@ -9,7 +9,7 @@ import type {
 const CORE_R = 100; // core dot radius
 const PING_MAX_R = 320; // animated ring max radius
 const LABEL_FONT = 135; // sensor name font size
-const SUB_FONT = 105; // temp/hum sub-label font size
+const SUB_FONT = 130; // temp/hum sub-label font size
 const LABEL_GAP = 185; // gap between dot centre and label baseline
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -553,7 +553,7 @@ export function FloorPlanMap({
                                     y={labelBaseY + LABEL_FONT + 25}
                                     textAnchor="middle"
                                     fontSize={SUB_FONT}
-                                    fontWeight="600"
+                                    fontWeight="700"
                                     fill={isOffline ? '#2d3f52' : col}
                                     fontFamily="monospace"
                                     style={{
@@ -561,7 +561,7 @@ export function FloorPlanMap({
                                         userSelect: 'none',
                                         paintOrder: 'stroke',
                                         stroke: '#020617',
-                                        strokeWidth: 22,
+                                        strokeWidth: 28,
                                         strokeLinecap: 'round',
                                         strokeLinejoin: 'round',
                                     }}
