@@ -16,6 +16,10 @@ export interface SensorData {
     humidity: number | null;
     calibrate_temp?: number | null;
     calibrate_hum?: number | null;
+    over_temp?: number | null;
+    under_temp?: number | null;
+    over_hum?: number | null;
+    under_hum?: number | null;
     status: SensorStatus;
     alarms?: SensorAlarms;
     last_read_at: string | null;

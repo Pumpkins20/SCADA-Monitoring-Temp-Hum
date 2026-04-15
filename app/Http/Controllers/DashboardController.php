@@ -219,7 +219,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, Sensor>  $sensors
+     * @param  SupportCollection<int, Sensor>  $sensors
      */
     public function show(Request $request, Room $room): Response
     {
@@ -253,6 +253,10 @@ class DashboardController extends Controller
                         'sensor_id',
                         'temperature',
                         'humidity',
+                        'over_temp',
+                        'under_temp',
+                        'over_hum',
+                        'under_hum',
                         'status',
                         'alarm_temp',
                         'alarm_hum',
@@ -336,6 +340,18 @@ class DashboardController extends Controller
                         : null,
                     'calibrate_hum' => $s->latestData?->calibrate_hum !== null
                         ? (float) $s->latestData->calibrate_hum
+                        : null,
+                    'over_temp' => $s->latestData?->over_temp !== null
+                        ? (float) $s->latestData->over_temp
+                        : null,
+                    'under_temp' => $s->latestData?->under_temp !== null
+                        ? (float) $s->latestData->under_temp
+                        : null,
+                    'over_hum' => $s->latestData?->over_hum !== null
+                        ? (float) $s->latestData->over_hum
+                        : null,
+                    'under_hum' => $s->latestData?->under_hum !== null
+                        ? (float) $s->latestData->under_hum
                         : null,
                     'alarms' => $resolvedAlarms,
                     'last_read_at' => $s->latestData?->last_read_at?->format('Y-m-d H:i:s'),
@@ -495,7 +511,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, Sensor>  $sensors
+     * @param  SupportCollection<int, Sensor>  $sensors
      * @return array{chartSeriesPerSensor: array<int, array{sensorId: int, sensorName: string, points: array<int, array{time: string, avg_temperature: float|null, avg_humidity: float|null}>}>, roomAverageChartSeries: array<int, array{time: string, avg_temperature: float|null, avg_humidity: float|null}>}
      */
     private function buildRoomDetailChartData(
@@ -837,9 +853,9 @@ class DashboardController extends Controller
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, Sensor>  $sensors
+     * @param  SupportCollection<int, Sensor>  $sensors
      */
-    private function resolveRoomStatus(Collection|\Illuminate\Support\Collection $sensors): string
+    private function resolveRoomStatus(Collection|SupportCollection $sensors): string
     {
         if ($sensors->isEmpty()) {
             return 'OFFLINE';

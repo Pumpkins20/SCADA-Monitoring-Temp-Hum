@@ -392,7 +392,13 @@ test('rooms.show payload contains room data with sensors and chartSeriesPerSenso
     $sensor = Sensor::factory()->create(['hmi_id' => $hmi->id]);
     $readingAt = now()->subMinutes(2)->startOfMinute();
 
-    SensorLatestData::factory()->normal()->create(['sensor_id' => $sensor->id]);
+    SensorLatestData::factory()->normal()->create([
+        'sensor_id' => $sensor->id,
+        'over_temp' => 30.5,
+        'under_temp' => 18.25,
+        'over_hum' => 68.75,
+        'under_hum' => 42.5,
+    ]);
     SensorReading::factory()->create([
         'sensor_id' => $sensor->id,
         'avg_temp' => 26.5,
@@ -422,6 +428,10 @@ test('rooms.show payload contains room data with sensors and chartSeriesPerSenso
                                 ->has('temperature')
                                 ->has('humidity')
                                 ->has('status')
+                                ->where('over_temp', 30.5)
+                                ->where('under_temp', 18.25)
+                                ->where('over_hum', 68.75)
+                                ->where('under_hum', 42.5)
                                 ->has('alarms')
                                 ->has('alarms.temp')
                                 ->has('alarms.hum')
@@ -447,6 +457,31 @@ test('rooms.show payload contains room data with sensors and chartSeriesPerSenso
                 ->where('timeFilter.start_at', null)
                 ->where('timeFilter.end_at', null)
                 ->where('timeFilter.recent_minutes', 15)
+        );
+});
+
+test('rooms.show payload keeps sensor thresholds null when not configured', function () {
+    $room = Room::factory()->create();
+    $hmi = Hmi::factory()->create(['room_id' => $room->id]);
+    $sensor = Sensor::factory()->create(['hmi_id' => $hmi->id]);
+
+    SensorLatestData::factory()->normal()->create([
+        'sensor_id' => $sensor->id,
+        'over_temp' => null,
+        'under_temp' => null,
+        'over_hum' => null,
+        'under_hum' => null,
+    ]);
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('rooms.show', $room))
+        ->assertInertia(
+            fn($page) => $page
+                ->component('rooms/show')
+                ->where('room.sensors.0.over_temp', null)
+                ->where('room.sensors.0.under_temp', null)
+                ->where('room.sensors.0.over_hum', null)
+                ->where('room.sensors.0.under_hum', null)
         );
 });
 

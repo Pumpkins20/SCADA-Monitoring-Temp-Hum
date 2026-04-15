@@ -15,6 +15,7 @@ import { FloorPlanMap } from '@/components/scada/floor-plan-map';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
 import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
 import { ScadaHeaderTitle } from '@/components/scada/scada-header-title';
+import { statusBadgeClasses } from '@/components/scada/scada-helpers';
 import type {
     RoomData,
     ChartPoint,
@@ -501,6 +502,34 @@ const roomQuickRangeOptions = [
 
 const maxCustomRangeDays = 30;
 
+function formatThresholdRange(
+    under: number | null | undefined,
+    over: number | null | undefined,
+    unit: string,
+): string {
+    if (
+        under === null ||
+        under === undefined ||
+        over === null ||
+        over === undefined
+    ) {
+        return '-';
+    }
+
+    return `${under.toFixed(2)} - ${over.toFixed(2)} ${unit}`;
+}
+
+function formatLiveMetric(
+    value: number | null | undefined,
+    unit: string,
+): string {
+    if (value === null || value === undefined) {
+        return '-';
+    }
+
+    return `${value.toFixed(1)} ${unit}`;
+}
+
 // --- Main Page ----------------------------------------------------------------
 
 export default function RoomShow({
@@ -515,6 +544,12 @@ export default function RoomShow({
         'chart',
     );
     const [isPanelFullscreen, setIsPanelFullscreen] = useState(false);
+    const [isThresholdPanelCollapsed, setIsThresholdPanelCollapsed] =
+        useState(false);
+    const [
+        isFullscreenThresholdPanelCollapsed,
+        setIsFullscreenThresholdPanelCollapsed,
+    ] = useState(false);
     const [showCustomRangeDialog, setShowCustomRangeDialog] = useState(false);
     const [intervalValidationError, setIntervalValidationError] = useState<
         string | null
@@ -991,6 +1026,117 @@ export default function RoomShow({
         );
     }
 
+    function renderThresholdInfoPanel({
+        wrapperClassName = 'shrink-0 rounded-xl border border-slate-700/60 bg-slate-900/35 p-2 xl:p-3',
+        listClassName = 'mt-2 max-h-40 space-y-2 overflow-y-auto pr-1 xl:max-h-52',
+        isCollapsed = false,
+        onToggleCollapse,
+    }: {
+        wrapperClassName?: string;
+        listClassName?: string;
+        isCollapsed?: boolean;
+        onToggleCollapse?: () => void;
+    }) {
+        return (
+            <div className={wrapperClassName}>
+                <div className="flex items-center justify-between gap-2">
+                    <p className="text-[10px] font-semibold tracking-wider text-slate-300 uppercase">
+                        Alarm Threshold Per Sensor
+                    </p>
+                    <div className="flex items-center gap-1.5">
+                        {onToggleCollapse && (
+                            <button
+                                type="button"
+                                onClick={onToggleCollapse}
+                                className="rounded-full border border-slate-600/60 px-2 py-0.5 text-[9px] font-semibold tracking-wider text-slate-300 uppercase transition-colors hover:border-cyan-500/40 hover:text-cyan-300"
+                            >
+                                {isCollapsed ? 'Tampilkan' : 'Ringkas'}
+                            </button>
+                        )}
+                        <span className="rounded-full border border-slate-600/60 px-2 py-0.5 text-[9px] font-semibold tracking-wider text-slate-400 uppercase">
+                            Read Only
+                        </span>
+                    </div>
+                </div>
+                <p className="mt-1 text-[10px] text-slate-500">
+                    {isCollapsed
+                        ? `Panel diringkas. ${sensors.length} sensor terdeteksi.`
+                        : "Nilai '-' berarti threshold sensor belum diatur."}
+                </p>
+
+                {!isCollapsed && (
+                    <div className={listClassName}>
+                        {sensors.length > 0 ? (
+                            sensors.map((sensor) => (
+                                <div
+                                    key={sensor.id}
+                                    className="rounded-md border border-slate-700/60 bg-slate-900/50 p-2"
+                                >
+                                    <div className="flex items-center justify-between gap-2">
+                                        <p className="truncate text-[11px] font-semibold text-slate-100">
+                                            {sensor.name}
+                                        </p>
+                                        <span
+                                            className={`rounded-full border px-2 py-0.5 text-[9px] font-semibold tracking-wider uppercase ${statusBadgeClasses(sensor.status)}`}
+                                        >
+                                            {sensor.status}
+                                        </span>
+                                    </div>
+
+                                    <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                                        <div className="rounded-md border border-cyan-500/30 bg-cyan-500/5 px-2 py-1.5">
+                                            <p className="text-[9px] font-semibold tracking-wider text-cyan-300 uppercase">
+                                                Threshold Temp
+                                            </p>
+                                            <p className="mt-0.5 font-mono text-[11px] text-cyan-200">
+                                                {formatThresholdRange(
+                                                    sensor.under_temp,
+                                                    sensor.over_temp,
+                                                    'degC',
+                                                )}
+                                            </p>
+                                            <p className="mt-0.5 text-[9px] text-slate-400">
+                                                Aktual:{' '}
+                                                {formatLiveMetric(
+                                                    sensor.temperature,
+                                                    'degC',
+                                                )}
+                                            </p>
+                                        </div>
+
+                                        <div className="rounded-md border border-blue-500/30 bg-blue-500/5 px-2 py-1.5">
+                                            <p className="text-[9px] font-semibold tracking-wider text-blue-300 uppercase">
+                                                Threshold Hum
+                                            </p>
+                                            <p className="mt-0.5 font-mono text-[11px] text-blue-200">
+                                                {formatThresholdRange(
+                                                    sensor.under_hum,
+                                                    sensor.over_hum,
+                                                    '%RH',
+                                                )}
+                                            </p>
+                                            <p className="mt-0.5 text-[9px] text-slate-400">
+                                                Aktual:{' '}
+                                                {formatLiveMetric(
+                                                    sensor.humidity,
+                                                    '%RH',
+                                                )}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="rounded-md border border-slate-700/60 bg-slate-900/40 px-2 py-3 text-center text-[11px] text-slate-500">
+                                Belum ada sensor di ruangan ini.
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
     function renderActivePanel(isFullscreen: boolean) {
         if (activePanel === 'floorplan') {
             return (
@@ -1405,6 +1551,15 @@ export default function RoomShow({
                                 </button>
                             </div>
 
+                            {activePanel === 'floorplan' &&
+                                renderThresholdInfoPanel({
+                                    isCollapsed: isThresholdPanelCollapsed,
+                                    onToggleCollapse: () =>
+                                        setIsThresholdPanelCollapsed(
+                                            (prev) => !prev,
+                                        ),
+                                })}
+
                             {activePanel === 'chart' && (
                                 <div className="shrink-0">
                                     {renderSeriesFilterControls()}
@@ -1447,6 +1602,20 @@ export default function RoomShow({
                                 {renderSeriesFilterControls()}
                             </div>
                         )}
+
+                        {activePanel === 'floorplan' &&
+                            renderThresholdInfoPanel({
+                                wrapperClassName:
+                                    'mb-2 shrink-0 rounded-xl border border-slate-700/60 bg-slate-900/35 p-2 xl:p-3',
+                                listClassName:
+                                    'mt-2 max-h-44 space-y-2 overflow-y-auto pr-1 xl:max-h-64',
+                                isCollapsed:
+                                    isFullscreenThresholdPanelCollapsed,
+                                onToggleCollapse: () =>
+                                    setIsFullscreenThresholdPanelCollapsed(
+                                        (prev) => !prev,
+                                    ),
+                            })}
 
                         <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-slate-700/60 bg-[#151b1f] p-2 xl:p-3">
                             <div className="flex h-full min-h-0 flex-col gap-2 xl:gap-3">

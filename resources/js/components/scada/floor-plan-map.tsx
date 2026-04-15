@@ -559,11 +559,16 @@ export function FloorPlanMap({
                                     style={{
                                         pointerEvents: 'none',
                                         userSelect: 'none',
+                                        paintOrder: 'stroke',
+                                        stroke: '#020617',
+                                        strokeWidth: 22,
+                                        strokeLinecap: 'round',
+                                        strokeLinejoin: 'round',
                                     }}
                                 >
                                     {isOffline
                                         ? '─── OFFLINE ───'
-                                        : `${fmt(sensor.temperature)}°C  ·  ${fmt(sensor.humidity)}%`}
+                                        : `T:${fmt(sensor.temperature)}°C  H:${fmt(sensor.humidity)}%RH`}
                                 </text>
 
                                 {/* ── Hover tooltip ── */}
