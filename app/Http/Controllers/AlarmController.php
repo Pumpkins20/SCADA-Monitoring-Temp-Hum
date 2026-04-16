@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Mail\AlarmLogExportMail;
 use App\Models\AlarmEvent;
+use App\Models\GaugeSetting;
 use App\Models\Room;
 use App\Models\SensorLatestData;
+use Dompdf\Dompdf;
+use Dompdf\Options;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,6 +21,7 @@ use OpenSpout\Common\Entity\Row;
 use OpenSpout\Common\Entity\Style\Color;
 use OpenSpout\Common\Entity\Style\Style;
 use OpenSpout\Writer\XLSX\Writer;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class AlarmController extends Controller
 {
@@ -52,7 +56,7 @@ class AlarmController extends Controller
         } else {
             $rows = $paginator
                 ->getCollection()
-                ->map(fn (AlarmEvent $event) => $this->mapRow($event))
+                ->map(fn(AlarmEvent $event) => $this->mapRow($event))
                 ->values()
                 ->all();
 
@@ -64,7 +68,7 @@ class AlarmController extends Controller
         }
 
         return Inertia::render('alarms/index', [
-            'rooms' => $rooms->map(fn (Room $room) => [
+            'rooms' => $rooms->map(fn(Room $room) => [
                 'id' => $room->id,
                 'name' => $room->name,
             ])->values()->all(),
@@ -82,7 +86,7 @@ class AlarmController extends Controller
             ],
             'flashSuccess' => $request->session()->get('success'),
             'flashError' => $request->session()->get('error'),
-            'exportRecipientEmail' => config('mail.alarm_export_recipient'),
+            'exportRecipientEmail' => $this->resolveExportRecipientEmail(),
         ]);
     }
 
@@ -98,7 +102,7 @@ class AlarmController extends Controller
         $fallbackRows = ! $hasPersistedRows && $this->isRealtimeTab($tab)
             ? $this->buildRealtimeFallbackRows($activeRoomId, $startDate, $endDate)
             : [];
-        $filename = 'Alarm_Logs_'.Str::slug($this->formatTabLabel($tab)).'_'.now()->format('Ymd_His').'.xlsx';
+        $filename = 'Alarm_Logs_' . Str::slug($this->formatTabLabel($tab)) . '_' . now()->format('Ymd_His') . '.xlsx';
 
         $writer = new Writer;
         $writer->openToBrowser($filename);
@@ -114,6 +118,48 @@ class AlarmController extends Controller
         $writer->close();
     }
 
+    public function exportPdf(Request $request): SymfonyResponse
+    {
+        $tab = $this->resolveTab((string) $request->input('tab', 'realtime'));
+        $activeRoomId = (int) $request->input('room', 0);
+        $startDate = $this->parseDate((string) $request->input('start_date', ''), false);
+        $endDate = $this->parseDate((string) $request->input('end_date', ''), true);
+
+        $query = $this->buildAlarmQuery($tab, $activeRoomId, $startDate, $endDate);
+        $hasPersistedRows = (clone $query)->exists();
+        $fallbackRows = ! $hasPersistedRows && $this->isRealtimeTab($tab)
+            ? $this->buildRealtimeFallbackRows($activeRoomId, $startDate, $endDate)
+            : [];
+
+        $fileName = 'Alarm_Logs_' . Str::slug($this->formatTabLabel($tab)) . '_' . now()->format('Ymd_His') . '.pdf';
+
+        $html = view('exports.alarm-log-pdf', [
+            'tabLabel' => $this->formatTabLabel($tab),
+            'roomName' => $this->resolveRoomName($activeRoomId),
+            'startDate' => $startDate?->format('Y-m-d H:i:s'),
+            'endDate' => $endDate?->format('Y-m-d H:i:s'),
+            'generatedAt' => now()->format('Y-m-d H:i:s'),
+            'rows' => $this->resolveExportRows($query, $fallbackRows),
+        ])->render();
+
+        $options = new Options;
+        $options->set('isRemoteEnabled', false);
+
+        $dompdf = new Dompdf($options);
+        $dompdf->setPaper('A4', 'landscape');
+        $dompdf->loadHtml($html);
+        $dompdf->render();
+
+        return response(
+            $dompdf->output(),
+            200,
+            [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
+            ],
+        );
+    }
+
     public function exportToEmail(Request $request): RedirectResponse
     {
         $tab = $this->resolveTab((string) $request->input('tab', 'realtime'));
@@ -122,14 +168,14 @@ class AlarmController extends Controller
         $endDate = $this->parseDate((string) $request->input('end_date', ''), true);
         $page = max(1, (int) $request->input('page', 1));
 
-        $recipientEmail = (string) config('mail.alarm_export_recipient', '');
-        if ($recipientEmail === '') {
+        $recipientEmail = $this->resolveExportRecipientEmail();
+        if ($recipientEmail === null) {
             return redirect()
                 ->route(
                     'alarms.index',
                     $this->buildAlarmIndexQuery($tab, $activeRoomId, $startDate, $endDate, $page),
                 )
-                ->with('error', 'Email recipient export alarm belum diatur.');
+                ->with('error', 'Email backup otomatis belum diatur.');
         }
 
         $query = $this->buildAlarmQuery($tab, $activeRoomId, $startDate, $endDate);
@@ -138,11 +184,11 @@ class AlarmController extends Controller
             ? $this->buildRealtimeFallbackRows($activeRoomId, $startDate, $endDate)
             : [];
 
-        $fileName = 'Alarm_Logs_'.Str::slug($this->formatTabLabel($tab)).'_'.now()->format('Ymd_His').'.xlsx';
+        $fileName = 'Alarm_Logs_' . Str::slug($this->formatTabLabel($tab)) . '_' . now()->format('Ymd_His') . '.xlsx';
         $exportDirectory = storage_path('app/temp/exports');
-        $filePath = $exportDirectory.DIRECTORY_SEPARATOR.$fileName;
+        $filePath = $exportDirectory . DIRECTORY_SEPARATOR . $fileName;
         $generatedAt = now()->format('Y-m-d H:i:s');
-        $subjectExportLabel = 'EXPORT_DATA_ALARM_LOGS_('.now()->format('d_m_Y_H_i').')';
+        $subjectExportLabel = 'EXPORT_DATA_ALARM_LOGS_(' . now()->format('d_m_Y_H_i') . ')';
 
         if (! is_dir($exportDirectory)) {
             mkdir($exportDirectory, 0755, true);
@@ -204,11 +250,7 @@ class AlarmController extends Controller
         ?Carbon $startDate,
         ?Carbon $endDate,
     ): void {
-        $roomName = 'Semua Ruang';
-
-        if ($activeRoomId > 0) {
-            $roomName = Room::query()->whereKey($activeRoomId)->value('name') ?? "Room {$activeRoomId}";
-        }
+        $roomName = $this->resolveRoomName($activeRoomId);
 
         $writer->addRow(Row::fromValues(['Jenis Data', 'Alarm Logs']));
         $writer->addRow(Row::fromValues(['Tab', $this->formatTabLabel($tab)]));
@@ -242,16 +284,10 @@ class AlarmController extends Controller
 
         if ($fallbackRows !== []) {
             $rows = collect($fallbackRows)
-                ->map(fn (array $row) => Row::fromValuesWithStyle([
-                    $row['alarm_time'],
-                    $row['current_value'],
-                    $row['alarm_text'],
-                    $row['alarm_type'],
-                    $row['variable_name'],
-                    $row['confirmed_time'],
-                    $row['room_name'],
-                    $row['room_detail'],
-                ], $dataStyle))
+                ->map(fn(array $row) => Row::fromValuesWithStyle(
+                    $this->mapExportRowValues($row),
+                    $dataStyle,
+                ))
                 ->all();
 
             $writer->addRows($rows);
@@ -262,17 +298,72 @@ class AlarmController extends Controller
         foreach ($query->cursor() as $event) {
             $row = $this->mapRow($event);
 
-            $writer->addRow(Row::fromValuesWithStyle([
-                $row['alarm_time'],
-                $row['current_value'],
-                $row['alarm_text'],
-                $row['alarm_type'],
-                $row['variable_name'],
-                $row['confirmed_time'],
-                $row['room_name'],
-                $row['room_detail'],
-            ], $dataStyle));
+            $writer->addRow(Row::fromValuesWithStyle(
+                $this->mapExportRowValues($row),
+                $dataStyle,
+            ));
         }
+    }
+
+    /**
+     * @return array<int, array<int, string>>
+     */
+    private function resolveExportRows(Builder $query, array $fallbackRows): array
+    {
+        if ($fallbackRows !== []) {
+            return collect($fallbackRows)
+                ->map(fn(array $row) => $this->mapExportRowValues($row))
+                ->values()
+                ->all();
+        }
+
+        $rows = [];
+
+        foreach ($query->cursor() as $event) {
+            $rows[] = $this->mapExportRowValues($this->mapRow($event));
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @return array<int, string>
+     */
+    private function mapExportRowValues(array $row): array
+    {
+        return [
+            (string) ($row['alarm_time'] ?? '-'),
+            (string) ($row['current_value'] ?? '-'),
+            (string) ($row['alarm_text'] ?? '-'),
+            (string) ($row['alarm_type'] ?? '-'),
+            (string) ($row['variable_name'] ?? '-'),
+            (string) ($row['confirmed_time'] ?? '-'),
+            (string) ($row['room_name'] ?? '-'),
+            (string) ($row['room_detail'] ?? '-'),
+        ];
+    }
+
+    private function resolveRoomName(int $activeRoomId): string
+    {
+        if ($activeRoomId <= 0) {
+            return 'Semua Ruang';
+        }
+
+        return Room::query()->whereKey($activeRoomId)->value('name') ?? "Room {$activeRoomId}";
+    }
+
+    private function resolveExportRecipientEmail(): ?string
+    {
+        $backupEmail = GaugeSetting::query()->value('backup_email');
+
+        if (! is_string($backupEmail)) {
+            return null;
+        }
+
+        $normalized = trim($backupEmail);
+
+        return $normalized !== '' ? $normalized : null;
     }
 
     private function buildAlarmIndexQuery(
@@ -334,7 +425,7 @@ class AlarmController extends Controller
         }
 
         if ($activeRoomId > 0) {
-            $query->whereHas('sensor.hmi', fn (Builder $builder) => $builder->where('room_id', $activeRoomId));
+            $query->whereHas('sensor.hmi', fn(Builder $builder) => $builder->where('room_id', $activeRoomId));
         }
 
         if ($startDate !== null) {
@@ -421,7 +512,7 @@ class AlarmController extends Controller
             });
 
         if ($activeRoomId > 0) {
-            $latestRows->whereHas('sensor.hmi', fn (Builder $builder) => $builder->where('room_id', $activeRoomId));
+            $latestRows->whereHas('sensor.hmi', fn(Builder $builder) => $builder->where('room_id', $activeRoomId));
         }
 
         if ($startDate !== null) {

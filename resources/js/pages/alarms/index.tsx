@@ -4,12 +4,29 @@ import {
     ArrowLeft,
     ChevronLeft,
     ChevronRight,
+    Download,
+    FileText,
     Send,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
 import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
 import { ScadaHeaderTitle } from '@/components/scada/scada-header-title';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import {
     Table,
     TableBody,
@@ -84,6 +101,7 @@ export default function AlarmIndex({
 }: AlarmIndexProps) {
     const [now, setNow] = useState(new Date());
     const [isSendingEmail, setIsSendingEmail] = useState(false);
+    const [showEmailConfirmDialog, setShowEmailConfirmDialog] = useState(false);
 
     useEffect(() => {
         const timer = setInterval(() => setNow(new Date()), 60_000);
@@ -125,6 +143,19 @@ export default function AlarmIndex({
             start_date: startDateInput || undefined,
             end_date: endDateInput || undefined,
         }),
+        [filters.tab, filters.room, startDateInput, endDateInput],
+    );
+
+    const exportQuery = useMemo(
+        () =>
+            new URLSearchParams({
+                tab: filters.tab,
+                ...(filters.room !== null
+                    ? { room: String(filters.room) }
+                    : {}),
+                ...(startDateInput ? { start_date: startDateInput } : {}),
+                ...(endDateInput ? { end_date: endDateInput } : {}),
+            }),
         [filters.tab, filters.room, startDateInput, endDateInput],
     );
 
@@ -195,6 +226,25 @@ export default function AlarmIndex({
                 onFinish: () => setIsSendingEmail(false),
             },
         );
+    }
+
+    function triggerDownload(type: 'excel' | 'pdf'): void {
+        const baseUrl =
+            type === 'pdf' ? '/alarms/export/pdf' : '/alarms/export';
+        window.location.href = `${baseUrl}?${exportQuery.toString()}`;
+    }
+
+    function openEmailConfirmDialog(): void {
+        if (!exportRecipientEmail || isSendingEmail) {
+            return;
+        }
+
+        setShowEmailConfirmDialog(true);
+    }
+
+    function confirmSendExportToEmail(): void {
+        setShowEmailConfirmDialog(false);
+        sendExportToEmail();
     }
 
     const activeAlarmRoomNames =
@@ -332,22 +382,64 @@ export default function AlarmIndex({
                                 Apply
                             </button>
 
-                            <button
-                                type="button"
-                                onClick={sendExportToEmail}
-                                disabled={!exportRecipientEmail || isSendingEmail}
-                                title={
-                                    exportRecipientEmail
-                                        ? `Kirim ke ${exportRecipientEmail}`
-                                        : 'Email recipient belum diatur'
-                                }
-                                className="flex items-center gap-1.5 rounded-md bg-emerald-600/20 px-3 py-1.5 text-[11px] font-semibold tracking-wider text-emerald-400 uppercase transition-colors hover:bg-emerald-600/40 hover:text-emerald-300 disabled:cursor-not-allowed disabled:opacity-40"
-                            >
-                                <Send className="h-3.5 w-3.5" />
-                                {isSendingEmail
-                                    ? 'Mengirim Excel...'
-                                    : 'Export Excel Email'}
-                            </button>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <button
+                                        type="button"
+                                        className="flex items-center gap-1.5 rounded-lg bg-emerald-600/20 px-3 py-1.5 text-[11px] font-semibold tracking-wider text-emerald-400 uppercase transition-colors hover:bg-emerald-600/40 hover:text-emerald-300"
+                                    >
+                                        <Download className="h-3.5 w-3.5" />
+                                        EXPORT
+                                    </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent
+                                    align="end"
+                                    className="w-56 border-slate-700 bg-[#1a2027] text-slate-100"
+                                >
+                                    <DropdownMenuItem
+                                        onSelect={(event) => {
+                                            event.preventDefault();
+                                            triggerDownload('excel');
+                                        }}
+                                        className="cursor-pointer text-slate-100 focus:bg-slate-800 focus:text-white"
+                                    >
+                                        <Download className="h-4 w-4 text-cyan-400" />
+                                        Download Excel
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        onSelect={(event) => {
+                                            event.preventDefault();
+                                            triggerDownload('pdf');
+                                        }}
+                                        className="cursor-pointer text-slate-100 focus:bg-slate-800 focus:text-white"
+                                    >
+                                        <FileText className="h-4 w-4 text-orange-300" />
+                                        Download PDF
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator className="bg-slate-700" />
+                                    <DropdownMenuItem
+                                        disabled={
+                                            !exportRecipientEmail ||
+                                            isSendingEmail
+                                        }
+                                        onSelect={(event) => {
+                                            event.preventDefault();
+                                            openEmailConfirmDialog();
+                                        }}
+                                        className="cursor-pointer text-slate-100 focus:bg-slate-800 focus:text-white"
+                                    >
+                                        <Send className="h-4 w-4 text-emerald-400" />
+                                        {isSendingEmail
+                                            ? 'Mengirim Excel...'
+                                            : 'Kirim Excel ke Email'}
+                                    </DropdownMenuItem>
+                                    {!exportRecipientEmail && (
+                                        <p className="px-2 py-1 text-[11px] text-amber-300">
+                                            Email backup otomatis belum diatur.
+                                        </p>
+                                    )}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         </div>
                     </div>
 
@@ -503,6 +595,47 @@ export default function AlarmIndex({
                     lastUpdate={timeStr}
                     dateStr={dateStr}
                 />
+
+                <Dialog
+                    open={showEmailConfirmDialog}
+                    onOpenChange={setShowEmailConfirmDialog}
+                >
+                    <DialogContent className="border-slate-700 bg-[#1a2027] text-white sm:max-w-sm">
+                        <DialogHeader>
+                            <DialogTitle className="text-white">
+                                Konfirmasi Kirim Export
+                            </DialogTitle>
+                            <DialogDescription className="text-slate-300">
+                                Export alarm Excel akan dikirim ke email
+                                berikut:
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300">
+                            {exportRecipientEmail || '-'}
+                        </div>
+
+                        <DialogFooter>
+                            <button
+                                type="button"
+                                onClick={() => setShowEmailConfirmDialog(false)}
+                                className="rounded-md border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300 transition-colors hover:bg-slate-800"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                type="button"
+                                onClick={confirmSendExportToEmail}
+                                disabled={
+                                    !exportRecipientEmail || isSendingEmail
+                                }
+                                className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {isSendingEmail ? 'Mengirim...' : 'Kirim'}
+                            </button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </div>
         </>
     );

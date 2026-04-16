@@ -2,6 +2,7 @@
 
 use App\Mail\AlarmLogExportMail;
 use App\Models\AlarmEvent;
+use App\Models\GaugeSetting;
 use App\Models\Hmi;
 use App\Models\Room;
 use App\Models\Sensor;
@@ -18,17 +19,35 @@ test('guests are redirected to login from alarms.export-email', function () {
     $this->post(route('alarms.export-email'), ['tab' => 'history'])->assertRedirect(route('login'));
 });
 
+test('guests are redirected to login from alarms.export-pdf', function () {
+    $this->get(route('alarms.export-pdf', ['tab' => 'history']))->assertRedirect(route('login'));
+});
+
 test('authenticated users can visit alarms.index', function () {
     $this->actingAs(User::factory()->create())
         ->get(route('alarms.index'))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn($page) => $page
             ->component('alarms/index')
             ->has('rooms')
             ->has('rows')
             ->has('filters')
             ->has('pagination')
             ->where('tabInfo.isViewOnly', true));
+});
+
+test('alarm index shows backup email as export recipient', function () {
+    GaugeSetting::query()->updateOrCreate(
+        ['id' => 1],
+        ['backup_email' => 'backup@example.com'],
+    );
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('alarms.index'))
+        ->assertOk()
+        ->assertInertia(
+            fn($page) => $page->where('exportRecipientEmail', 'backup@example.com')
+        );
 });
 
 test('alarm index filters by room and date range', function () {
@@ -65,7 +84,7 @@ test('alarm index filters by room and date range', function () {
             'tab' => 'history',
         ]))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn($page) => $page
             ->component('alarms/index')
             ->has('rows', 1)
             ->where('rows.0.room_name', 'RUANG A')
@@ -89,7 +108,7 @@ test('been-confirmed tab returns empty rows in view-only mode', function () {
     $this->actingAs(User::factory()->create())
         ->get(route('alarms.index', ['tab' => 'been-confirmed']))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn($page) => $page
             ->component('alarms/index')
             ->has('rows', 0)
             ->where('tabInfo.confirmedAvailableFromHmi', false));
@@ -134,7 +153,7 @@ test('can export alarms as excel with selected filters', function () {
 
     @unlink($temporaryFilePath);
 
-    $xmlContent = $worksheetXml.$sharedStringsXml;
+    $xmlContent = $worksheetXml . $sharedStringsXml;
 
     expect($xmlContent)->toContain('Alarm Logs');
     expect($xmlContent)->toContain('History Alarm');
@@ -145,7 +164,10 @@ test('can export alarms as excel with selected filters', function () {
 
 test('authenticated users can send alarm export to configured recipient email', function () {
     Mail::fake();
-    config()->set('mail.alarm_export_recipient', 'scada1.edutic@gmail.com');
+    GaugeSetting::query()->updateOrCreate(
+        ['id' => 1],
+        ['backup_email' => 'scada1.edutic@gmail.com'],
+    );
 
     $room = Room::factory()->create(['name' => 'RUANG EMAIL']);
     $hmi = Hmi::factory()->create(['room_id' => $room->id]);
@@ -179,6 +201,71 @@ test('authenticated users can send alarm export to configured recipient email', 
     });
 });
 
+test('alarm export email fails when backup email is not configured', function () {
+    Mail::fake();
+
+    GaugeSetting::query()->updateOrCreate(
+        ['id' => 1],
+        ['backup_email' => null],
+    );
+
+    $room = Room::factory()->create(['name' => 'RUANG TANPA EMAIL']);
+    $hmi = Hmi::factory()->create(['room_id' => $room->id]);
+    $sensor = Sensor::factory()->create(['hmi_id' => $hmi->id, 'unit_id' => 1]);
+
+    AlarmEvent::query()->create([
+        'sensor_id' => $sensor->id,
+        'alarm_type' => 'disconnect',
+        'current_value' => 0,
+        'occurred_at' => now(),
+    ]);
+
+    $response = $this->actingAs(User::factory()->create())
+        ->post(route('alarms.export-email'), [
+            'tab' => 'history',
+            'room' => $room->id,
+            'page' => 1,
+        ]);
+
+    $response->assertRedirect(route('alarms.index', [
+        'tab' => 'history',
+        'page' => 1,
+        'room' => $room->id,
+    ]));
+
+    $response->assertSessionHas('error', 'Email backup otomatis belum diatur.');
+
+    Mail::assertNothingSent();
+});
+
+test('authenticated users can download alarms as pdf', function () {
+    $room = Room::factory()->create(['name' => 'RUANG PDF ALARM']);
+    $hmi = Hmi::factory()->create(['room_id' => $room->id]);
+    $sensor = Sensor::factory()->create(['hmi_id' => $hmi->id, 'unit_id' => 2]);
+
+    AlarmEvent::query()->create([
+        'sensor_id' => $sensor->id,
+        'alarm_type' => 'temp',
+        'current_value' => 33.2,
+        'occurred_at' => now()->subMinutes(5),
+    ]);
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('alarms.export-pdf', [
+            'tab' => 'history',
+            'room' => $room->id,
+        ]));
+
+    $response->assertSuccessful();
+    $response->assertHeader('content-type', 'application/pdf');
+
+    $contentDisposition = (string) $response->headers->get('content-disposition');
+    expect($contentDisposition)->toContain('.pdf');
+
+    $binaryContent = (string) $response->getContent();
+    expect($binaryContent)->not->toBe('');
+});
+
 test('realtime tab falls back to sensor latest alarms when alarm events are empty', function () {
     $room = Room::factory()->create(['name' => 'RUANG LIVE']);
     $hmi = Hmi::factory()->create(['room_id' => $room->id]);
@@ -203,7 +290,7 @@ test('realtime tab falls back to sensor latest alarms when alarm events are empt
             'room' => $room->id,
         ]))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn($page) => $page
             ->component('alarms/index')
             ->has('rows', 1)
             ->where('rows.0.alarm_text', 'Device 2 Disconnected')
@@ -236,7 +323,7 @@ test('alarm text follows HMI high low format and resolves device number from sen
     $this->actingAs(User::factory()->create())
         ->get(route('alarms.index', ['tab' => 'history', 'room' => $room->id]))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn($page) => $page
             ->component('alarms/index')
             ->where('rows.0.alarm_text', 'Device 4 High Temperature')
             ->where('rows.0.variable_name', 'Ext_Device_4_temp')
