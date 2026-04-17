@@ -943,11 +943,7 @@ export default function ChartLogsIndex(props: ChartLogsIndexProps) {
             return availableSeriesKeys;
         }
 
-        const missingKeys = availableSeriesKeys.filter(
-            (key) => !retainedKeys.includes(key),
-        );
-
-        return [...retainedKeys, ...missingKeys];
+        return retainedKeys;
     }, [availableSeriesKeys, selectedSeriesKeys]);
     const visibleSeriesDefinitions = useMemo(
         () =>
