@@ -21,7 +21,7 @@ function dotColor(status: SensorStatus): string {
         case 'WARNING':
             return '#eab308';
         case 'CRITICAL':
-            return '#ef4444';
+            return '#C97A6B';
         default:
             return '#475569';
     }
@@ -787,7 +787,7 @@ export function FloorPlanMap({
                             {
                                 status: 'CRITICAL' as SensorStatus,
                                 label: 'Critical',
-                                color: '#ef4444',
+                                color: '#C97A6B',
                                 pulse: true,
                             },
                             {

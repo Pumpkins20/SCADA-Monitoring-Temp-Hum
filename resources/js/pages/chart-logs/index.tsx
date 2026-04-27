@@ -109,7 +109,7 @@ type ChartLogsIndexProps =
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const lineColors = [
-    '#ef4444',
+    '#C97A6B',
     '#eab308',
     '#22c55e',
     '#06b6d4',
@@ -357,7 +357,7 @@ function DateTimePartsInput({
         return [
             'min-w-0 w-full rounded-md bg-slate-900 px-2 py-1.5 text-center text-xs text-slate-100',
             hasError
-                ? 'border border-red-500 CRITICAL_TONE.field'
+                ? 'border border-destructive/70 ring-1 ring-destructive/40'
                 : 'border border-slate-600',
         ].join(' ');
     }
@@ -1483,7 +1483,7 @@ export default function ChartLogsIndex(props: ChartLogsIndexProps) {
                             />
 
                             {intervalValidationError && (
-                                <p className="criticalAlertClasses">
+                                <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive-foreground">
                                     {intervalValidationError}
                                 </p>
                             )}

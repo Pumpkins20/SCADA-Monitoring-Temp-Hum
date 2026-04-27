@@ -298,7 +298,7 @@ function DateTimePartsInput({
         return [
             'min-w-0 w-full rounded-md bg-slate-900 px-2 py-1.5 text-center text-xs text-slate-100',
             hasError
-                ? 'border border-red-500 CRITICAL_TONE.field'
+                ? 'border border-destructive/70 ring-1 ring-destructive/40'
                 : 'border border-slate-600',
         ].join(' ');
     }
@@ -908,7 +908,7 @@ export default function LogsIndex({
                     </div>
 
                     {flashError && (
-                        <div className="criticalAlertClasses">
+                        <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive-foreground">
                             {flashError}
                         </div>
                     )}
@@ -1062,7 +1062,7 @@ export default function LogsIndex({
                             />
 
                             {intervalValidationError && (
-                                <p className="criticalAlertClasses">
+                                <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive-foreground">
                                     {intervalValidationError}
                                 </p>
                             )}
@@ -1123,7 +1123,7 @@ export default function LogsIndex({
                                             setRecentFieldError(false);
                                         }
                                     }}
-                                    className={`w-24 rounded-md bg-slate-900 px-2 py-1.5 text-center text-sm text-slate-100 ${recentFieldError ? 'border border-red-500 ring-1 ring-red-500/50' : 'border border-slate-600'}`}
+                                    className={`w-24 rounded-md bg-slate-900 px-2 py-1.5 text-center text-sm text-slate-100 ${recentFieldError ? 'border border-destructive/70 ring-1 ring-destructive/40' : 'border border-slate-600'}`}
                                 />
                                 <span className="text-sm text-slate-400">
                                     minute
@@ -1131,7 +1131,7 @@ export default function LogsIndex({
                             </div>
 
                             {recentValidationError && (
-                                <p className="criticalAlertClasses">
+                                <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive-foreground">
                                     {recentValidationError}
                                 </p>
                             )}

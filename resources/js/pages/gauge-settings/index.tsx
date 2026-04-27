@@ -41,7 +41,7 @@ const defaultGaugeSettings: GaugeSettings = {
         zones: [
             { from: 0, to: 36, color: '#22c55e' },
             { from: 36, to: 56, color: '#facc15' },
-            { from: 56, to: 80, color: '#ef4444' },
+            { from: 56, to: 80, color: '#C97A6B' },
         ],
     },
     humidity: {
@@ -50,7 +50,7 @@ const defaultGaugeSettings: GaugeSettings = {
         zones: [
             { from: 0, to: 60, color: '#22c55e' },
             { from: 60, to: 80, color: '#f59e0b' },
-            { from: 80, to: 100, color: '#ef4444' },
+            { from: 80, to: 100, color: '#C97A6B' },
         ],
     },
 };
@@ -332,7 +332,7 @@ export default function GaugeSettingsPage({
                                                     Number(event.target.value),
                                                 )
                                             }
-                                            className="w-full rounded-md border border-red-500/40 bg-slate-900 px-2 py-1.5 text-xs text-white focus:border-red-400 focus:outline-none"
+                                            className="w-full rounded-md border border-destructive/40 bg-slate-900 px-2 py-1.5 text-xs text-white focus:border-destructive focus:outline-none"
                                         />
                                     </label>
                                     <label className="space-y-1 text-[11px] text-slate-300">
@@ -347,7 +347,7 @@ export default function GaugeSettingsPage({
                                                     Number(event.target.value),
                                                 )
                                             }
-                                            className="w-full rounded-md border border-red-500/40 bg-slate-900 px-2 py-1.5 text-xs text-white focus:border-red-400 focus:outline-none"
+                                            className="w-full rounded-md border border-destructive/40 bg-slate-900 px-2 py-1.5 text-xs text-white focus:border-destructive focus:outline-none"
                                         />
                                     </label>
                                 </div>
@@ -462,7 +462,7 @@ export default function GaugeSettingsPage({
                                                     Number(event.target.value),
                                                 )
                                             }
-                                            className="w-full rounded-md border border-red-500/40 bg-slate-900 px-2 py-1.5 text-xs text-white focus:border-red-400 focus:outline-none"
+                                            className="w-full rounded-md border border-destructive/40 bg-slate-900 px-2 py-1.5 text-xs text-white focus:border-destructive focus:outline-none"
                                         />
                                     </label>
                                     <label className="space-y-1 text-[11px] text-slate-300">
@@ -477,7 +477,7 @@ export default function GaugeSettingsPage({
                                                     Number(event.target.value),
                                                 )
                                             }
-                                            className="w-full rounded-md border border-red-500/40 bg-slate-900 px-2 py-1.5 text-xs text-white focus:border-red-400 focus:outline-none"
+                                            className="w-full rounded-md border border-destructive/40 bg-slate-900 px-2 py-1.5 text-xs text-white focus:border-destructive focus:outline-none"
                                         />
                                     </label>
                                 </div>
@@ -485,7 +485,7 @@ export default function GaugeSettingsPage({
                         </div>
 
                         {Object.values(errors).length > 0 && (
-                            <div className="criticalAlertClasses">
+                            <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive-foreground">
                                 {Object.values(errors)[0]}
                             </div>
                         )}

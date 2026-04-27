@@ -455,7 +455,7 @@ function ConnectHmiPreviewDialog({
                 </DialogHeader>
 
                 {phaseError && (
-                    <div className="criticalAlertClasses">
+                    <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive-foreground">
                         {phaseError}
                     </div>
                 )}
@@ -482,7 +482,7 @@ function ConnectHmiPreviewDialog({
                                     className="border-slate-600 bg-slate-800/80 text-white"
                                 />
                                 {createErrors.ip_address && (
-                                    <span className="text-xs text-red-400">
+                                    <span className="text-xs text-destructive">
                                         {createErrors.ip_address}
                                     </span>
                                 )}
@@ -506,7 +506,7 @@ function ConnectHmiPreviewDialog({
                                     className="border-slate-600 bg-slate-800/80 text-white"
                                 />
                                 {createErrors.port && (
-                                    <span className="text-xs text-red-400">
+                                    <span className="text-xs text-destructive">
                                         {createErrors.port}
                                     </span>
                                 )}
@@ -524,7 +524,7 @@ function ConnectHmiPreviewDialog({
                                             testStatus === 'success'
                                                 ? 'text-emerald-400'
                                                 : testStatus === 'failed'
-                                                  ? 'CRITICAL_TONE.text'
+                                                  ? 'text-destructive'
                                                   : 'text-slate-400'
                                         }`}
                                     >
@@ -693,7 +693,7 @@ function ConnectHmiPreviewDialog({
                                                       ? 'text-amber-400'
                                                       : sensor.status ===
                                                           'CRITICAL'
-                                                        ? 'text-red-400'
+                                                        ? 'text-destructive'
                                                         : 'text-slate-500'
                                             }`}
                                         >
@@ -998,7 +998,7 @@ export default function RoomsIndex({ rooms }: RoomsIndexProps) {
                                                     className={`inline-flex rounded-full px-2 py-1 text-[10px] font-semibold tracking-wider uppercase ${
                                                         room.status === 'ONLINE'
                                                             ? 'bg-emerald-500/20 text-emerald-400'
-                                                            : 'bg-red-500/20 text-red-400'
+                                                            : 'bg-destructive/20 text-destructive-foreground'
                                                     }`}
                                                 >
                                                     {room.status}

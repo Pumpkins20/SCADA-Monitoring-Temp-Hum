@@ -318,7 +318,7 @@ function getStatusDotClass(status: PanelStatus): string {
         status === 'unreachable' ||
         status === 'invalid'
     ) {
-        return 'bg-red-400 shadow-[0_0_8px_#f8717188]';
+        return 'bg-red-400 shadow-[0_0_8px_#C97A6B88]';
     }
 
     return 'bg-slate-500';
@@ -1167,7 +1167,7 @@ export default function MirrorIndex() {
                             className={`pointer-events-auto relative rounded-lg border px-3 py-2 pr-8 text-xs shadow-lg backdrop-blur-sm ${
                                 notice.tone === 'success'
                                     ? 'border-emerald-400/50 bg-emerald-500/20 text-emerald-100'
-                                    : 'border-red-400/50 bg-red-500/20 text-red-100'
+                                    : 'border-destructive/50 bg-destructive/20 text-destructive-foreground'
                             }`}
                         >
                             <button
@@ -1610,7 +1610,7 @@ export default function MirrorIndex() {
                                                 onClick={() =>
                                                     removePanel(panel.id)
                                                 }
-                                                className="h-8 border-red-500/40 bg-red-500/10 text-xs text-red-200 hover:bg-red-500/20"
+                                                className="h-8 border-destructive/40 bg-destructive/10 text-xs text-destructive-foreground hover:bg-destructive/20"
                                             >
                                                 <Trash2 className="h-3.5 w-3.5" />
                                                 Remove
@@ -1753,7 +1753,7 @@ export default function MirrorIndex() {
                         </div>
 
                         {addError && (
-                            <div className="criticalAlertClasses">
+                            <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive-foreground">
                                 {addError}
                             </div>
                         )}
@@ -1910,7 +1910,7 @@ export default function MirrorIndex() {
                         </div>
 
                         {editError && (
-                            <div className="criticalAlertClasses">
+                            <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive-foreground">
                                 {editError}
                             </div>
                         )}

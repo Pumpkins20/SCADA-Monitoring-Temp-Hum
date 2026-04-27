@@ -69,7 +69,7 @@ function statusDotColor(status: string): string {
         case 'WARNING':
             return '#eab308';
         case 'CRITICAL':
-            return '#ef4444';
+            return '#C97A6B';
         default:
             return '#475569';
     }
@@ -646,10 +646,10 @@ export default function HomePage({ rooms, chartLogs, globalStats }: HomeProps) {
                     <div className="flex w-56 shrink-0 flex-col gap-0.5">
                         <div className="flex items-center gap-1.5">
                             <Bell
-                                className={`h-4 w-4 ${hasAlarms ? 'animate-pulse CRITICAL_TONE.text' : 'text-slate-500'}`}
+                                className={`h-4 w-4 ${hasAlarms ? 'animate-pulse text-destructive' : 'text-slate-500'}`}
                             />
                             <span
-                                className={`text-xs font-semibold ${hasAlarms ? 'text-red-400' : 'text-slate-500'}`}
+                                className={`text-xs font-semibold ${hasAlarms ? 'text-destructive' : 'text-slate-500'}`}
                             >
                                 TOTAL ALARM AKTIF :{' '}
                                 {hasAlarms ? totalActiveAlarms : 0}

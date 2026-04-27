@@ -386,7 +386,7 @@ function HmiFormDialog({
                     className="flex flex-col gap-4"
                 >
                     {phaseError && (
-                        <div className="criticalAlertClasses">
+                        <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive-foreground">
                             {phaseError}
                         </div>
                     )}
@@ -407,7 +407,7 @@ function HmiFormDialog({
                                     className="border-slate-600 bg-slate-800/80 text-white placeholder:text-slate-500 focus-visible:border-cyan-500 focus-visible:ring-cyan-500/30"
                                 />
                                 {(createErrors.name ?? errors.name) && (
-                                    <span className="text-xs text-red-400">
+                                    <span className="text-xs text-destructive">
                                         {createErrors.name ?? errors.name}
                                     </span>
                                 )}
@@ -431,7 +431,7 @@ function HmiFormDialog({
                                     />
                                     {(createErrors.ip_address ??
                                         errors.ip_address) && (
-                                        <span className="text-xs text-red-400">
+                                        <span className="text-xs text-destructive">
                                             {createErrors.ip_address ??
                                                 errors.ip_address}
                                         </span>
@@ -453,7 +453,7 @@ function HmiFormDialog({
                                         className="border-slate-600 bg-slate-800/80 text-white placeholder:text-slate-500 focus-visible:border-cyan-500 focus-visible:ring-cyan-500/30"
                                     />
                                     {(createErrors.port ?? errors.port) && (
-                                        <span className="text-xs text-red-400">
+                                        <span className="text-xs text-destructive">
                                             {createErrors.port ?? errors.port}
                                         </span>
                                     )}
@@ -491,7 +491,7 @@ function HmiFormDialog({
                                     </div>
                                     {(createErrors.register_function ??
                                         errors.register_function) && (
-                                        <span className="text-xs text-red-400">
+                                        <span className="text-xs text-destructive">
                                             {createErrors.register_function ??
                                                 errors.register_function}
                                         </span>
@@ -639,9 +639,9 @@ function HmiFormDialog({
                                                         : sensor.status ===
                                                             'WARNING'
                                                           ? 'text-amber-400'
-                                                          : sensor.status ===
-                                                              'CRITICAL'
-                                                            ? 'CRITICAL_TONE.text'
+                                                        : sensor.status ===
+                                                                'CRITICAL'
+                                                            ? 'text-destructive'
                                                             : 'text-slate-500'
                                                 }`}
                                             >
@@ -870,7 +870,7 @@ function HmiCard({ hmi, roomId }: { hmi: HmiItem; roomId: number }) {
                         type="button"
                         title="Hapus HMI"
                         onClick={() => setShowDeleteHmi(true)}
-                        className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-red-500/20 hover:text-red-400"
+                        className="CRITICAL_TONE.hover"
                     >
                         <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -972,7 +972,7 @@ function HmiCard({ hmi, roomId }: { hmi: HmiItem; roomId: number }) {
                                                 onClick={() =>
                                                     setDeleteSensor(sensor)
                                                 }
-                                                className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-red-500/20 hover:text-red-400"
+                                                className="CRITICAL_TONE.hover"
                                             >
                                                 <Trash2 className="h-3.5 w-3.5" />
                                             </button>

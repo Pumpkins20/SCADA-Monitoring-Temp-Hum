@@ -61,10 +61,10 @@ export function ScadaFooterNav({
                 <div className="flex w-56 shrink-0 flex-col gap-0.5">
                     <div className="flex items-center gap-1.5">
                         <Bell
-                            className={`h-4 w-4 ${hasAlarms ? 'animate-pulse CRITICAL_TONE.text' : 'text-slate-500'}`}
+                            className={`h-4 w-4 ${hasAlarms ? 'animate-pulse text-destructive' : 'text-slate-500'}`}
                         />
                         <span
-                            className={`text-xs font-semibold ${hasAlarms ? 'text-red-400' : 'text-slate-500'}`}
+                            className={`text-xs font-semibold ${hasAlarms ? 'text-destructive' : 'text-slate-500'}`}
                         >
                             ALARM AKTIF : {hasAlarms ? alarmRoomNames : '—'}
                         </span>
@@ -191,7 +191,7 @@ export function ScadaFooterNav({
                         type="button"
                         title="Logout"
                         onClick={() => setIsLogoutDialogOpen(true)}
-                        className="flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-lg bg-slate-700/60 text-slate-400 transition-colors hover:bg-red-500/80 hover:text-white"
+                        className="flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-lg bg-slate-700/60 text-slate-400 transition-colors hover:bg-destructive/70 hover:text-white"
                     >
                         <LogOut className="h-4 w-4" />
                         <span className="text-[9px] leading-none">Logout</span>
@@ -248,7 +248,7 @@ export function ScadaFooterNav({
                         <button
                             type="button"
                             onClick={confirmLogout}
-                            className="inline-flex h-9 items-center justify-center rounded-md bg-red-500 px-4 text-sm font-semibold text-white transition-colors hover:bg-red-400"
+                            className="inline-flex h-9 items-center justify-center rounded-md bg-destructive px-4 text-sm font-semibold text-destructive-foreground transition-colors hover:bg-destructive/90"
                         >
                             Ya, Logout
                         </button>

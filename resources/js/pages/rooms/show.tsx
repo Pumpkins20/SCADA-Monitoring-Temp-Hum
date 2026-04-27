@@ -94,7 +94,7 @@ const defaultGaugeSettings: GaugeSettings = {
         zones: [
             { from: 0, to: 36, color: '#22c55e' },
             { from: 36, to: 56, color: '#facc15' },
-            { from: 56, to: 80, color: '#ef4444' },
+            { from: 56, to: 80, color: '#C97A6B' },
         ],
     },
     humidity: {
@@ -103,7 +103,7 @@ const defaultGaugeSettings: GaugeSettings = {
         zones: [
             { from: 0, to: 60, color: '#22c55e' },
             { from: 60, to: 80, color: '#f59e0b' },
-            { from: 80, to: 100, color: '#ef4444' },
+            { from: 80, to: 100, color: '#C97A6B' },
         ],
     },
 };
@@ -352,7 +352,7 @@ function DateTimePartsInput({
         return [
             'min-w-0 w-full rounded-md bg-slate-900 px-2 py-1.5 text-center text-xs text-slate-100',
             hasError
-                ? 'border border-red-500 CRITICAL_TONE.field'
+                ? 'border border-destructive/70 ring-1 ring-destructive/40'
                 : 'border border-slate-600',
         ].join(' ');
     }
@@ -476,7 +476,7 @@ const humChartConfig = {
 } satisfies ChartConfig;
 
 const lineColors = [
-    '#ef4444',
+    '#C97A6B',
     '#eab308',
     '#22c55e',
     '#06b6d4',
@@ -1673,7 +1673,7 @@ export default function RoomShow({
                             />
 
                             {intervalValidationError && (
-                                <p className="criticalAlertClasses">
+                                <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive-foreground">
                                     {intervalValidationError}
                                 </p>
                             )}

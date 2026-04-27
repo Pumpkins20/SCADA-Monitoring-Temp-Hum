@@ -251,7 +251,7 @@ function ImageUploadPanel({
                                     isDimDone
                                         ? 'border border-green-500/40 bg-green-500/15 text-green-400'
                                         : isDimError
-                                          ? 'border border-red-500/40 bg-red-500/15 text-red-400'
+                                          ? 'border border-destructive/40 bg-destructive/15 text-destructive-foreground'
                                           : 'border border-slate-700/40 bg-slate-700/30 text-slate-400 hover:border-cyan-500/40 hover:bg-cyan-500/10 hover:text-cyan-400'
                                 }`}
                             >
@@ -287,7 +287,7 @@ function ImageUploadPanel({
                                 isUpDone
                                     ? 'border border-green-500/40 bg-green-500/15 text-green-400'
                                     : isUpError
-                                      ? 'border border-red-500/40 bg-red-500/15 text-red-400'
+                                      ? 'border border-destructive/40 bg-destructive/15 text-destructive-foreground'
                                       : 'border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20'
                             }`}
                         >
@@ -1273,7 +1273,7 @@ export default function FloorPlanSettingsPage({
                                                                     ? 'border border-green-500/40 bg-green-500/15 text-green-400'
                                                                     : saveAllState ===
                                                                         'error'
-                                                                      ? 'border border-red-500/40 bg-red-500/15 text-red-400'
+                                                                      ? 'border border-destructive/40 bg-destructive/15 text-destructive-foreground'
                                                                       : 'border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20'
                                                             }`}
                                                         >
@@ -1457,7 +1457,7 @@ export default function FloorPlanSettingsPage({
                                                                                 }
                                                                                 className={`w-24 rounded-lg border bg-slate-900/70 px-2 py-1 text-center font-mono text-xs text-white transition-colors outline-none placeholder:text-slate-600 focus:ring-1 disabled:opacity-40 ${
                                                                                     !validX
-                                                                                        ? 'border-red-500/60 focus:border-red-500 CRITICAL_TONE.field'
+                                                                                        ? 'border-destructive/70 focus:border-destructive focus:ring-1 focus:ring-destructive/40'
                                                                                         : 'border-slate-700/60 focus:border-cyan-500/60 focus:ring-cyan-500/20'
                                                                                 }`}
                                                                             />
@@ -1493,7 +1493,7 @@ export default function FloorPlanSettingsPage({
                                                                                 }
                                                                                 className={`w-24 rounded-lg border bg-slate-900/70 px-2 py-1 text-center font-mono text-xs text-white transition-colors outline-none placeholder:text-slate-600 focus:ring-1 disabled:opacity-40 ${
                                                                                     !validY
-                                                                                        ? 'border-red-500/60 focus:border-red-500 focus:ring-red-500/30'
+                                                                                        ? 'border-destructive/70 focus:border-destructive focus:ring-destructive/40'
                                                                                         : 'border-slate-700/60 focus:border-cyan-500/60 focus:ring-cyan-500/20'
                                                                                 }`}
                                                                             />
@@ -1516,7 +1516,7 @@ export default function FloorPlanSettingsPage({
                                                                                         isSaved
                                                                                             ? 'border border-green-500/40 bg-green-500/15 text-green-400'
                                                                                             : isError
-                                                                                              ? 'border border-red-500/40 bg-red-500/15 text-red-400'
+                                                                                              ? 'border border-destructive/40 bg-destructive/15 text-destructive-foreground'
                                                                                               : 'border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20'
                                                                                     }`}
                                                                                 >

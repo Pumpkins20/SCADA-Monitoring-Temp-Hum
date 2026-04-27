@@ -201,7 +201,7 @@ export default function LogoSettingsPage() {
                                     placeholder={DEFAULT_HEADER_TITLE.line1}
                                 />
                                 {errors.header_title_line_1 && (
-                                    <p className="text-[11px] text-red-300">
+                                    <p className="text-[11px] text-destructive">
                                         {errors.header_title_line_1}
                                     </p>
                                 )}
@@ -224,7 +224,7 @@ export default function LogoSettingsPage() {
                                     placeholder={DEFAULT_HEADER_TITLE.line2}
                                 />
                                 {errors.header_title_line_2 && (
-                                    <p className="text-[11px] text-red-300">
+                                    <p className="text-[11px] text-destructive">
                                         {errors.header_title_line_2}
                                     </p>
                                 )}
@@ -250,7 +250,7 @@ export default function LogoSettingsPage() {
                                     className="w-full cursor-pointer rounded-md border border-slate-600 bg-slate-900 px-2 py-1.5 text-xs text-slate-200 file:mr-2 file:rounded file:border-0 file:bg-cyan-600 file:px-2 file:py-1 file:text-[11px] file:font-semibold file:text-white"
                                 />
                                 {errors.logo_left && (
-                                    <p className="text-[11px] text-red-300">
+                                    <p className="text-[11px] text-destructive">
                                         {errors.logo_left}
                                     </p>
                                 )}
@@ -276,7 +276,7 @@ export default function LogoSettingsPage() {
                                     className="w-full cursor-pointer rounded-md border border-slate-600 bg-slate-900 px-2 py-1.5 text-xs text-slate-200 file:mr-2 file:rounded file:border-0 file:bg-cyan-600 file:px-2 file:py-1 file:text-[11px] file:font-semibold file:text-white"
                                 />
                                 {errors.logo_center && (
-                                    <p className="text-[11px] text-red-300">
+                                    <p className="text-[11px] text-destructive">
                                         {errors.logo_center}
                                     </p>
                                 )}

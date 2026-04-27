@@ -139,7 +139,7 @@ export default function BackupSettingsPage({
                                 />
                             </div>
                             {errors.backup_email && (
-                                <p className="text-[11px] text-red-300">
+                                <p className="text-[11px] text-destructive">
                                     {errors.backup_email}
                                 </p>
                             )}
