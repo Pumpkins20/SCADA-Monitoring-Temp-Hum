@@ -66,7 +66,7 @@ export function SensorCard({
 
             <div className="mt-1 flex min-h-5 items-center gap-1">
                 {sensor.alarms?.temp && (
-                    <span className="rounded border border-red-500/40 bg-red-500/15 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-red-300 uppercase">
+                    <span className="CRITICAL_TONE.badge px-1.5 py-0.5 text-[9px] font-bold tracking-wider uppercase">
                         ALARM TEMP
                     </span>
                 )}

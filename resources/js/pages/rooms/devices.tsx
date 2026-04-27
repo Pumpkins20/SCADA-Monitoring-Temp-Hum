@@ -386,7 +386,7 @@ function HmiFormDialog({
                     className="flex flex-col gap-4"
                 >
                     {phaseError && (
-                        <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                        <div className="criticalAlertClasses">
                             {phaseError}
                         </div>
                     )}
@@ -641,7 +641,7 @@ function HmiFormDialog({
                                                           ? 'text-amber-400'
                                                           : sensor.status ===
                                                               'CRITICAL'
-                                                            ? 'text-red-400'
+                                                            ? 'CRITICAL_TONE.text'
                                                             : 'text-slate-500'
                                                 }`}
                                             >

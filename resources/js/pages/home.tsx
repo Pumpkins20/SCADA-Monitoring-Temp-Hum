@@ -646,7 +646,7 @@ export default function HomePage({ rooms, chartLogs, globalStats }: HomeProps) {
                     <div className="flex w-56 shrink-0 flex-col gap-0.5">
                         <div className="flex items-center gap-1.5">
                             <Bell
-                                className={`h-4 w-4 ${hasAlarms ? 'animate-pulse text-red-400' : 'text-slate-500'}`}
+                                className={`h-4 w-4 ${hasAlarms ? 'animate-pulse CRITICAL_TONE.text' : 'text-slate-500'}`}
                             />
                             <span
                                 className={`text-xs font-semibold ${hasAlarms ? 'text-red-400' : 'text-slate-500'}`}

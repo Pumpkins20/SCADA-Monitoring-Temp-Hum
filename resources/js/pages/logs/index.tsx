@@ -18,13 +18,6 @@ import { ScadaFooterNav } from '@/components/scada/scada-footer-nav';
 import { ScadaHeaderLogos } from '@/components/scada/scada-header-logos';
 import { ScadaHeaderTitle } from '@/components/scada/scada-header-title';
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
     Dialog,
     DialogContent,
     DialogDescription,
@@ -32,6 +25,14 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+
 import {
     Table,
     TableBody,
@@ -297,7 +298,7 @@ function DateTimePartsInput({
         return [
             'min-w-0 w-full rounded-md bg-slate-900 px-2 py-1.5 text-center text-xs text-slate-100',
             hasError
-                ? 'border border-red-500 ring-1 ring-red-500/50'
+                ? 'border border-red-500 CRITICAL_TONE.field'
                 : 'border border-slate-600',
         ].join(' ');
     }
@@ -907,7 +908,7 @@ export default function LogsIndex({
                     </div>
 
                     {flashError && (
-                        <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                        <div className="criticalAlertClasses">
                             {flashError}
                         </div>
                     )}
@@ -1061,7 +1062,7 @@ export default function LogsIndex({
                             />
 
                             {intervalValidationError && (
-                                <p className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                                <p className="criticalAlertClasses">
                                     {intervalValidationError}
                                 </p>
                             )}
@@ -1130,7 +1131,7 @@ export default function LogsIndex({
                             </div>
 
                             {recentValidationError && (
-                                <p className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                                <p className="criticalAlertClasses">
                                     {recentValidationError}
                                 </p>
                             )}

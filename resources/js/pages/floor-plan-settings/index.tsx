@@ -329,7 +329,7 @@ function ImageUploadPanel({
                                 type="button"
                                 disabled={isRemoving}
                                 onClick={onRemove}
-                                className="flex items-center gap-1 rounded-lg border border-slate-700/40 bg-slate-700/30 px-2.5 py-1 text-[10px] font-semibold tracking-wider text-slate-500 uppercase transition-all hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-40"
+                                className="flex items-center gap-1 rounded-lg border border-slate-700/40 bg-slate-700/30 px-2.5 py-1 text-[10px] font-semibold tracking-wider text-slate-500 uppercase transition-all CRITICAL_TONE.hover disabled:cursor-not-allowed disabled:opacity-40"
                             >
                                 {isRemoving ? (
                                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -1231,7 +1231,7 @@ export default function FloorPlanSettingsPage({
                                                             </span>
                                                         )}
                                                         {roomUnsaved.hasInvalid && (
-                                                            <span className="rounded border border-red-500/40 bg-red-500/10 px-1.5 py-0.5 text-[9px] text-red-300">
+                                                            <span className="CRITICAL_TONE.badge">
                                                                 Perbaiki input
                                                                 invalid
                                                             </span>
@@ -1457,7 +1457,7 @@ export default function FloorPlanSettingsPage({
                                                                                 }
                                                                                 className={`w-24 rounded-lg border bg-slate-900/70 px-2 py-1 text-center font-mono text-xs text-white transition-colors outline-none placeholder:text-slate-600 focus:ring-1 disabled:opacity-40 ${
                                                                                     !validX
-                                                                                        ? 'border-red-500/60 focus:border-red-500 focus:ring-red-500/30'
+                                                                                        ? 'border-red-500/60 focus:border-red-500 CRITICAL_TONE.field'
                                                                                         : 'border-slate-700/60 focus:border-cyan-500/60 focus:ring-cyan-500/20'
                                                                                 }`}
                                                                             />
@@ -1552,7 +1552,7 @@ export default function FloorPlanSettingsPage({
                                                                                             sensor,
                                                                                         )
                                                                                     }
-                                                                                    className="rounded-lg border border-slate-700/40 bg-slate-700/30 px-2 py-1 text-[10px] font-semibold tracking-wider text-slate-500 uppercase transition-all hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-30"
+                                                                                    className="rounded-lg border border-slate-700/40 bg-slate-700/30 px-2 py-1 text-[10px] font-semibold tracking-wider text-slate-500 uppercase transition-all CRITICAL_TONE.hover disabled:cursor-not-allowed disabled:opacity-30"
                                                                                 >
                                                                                     Hapus
                                                                                 </button>

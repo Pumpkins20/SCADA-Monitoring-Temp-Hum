@@ -103,6 +103,20 @@ export function fmt(value: number | string | null, decimals = 1): string {
     return Number(value).toFixed(decimals);
 }
 
+export const CRITICAL_TONE = {
+    text: 'text-destructive',
+    dot: '#C97A6B',
+    badge: 'rounded-full border-destructive/55 bg-destructive/20 text-destructive-foreground',
+    panel: 'border-destructive/45 bg-destructive/12 text-destructive-foreground',
+    hover: 'hover:bg-destructive/20 hover:text-destructive-foreground',
+    field: 'border-destructive/70 ring-1 ring-destructive/40',
+} as const;
+
+export function criticalAlertClasses(size: 'md' | 'lg' = 'md'): string {
+    const rounded = size === 'lg' ? 'rounded-lg' : 'rounded-md';
+    return rounded + ' border ' + CRITICAL_TONE.panel;
+}
+
 export function statusColor(status: string): string {
     switch (status) {
         case 'NORMAL':
@@ -110,7 +124,7 @@ export function statusColor(status: string): string {
         case 'WARNING':
             return 'text-yellow-400';
         case 'CRITICAL':
-            return 'text-red-400';
+             return CRITICAL_TONE.text;
         default:
             return 'text-slate-500';
     }
@@ -123,7 +137,7 @@ export function statusDotColor(status: string): string {
         case 'WARNING':
             return '#eab308';
         case 'CRITICAL':
-            return '#ef4444';
+            return CRITICAL_TONE.dot;
         default:
             return '#475569';
     }
@@ -149,7 +163,7 @@ export function statusBadgeClasses(status: string): string {
         case 'WARNING':
             return 'border-yellow-500/40 bg-yellow-500/15 text-yellow-400';
         case 'CRITICAL':
-            return 'border-red-500/40 bg-red-500/15 text-red-400';
+            return CRITICAL_TONE.badge;
         default:
             return 'border-slate-600/40 bg-slate-700/30 text-slate-500';
     }
